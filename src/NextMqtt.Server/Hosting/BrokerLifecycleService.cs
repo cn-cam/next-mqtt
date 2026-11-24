@@ -1,5 +1,3 @@
-using Microsoft.Extensions.Logging;
-using NextMqtt.Server.Options;
 using NextMqtt.Broker;
 
 namespace NextMqtt.Server.Hosting;
@@ -8,37 +6,15 @@ namespace NextMqtt.Server.Hosting;
 public sealed class BrokerLifecycleService : IHostedService
 {
     private readonly MqttBroker _broker;
-    private readonly ServerOptions _options;
-    private readonly ILogger<BrokerLifecycleService> _logger;
 
-    public BrokerLifecycleService(
-        MqttBroker broker,
-        ServerOptions options,
-        ILogger<BrokerLifecycleService> logger)
+    public BrokerLifecycleService(MqttBroker broker)
     {
         _broker = broker;
-        _options = options;
-        _logger = logger;
     }
 
     public Task StartAsync(CancellationToken cancellationToken) => _broker.StartAsync(cancellationToken);
 
-    public async Task StopAsync(CancellationToken cancellationToken)
-    {
-        var timeout = TimeSpan.FromSeconds(Math.Max(0, _options.DrainTimeoutSeconds));
-
-        if (timeout > TimeSpan.Zero)
-        {
-            var pending = await _broker.DrainAsync(timeout, cancellationToken).ConfigureAwait(false);
-
-            if (pending > 0)
-            {
-                _logger.LogWarning(
-                    "Drain timeout reached with {Pending} session(s) still holding inflight messages",
-                    pending);
-            }
-        }
-
-        await _broker.StopAsync().ConfigureAwait(false);
-    }
+    // The TCP listener drains inflight traffic while it stops; the broker only
+    // has to halt its background loops here.
+    public Task StopAsync(CancellationToken cancellationToken) => _broker.StopAsync();
 }

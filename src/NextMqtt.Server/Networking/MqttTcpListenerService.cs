@@ -89,27 +89,44 @@ public sealed class MqttTcpListenerService : BackgroundService
 
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
-        await base.StopAsync(cancellationToken).ConfigureAwait(false);
-
+        // Stop accepting first so the drain window cannot be extended by new
+        // clients, then let inflight QoS traffic settle before closing sockets.
         foreach (var listener in _listeners)
         {
             listener.Stop();
         }
 
-        Task[] pending;
+        var drainTimeout = TimeSpan.FromSeconds(Math.Max(0, _options.DrainTimeoutSeconds));
+
+        if (drainTimeout > TimeSpan.Zero)
+        {
+            var pending = await _broker.DrainAsync(drainTimeout, cancellationToken).ConfigureAwait(false);
+
+            if (pending > 0)
+            {
+                _logger.LogWarning(
+                    "Drain timeout reached with {Pending} session(s) still holding inflight messages",
+                    pending);
+            }
+        }
+
+        await base.StopAsync(cancellationToken).ConfigureAwait(false);
+
+        Task[] pendingConnections;
 
         lock (_connectionGate)
         {
-            pending = _connections.ToArray();
+            pendingConnections = _connections.ToArray();
         }
 
-        if (pending.Length > 0)
+        if (pendingConnections.Length > 0)
         {
-            _logger.LogInformation("Waiting for {Count} MQTT connections to close", pending.Length);
+            _logger.LogInformation("Waiting for {Count} MQTT connections to close", pendingConnections.Length);
 
             try
             {
-                await Task.WhenAll(pending).WaitAsync(TimeSpan.FromSeconds(5), cancellationToken).ConfigureAwait(false);
+                await Task.WhenAll(pendingConnections).WaitAsync(TimeSpan.FromSeconds(5), cancellationToken)
+                    .ConfigureAwait(false);
             }
             catch (Exception)
             {
