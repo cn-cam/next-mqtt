@@ -1,0 +1,59 @@
+# Build output
+bin/
+obj/
+artifacts/
+publish/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.DotSettings.user
+
+# Test / coverage
+TestResults/
+coverage/
+coverage.*.xml
+*.trx
+
+# Node / dashboard
+node_modules/
+dist/
+.vite/
+*.tsbuildinfo
+.npm/
+
+# Docs
+docs/.vitepress/cache/
+docs/.vitepress/dist/
+
+# Runtime data
+data/
+*.db
+*.db-shm
+*.db-wal
+*.log
+logs/
+certs/
+*.pem
+*.pfx
+*.key
+
+# Secrets
+.env
+.env.*
+!.env.example
+appsettings.Development.local.json
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Temp
+.tmp/
+tmp/

@@ -1,0 +1,37 @@
+name: compliance
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  brand-and-licence:
+    name: Brand and licence scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Scan repository for forbidden brand tokens
+        run: bash scripts/compliance-check.sh
+
+      - name: Verify licence and notice files exist
+        run: |
+          test -s LICENSE
+          test -s NOTICE
+          test -s TRADEMARKS.md
+
+      - name: Verify no committed secrets
+        run: |
+          if git grep -I -n -E '(ghp_[A-Za-z0-9]{30,}|-----BEGIN (RSA|EC|OPENSSH) PRIVATE KEY-----)' -- .; then
+            echo "Potential secret material found in tracked files."
+            exit 1
+          fi
+          echo "No obvious secret material found."
