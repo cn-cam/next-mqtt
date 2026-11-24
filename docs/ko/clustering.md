@@ -60,6 +60,11 @@ NEXTMQTT_CLUSTER__SECRET=shared-secret-at-least-16-chars
 - `/internal/cluster/*` 차단
 - 키 교체는 재시작 필요
 
+대시보드 로그인은 클러스터 시크릿과 별개입니다. `NEXTMQTT_ADMIN_TOKEN_SECRET`이
+없으면 각 노드가 자체 임시 키로 토큰에 서명하므로 한 노드에서 발급한 토큰은 다른
+노드에서 거부됩니다. 한 번 로그인해 어느 노드의 대시보드/API든 사용하려면 모든
+노드에 같은 값을 설정하세요.
+
 ## Kubernetes
 
 ```text

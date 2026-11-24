@@ -112,6 +112,11 @@ clock-skew window. The timestamp and signature are sent in
 - Rotate the secret by restarting nodes with the new value; rolling rotation is
   not supported yet because there is a single secret.
 
+Dashboard sign-in is separate from the cluster secret. Each node signs bearer
+tokens with its own key unless `NEXTMQTT_ADMIN_TOKEN_SECRET` is set, so a token
+issued by one node is rejected by another. Set the same value on every node when
+operators should sign in once and use any node's dashboard or API.
+
 ## Kubernetes specifics
 
 The StatefulSet uses a headless service and pod DNS:

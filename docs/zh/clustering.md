@@ -72,6 +72,11 @@ publisher ──► node-a ──► 本地订阅者
 - 在入口或 NetworkPolicy 中阻止 `/internal/cluster/*`
 - 轮换密钥需要重启节点，暂不支持滚动轮换
 
+控制台登录与集群密钥相互独立。未设置 `NEXTMQTT_ADMIN_TOKEN_SECRET` 时，每个节点
+用自己的临时密钥签发 Bearer Token，因此一个节点签发的 Token 无法在另一个节点
+使用。若希望只登录一次即可访问任意节点的控制台或 API，请在所有节点设置相同的
+值。
+
 ## Kubernetes
 
 StatefulSet 使用 headless service 与 Pod DNS：

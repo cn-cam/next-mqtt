@@ -60,6 +60,11 @@ NEXTMQTT_CLUSTER__SECRET=shared-secret-at-least-16-chars
 - `/internal/cluster/*` をブロック
 - 鍵ローテーションは再起動が必要
 
+ダッシュボードのログインはクラスタ秘密鍵とは別です。`NEXTMQTT_ADMIN_TOKEN_SECRET`
+が未設定の場合、各ノードは独自の一時鍵でトークンに署名するため、あるノードが
+発行したトークンは別ノードでは拒否されます。1 回のログインで任意のノードの
+ダッシュボードや API を使うには、全ノードに同じ値を設定してください。
+
 ## Kubernetes
 
 ```text
