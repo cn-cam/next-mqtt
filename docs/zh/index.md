@@ -4,7 +4,7 @@ title: 云原生 MQTT 平台
 
 hero:
   name: NextMQTT
-  text: 云原生 MQTT 平台
+  text: 下一代 MQTT 平台
   tagline: 面向云、边缘与实时数据场景的下一代 .NET 原生 MQTT 平台，内置集群、管理 API 与实时控制台。
   image:
     src: /logo.svg

@@ -4,7 +4,7 @@ title: Cloud-native MQTT platform
 
 hero:
   name: NextMQTT
-  text: Cloud-native MQTT platform
+  text: Next-generation MQTT platform
   tagline: A next-generation, .NET-native MQTT platform for cloud, edge and real-time data — with clustering, a management API and a dashboard built in.
   image:
     src: /logo.svg
