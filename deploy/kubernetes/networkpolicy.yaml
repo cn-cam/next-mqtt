@@ -1,0 +1,25 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: nextmqtt
+  labels:
+    app.kubernetes.io/name: nextmqtt
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: nextmqtt
+      app.kubernetes.io/component: broker
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - port: 1883
+          protocol: TCP
+        - port: 8883
+          protocol: TCP
+        - port: 8080
+          protocol: TCP
+        - port: 8083
+          protocol: TCP
+        - port: 8084
+          protocol: TCP

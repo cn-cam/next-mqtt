@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "nextmqtt.fullname" . }}-config
+  labels:
+    {{- include "nextmqtt.labels" . | nindent 4 }}
+data:
+  NEXTMQTT_ALLOW_ANONYMOUS: {{ .Values.auth.allowAnonymous | quote }}
+  NEXTMQTT_ACL__DEFAULTPOLICY: {{ .Values.acl.defaultPolicy | quote }}
+  NEXTMQTT_ADMIN__USERNAME: {{ .Values.admin.username | quote }}
+  NEXTMQTT_ADMIN__TOKENLIFETIMEMINUTES: {{ .Values.admin.tokenLifetimeMinutes | quote }}
+  NEXTMQTT_SERVER__TCP__HOST: "0.0.0.0"
+  NEXTMQTT_SERVER__TCP__PORT: "1883"
+  NEXTMQTT_SERVER__HTTP__PORT: {{ .Values.http.port | quote }}
+  NEXTMQTT_SERVER__HTTP__WEBSOCKETPORT: {{ .Values.http.wsPort | quote }}
+  NEXTMQTT_BROKER__MAXPACKETSIZE: {{ .Values.broker.maxPacketSize | quote }}
+  NEXTMQTT_BROKER__MAXINFLIGHTMESSAGES: {{ .Values.broker.maxInflightMessages | quote }}
+  NEXTMQTT_BROKER__MAXQUEUEDMESSAGES: {{ .Values.broker.maxQueuedMessages | quote }}
+  NEXTMQTT_BROKER__MAXSUBSCRIPTIONSPERSESSION: {{ .Values.broker.maxSubscriptionsPerSession | quote }}
+  NEXTMQTT_BROKER__MAXTOPICALIAS: {{ .Values.broker.maxTopicAlias | quote }}
+  NEXTMQTT_CLUSTER__ENABLED: {{ .Values.cluster.enabled | quote }}
+  NEXTMQTT_CLUSTER__HEARTBEATSECONDS: {{ .Values.cluster.heartbeatSeconds | quote }}
+  NEXTMQTT_CLUSTER__NODETIMEOUTSECONDS: {{ .Values.cluster.nodeTimeoutSeconds | quote }}
+  NEXTMQTT_CLUSTER__REQUESTTIMEOUTSECONDS: {{ .Values.cluster.requestTimeoutSeconds | quote }}

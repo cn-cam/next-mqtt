@@ -1,1 +1,3 @@
-Console.WriteLine("NextMQTT command line tools are under construction.");
+using NextMqtt.Cli;
+
+return await CliApplication.RunAsync(args);

@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "nextmqtt.fullname" . }}-headless
+  labels:
+    {{- include "nextmqtt.labels" . | nindent 4 }}
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    {{- include "nextmqtt.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: cluster
+      port: {{ .Values.http.port }}
+      targetPort: http
+    - name: mqtt
+      port: {{ .Values.mqtt.port }}
+      targetPort: mqtt

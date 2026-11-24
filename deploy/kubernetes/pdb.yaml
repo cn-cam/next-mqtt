@@ -1,0 +1,12 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: nextmqtt
+  labels:
+    app.kubernetes.io/name: nextmqtt
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: nextmqtt
+      app.kubernetes.io/component: broker

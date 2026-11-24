@@ -1,0 +1,29 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: nextmqtt
+  labels:
+    app.kubernetes.io/name: nextmqtt
+    app.kubernetes.io/component: dashboard
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: nextmqtt.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: nextmqtt-http
+                port:
+                  number: 8080
+  # Enable after creating a TLS secret:
+  # tls:
+  #   - hosts:
+  #       - nextmqtt.example.com
+  #     secretName: nextmqtt-tls

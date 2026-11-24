@@ -1,0 +1,90 @@
+replicaCount: 3
+
+image:
+  repository: ghcr.io/cn-cam/next-mqtt
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+admin:
+  username: admin
+  # Change before installing. Used only to derive the bootstrap hash.
+  password: change-me-now
+  # Leave empty to generate an ephemeral signing key at startup.
+  tokenSecret: ""
+  tokenLifetimeMinutes: 480
+
+auth:
+  allowAnonymous: true
+
+acl:
+  defaultPolicy: Allow
+
+broker:
+  maxPacketSize: 1048576
+  maxInflightMessages: 32
+  maxQueuedMessages: 1000
+  maxSubscriptionsPerSession: 1000
+  maxTopicAlias: 32
+
+cluster:
+  enabled: true
+  secret: change-me-shared-cluster-secret
+  heartbeatSeconds: 2
+  nodeTimeoutSeconds: 15
+  requestTimeoutSeconds: 5
+
+# Use an existing Secret with keys admin-password, token-secret and
+# cluster-secret instead of the generated one.
+existingSecret: ""
+
+mqtt:
+  type: LoadBalancer
+  port: 1883
+  tlsPort: 8883
+  wsPort: 8083
+
+http:
+  port: 8080
+  wsPort: 8083
+
+ingress:
+  enabled: false
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+  host: nextmqtt.example.com
+  path: /
+  tls: []
+  #  - secretName: nextmqtt-tls
+  #    hosts:
+  #      - nextmqtt.example.com
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 256Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 9
+  targetCPUUtilizationPercentage: 70
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 2
+
+podAntiAffinity: true
+
+networkPolicy:
+  enabled: true
+
+nodeSelector: {}
+tolerations: []

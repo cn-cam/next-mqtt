@@ -1,0 +1,26 @@
+NextMQTT {{ .Chart.AppVersion }} is installing.
+
+Dashboard: http://{{ .Values.ingress.host }}{{ if not .Values.ingress.enabled }} (Ingress disabled; port-forward the HTTP service){{ end }}
+MQTT:      {{ .Values.mqtt.type }} service {{ include "nextmqtt.fullname" . }}-mqtt port {{ .Values.mqtt.port }}
+
+{{- if .Values.ingress.enabled }}
+
+If you enabled Ingress, point DNS for {{ .Values.ingress.host }} at your ingress controller.
+{{- else }}
+
+To reach the dashboard from your workstation:
+
+  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "nextmqtt.fullname" . }}-http {{ .Values.http.port }}:{{ .Values.http.port }}
+  open http://localhost:{{ .Values.http.port }}
+
+{{- end }}
+
+Sign in as "{{ .Values.admin.username }}" with the admin password you supplied.
+
+Before exposing the broker:
+  * change admin.password, cluster.secret and admin.tokenSecret;
+  * set auth.allowAnonymous=false and acl.defaultPolicy=Deny;
+  * configure TLS for MQTT and the dashboard;
+  * review the NetworkPolicy and Service types.
+
+Documentation: https://cn-cam.github.io/next-mqtt/

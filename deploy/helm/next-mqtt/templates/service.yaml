@@ -1,0 +1,35 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "nextmqtt.fullname" . }}-mqtt
+  labels:
+    {{- include "nextmqtt.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.mqtt.type }}
+  selector:
+    {{- include "nextmqtt.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: mqtt
+      port: {{ .Values.mqtt.port }}
+      targetPort: mqtt
+    - name: mqtts
+      port: {{ .Values.mqtt.tlsPort }}
+      targetPort: mqtts
+    - name: ws
+      port: {{ .Values.mqtt.wsPort }}
+      targetPort: ws
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "nextmqtt.fullname" . }}-http
+  labels:
+    {{- include "nextmqtt.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "nextmqtt.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.http.port }}
+      targetPort: http

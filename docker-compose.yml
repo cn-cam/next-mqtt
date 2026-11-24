@@ -1,0 +1,32 @@
+name: nextmqtt
+
+services:
+  nextmqtt:
+    image: ghcr.io/cn-cam/next-mqtt:${NEXTMQTT_VERSION:-latest}
+    build:
+      context: .
+      dockerfile: deploy/docker/Dockerfile
+    container_name: nextmqtt
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+      - "8080:8080"
+      - "8083:8083"
+      - "8883:8883"
+    environment:
+      NEXTMQTT_ADMIN_PASSWORD: ${NEXTMQTT_ADMIN_PASSWORD:-change-me-now}
+      NEXTMQTT_ADMIN_TOKEN_SECRET: ${NEXTMQTT_ADMIN_TOKEN_SECRET:-}
+      NEXTMQTT_ALLOW_ANONYMOUS: ${NEXTMQTT_ALLOW_ANONYMOUS:-true}
+    volumes:
+      - nextmqtt-data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  nextmqtt-data:

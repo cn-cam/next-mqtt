@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: nextmqtt-mqtt
+  labels:
+    app.kubernetes.io/name: nextmqtt
+    app.kubernetes.io/component: broker
+spec:
+  type: LoadBalancer
+  selector:
+    app.kubernetes.io/name: nextmqtt
+    app.kubernetes.io/component: broker
+  ports:
+    - name: mqtt
+      port: 1883
+      targetPort: mqtt
+    - name: mqtts
+      port: 8883
+      targetPort: mqtts
+    - name: ws
+      port: 8083
+      targetPort: ws
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nextmqtt-http
+  labels:
+    app.kubernetes.io/name: nextmqtt
+    app.kubernetes.io/component: dashboard
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: nextmqtt
+    app.kubernetes.io/component: broker
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

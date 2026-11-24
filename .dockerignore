@@ -1,0 +1,22 @@
+# Build context exclusions
+.git
+.gitignore
+.github
+.vscode
+.idea
+**/bin
+**/obj
+**/node_modules
+web/dist
+docs/.vitepress/cache
+docs/.vitepress/dist
+artifacts
+TestResults
+coverage
+*.user
+*.log
+.env
+.env.*
+!.env.example
+deploy/kubernetes
+deploy/helm

@@ -1,0 +1,65 @@
+name: nextmqtt-cluster
+
+x-node: &node
+  image: ghcr.io/cn-cam/next-mqtt:${NEXTMQTT_VERSION:-latest}
+  build:
+    context: ../..
+    dockerfile: deploy/docker/Dockerfile
+  restart: unless-stopped
+  environment: &node-env
+    NEXTMQTT_ADMIN_PASSWORD: ${NEXTMQTT_ADMIN_PASSWORD:-change-me-now}
+    NEXTMQTT_ALLOW_ANONYMOUS: ${NEXTMQTT_ALLOW_ANONYMOUS:-true}
+    NEXTMQTT_CLUSTER__ENABLED: "true"
+    NEXTMQTT_CLUSTER__SECRET: ${NEXTMQTT_CLUSTER_SECRET:-change-me-cluster-secret}
+    NEXTMQTT_CLUSTER__HEARTBEATSECONDS: "2"
+    NEXTMQTT_CLUSTER__NODETIMEOUTSECONDS: "15"
+  security_opt:
+    - no-new-privileges:true
+  healthcheck:
+    test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/healthz"]
+    interval: 15s
+    timeout: 5s
+    retries: 5
+
+services:
+  node-a:
+    <<: *node
+    container_name: nextmqtt-node-a
+    ports:
+      - "1883:1883"
+      - "8080:8080"
+      - "8083:8083"
+    environment:
+      <<: *node-env
+      NEXTMQTT_CLUSTER__NODEID: node-a
+      NEXTMQTT_CLUSTER__ADVERTISEURL: http://node-a:8080
+      NEXTMQTT_CLUSTER__SEEDS__0: http://node-b:8080
+      NEXTMQTT_CLUSTER__SEEDS__1: http://node-c:8080
+
+  node-b:
+    <<: *node
+    container_name: nextmqtt-node-b
+    ports:
+      - "1884:1883"
+      - "8081:8080"
+      - "8084:8083"
+    environment:
+      <<: *node-env
+      NEXTMQTT_CLUSTER__NODEID: node-b
+      NEXTMQTT_CLUSTER__ADVERTISEURL: http://node-b:8080
+      NEXTMQTT_CLUSTER__SEEDS__0: http://node-a:8080
+      NEXTMQTT_CLUSTER__SEEDS__1: http://node-c:8080
+
+  node-c:
+    <<: *node
+    container_name: nextmqtt-node-c
+    ports:
+      - "1885:1883"
+      - "8082:8080"
+      - "8085:8083"
+    environment:
+      <<: *node-env
+      NEXTMQTT_CLUSTER__NODEID: node-c
+      NEXTMQTT_CLUSTER__ADVERTISEURL: http://node-c:8080
+      NEXTMQTT_CLUSTER__SEEDS__0: http://node-a:8080
+      NEXTMQTT_CLUSTER__SEEDS__1: http://node-b:8080
