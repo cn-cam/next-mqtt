@@ -34,7 +34,7 @@ public enum MqttPropertyId
     SharedSubscriptionAvailable = 42,
 }
 
-internal enum MqttPropertyDataType
+public enum MqttPropertyDataType
 {
     Byte,
     UInt16,
@@ -267,7 +267,7 @@ public sealed class MqttProperties
         MqttWire.WriteBytes(writer, scratch.WrittenSpan);
     }
 
-    internal static MqttPropertyDataType GetDataType(MqttPropertyId id) => id switch
+    public static MqttPropertyDataType GetDataType(MqttPropertyId id) => id switch
     {
         MqttPropertyId.PayloadFormatIndicator => MqttPropertyDataType.Byte,
         MqttPropertyId.RequestProblemInformation => MqttPropertyDataType.Byte,

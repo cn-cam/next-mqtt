@@ -21,6 +21,7 @@ var brokerOptions = builder.Configuration.GetSection(BrokerOptions.SectionName).
 var authenticationOptions = builder.Configuration.GetSection(AuthenticationOptions.SectionName).Get<AuthenticationOptions>() ?? new AuthenticationOptions();
 var aclOptions = builder.Configuration.GetSection(AclOptions.SectionName).Get<AclOptions>() ?? new AclOptions();
 var adminOptions = builder.Configuration.GetSection(AdminOptions.SectionName).Get<AdminOptions>() ?? new AdminOptions();
+var clusterOptions = builder.Configuration.GetSection(ClusterOptions.SectionName).Get<ClusterOptions>() ?? new ClusterOptions();
 
 if (bool.TryParse(Environment.GetEnvironmentVariable("NEXTMQTT_ALLOW_ANONYMOUS"), out var allowAnonymous))
 {
@@ -73,8 +74,33 @@ builder.Services.AddSingleton(brokerOptions);
 builder.Services.AddSingleton(adminOptions);
 builder.Services.AddSingleton<IClientAuthenticator>(_ => new ClientAuthenticator(authenticationOptions));
 builder.Services.AddSingleton<ITopicAuthorizer>(_ => new TopicAuthorizer(aclOptions));
-builder.Services.AddSingleton<IClusterRouter>(_ => NullClusterRouter.Instance);
-builder.Services.AddSingleton<MqttBroker>();
+builder.Services.AddSingleton(clusterOptions);
+builder.Services.AddSingleton(_ => new HttpClient
+{
+    Timeout = TimeSpan.FromSeconds(Math.Max(1, clusterOptions.RequestTimeoutSeconds)),
+});
+builder.Services.AddSingleton(sp => new ClusterRouter(
+    clusterOptions,
+    sp.GetRequiredService<ILogger<ClusterRouter>>(),
+    sp.GetRequiredService<HttpClient>()));
+builder.Services.AddSingleton<IClusterRouter>(sp => sp.GetRequiredService<ClusterRouter>());
+builder.Services.AddSingleton(sp =>
+{
+    var cluster = sp.GetRequiredService<IClusterRouter>();
+    var broker = new MqttBroker(
+        brokerOptions,
+        sp.GetRequiredService<IClientAuthenticator>(),
+        sp.GetRequiredService<ITopicAuthorizer>(),
+        cluster,
+        sp.GetRequiredService<ILogger<MqttBroker>>());
+
+    if (cluster is ClusterRouter clusterRouter)
+    {
+        clusterRouter.AttachBroker(broker);
+    }
+
+    return broker;
+});
 builder.Services.AddSingleton(sp => AdminAuthService.Create(
     adminOptions,
     sp.GetRequiredService<ILoggerFactory>().CreateLogger<AdminAuthService>()));
@@ -85,6 +111,7 @@ builder.Services.AddHostedService<MqttTcpListenerService>();
 var app = builder.Build();
 var broker = app.Services.GetRequiredService<MqttBroker>();
 var adminAuth = app.Services.GetRequiredService<AdminAuthService>();
+var clusterRouter = app.Services.GetRequiredService<ClusterRouter>();
 var version = typeof(Program).Assembly.GetName().Version?.ToString(3) ?? "0.1.0";
 
 app.UseWebSockets(new WebSocketOptions
@@ -122,6 +149,11 @@ app.Use(async (context, next) =>
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
+if (clusterRouter.Enabled)
+{
+    ClusterEndpoints.Map(app, clusterRouter);
+}
+
 var dashboardDist = Path.GetFullPath(Path.Combine(app.Environment.ContentRootPath, "..", "..", "web", "dist"));
 
 if (Directory.Exists(dashboardDist))
@@ -135,8 +167,7 @@ if (Directory.Exists(dashboardDist))
 if (serverOptions.WebSocket.Enabled)
 {
     app.Map(serverOptions.WebSocket.Path, async context =>
-    {
-        if (!context.WebSockets.IsWebSocketRequest)
+    {        if (!context.WebSockets.IsWebSocketRequest)
         {
             context.Response.StatusCode = StatusCodes.Status400BadRequest;
             await context.Response.WriteAsync("This endpoint expects a WebSocket upgrade.");

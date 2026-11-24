@@ -63,7 +63,8 @@ internal static class TestBroker
     public static MqttBroker Create(
         BrokerOptions? options = null,
         IClientAuthenticator? authenticator = null,
-        ITopicAuthorizer? authorizer = null)
+        ITopicAuthorizer? authorizer = null,
+        NextMqtt.Broker.Clustering.IClusterRouter? cluster = null)
     {
         options ??= new BrokerOptions
         {
@@ -75,7 +76,7 @@ internal static class TestBroker
             options,
             authenticator ?? new AllowAllAuthenticator(),
             authorizer ?? new AllowAllAuthorizer(),
-            NullClusterRouter.Instance,
+            cluster ?? NullClusterRouter.Instance,
             NullLogger<MqttBroker>.Instance);
     }
 
