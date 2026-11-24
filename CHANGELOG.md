@@ -5,6 +5,16 @@ All notable changes to NextMQTT are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.6.0] - 2026-11-24
+
+### Added
+
+- Cluster-aware rate limits: connection, per-client publish and topic quotas are
+  divided across live nodes, so a cluster no longer multiplies the configured
+  budget by its size.
+- A `csharp-documentation` skill and an AGENTS.md rule requiring XML comments
+  on every C# type and member, private members included.
+
 ## [0.5.2] - 2026-11-24
 
 ### Fixed
@@ -167,7 +177,8 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 - GitHub Actions for CI, CodeQL, releases and GitHub Pages.
 - Mechanical brand/trademark compliance scanner and repository policy.
 
-[Unreleased]: https://github.com/cn-cam/next-mqtt/compare/v0.5.2...HEAD
+[Unreleased]: https://github.com/cn-cam/next-mqtt/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.6.0
 [0.5.2]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.5.2
 [0.5.1]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.5.1
 [0.5.0]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.5.0

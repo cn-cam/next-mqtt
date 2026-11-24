@@ -92,6 +92,17 @@ the term. There are no exceptions for "just a comment" or "only a test".
 - User-visible strings in the dashboard are English by default; Chinese
   translations live in `web/src/i18n`.
 
+### 5.1 C# documentation comments
+
+Every C# type, interface, enum, method, constructor, property, event, constant
+and field — **including private members** — carries an XML documentation
+comment. Public API documents the behaviour in English and repeats the intent
+in Chinese inside `<remarks>`. Private members need at least one English
+sentence. Comments state guarantees, units, ownership, locking and failure
+modes; they never transliterate Chinese into pinyin. Update the comment in the
+same commit as the behaviour. See
+`.opencode/skill/csharp-documentation/SKILL.md` for the full checklist.
+
 ## 6. Commit and review rules
 
 - Conventional Commits (`feat:`, `fix:`, `docs:`, `chore:`, `test:`,

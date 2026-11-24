@@ -183,9 +183,12 @@ Behaviour when a limit is hit:
   `nextmqtt_publishes_received_total`.
 - CONNECT rejections increment `nextmqtt_connections_rate_limited_total`.
 
-Limits are per node: a cluster of three nodes with `PublishPerSecondPerClient`
-set to 500 allows 500 messages per second per client on each node. Size the
-values for the whole cluster or terminate clients on a single node.
+Limits describe the **whole cluster**. Each node divides the configured rate and
+burst by the number of live nodes (minimum one token), so three nodes with
+`PublishPerSecondPerClient = 500` allow about 500 messages per second per
+client in total, not 1500. Membership is re-evaluated every sweep; a node that
+just joined or left can transiently overshoot because there is no global
+counter. A standalone broker uses the configured values unchanged.
 
 ## Storage
 

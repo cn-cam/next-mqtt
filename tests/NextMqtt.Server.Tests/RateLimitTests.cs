@@ -63,6 +63,45 @@ public class RateLimitTests
     }
 
     [Fact]
+    public void Cluster_size_divides_the_connection_budget()
+    {
+        var limiter = new ConnectionRateLimiter(new RateLimitOptions
+        {
+            ConnectPerSecondPerIp = 10,
+            ConnectBurst = 10,
+        });
+
+        limiter.SetClusterSize(2);
+
+        // Ten per second across two nodes is five per node.
+        for (var index = 0; index < 5; index++)
+        {
+            Assert.True(limiter.TryAcquire("10.0.0.9:1000"));
+        }
+
+        Assert.False(limiter.TryAcquire("10.0.0.9:2000"));
+    }
+
+    [Fact]
+    public void Cluster_size_divides_topic_quotas()
+    {
+        var limiter = new TopicQuotaLimiter(new RateLimitOptions
+        {
+            Topics = [new TopicQuotaOptions { Filter = "hot/#", PublishPerSecond = 10, Burst = 10 }],
+        });
+
+        limiter.SetClusterSize(5);
+
+        for (var index = 0; index < 2; index++)
+        {
+            Assert.True(limiter.TryAcquire("hot/a"));
+        }
+
+        Assert.False(limiter.TryAcquire("hot/a"));
+        Assert.True(limiter.TryAcquire("cold/a"));
+    }
+
+    [Fact]
     public async Task Connect_rate_limit_rejects_with_connection_rate_exceeded()
     {
         await using var server = MqttTestServer.Start(configure: options => options.RateLimits = new RateLimitOptions

@@ -101,7 +101,7 @@ dotnet NextMqtt.Server.dll
   `nextmqtt_publishes_rate_limited_total`、`nextmqtt_messages_dropped_total`。
 - 建连拒绝计入 `nextmqtt_connections_rate_limited_total`。
 
-限流按节点生效：三节点集群每节点各自放行配置的速率。
+限流针对**整个集群**：每个节点把配置的速率与突发量按存活节点数均分（最少 1 个令牌），因此三节点下 `PublishPerSecondPerClient = 500` 合计约 500 条/秒，而不是 1500。成员每轮巡检重新计算，刚加入或离开的节点可能短暂超额（没有全局计数器）；单机运行时使用配置值本身。
 
 ## 存储
 

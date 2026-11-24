@@ -78,6 +78,13 @@ public sealed class MqttBroker : IAsyncDisposable
     /// <summary>Shared per-topic publish quotas, disabled unless configured.</summary>
     public TopicQuotaLimiter TopicQuotas { get; }
 
+    /// <summary>
+    /// Number of live cluster nodes used to split rate-limit budgets; 1 when the
+    /// broker runs standalone.
+    /// </summary>
+    /// <remarks>限流按节点均分：节点越多，单节点放行额度越小。</remarks>
+    public int ClusterSize { get; private set; } = 1;
+
     public SessionRegistry Sessions { get; } = new();
 
     public SubscriptionIndex Subscriptions { get; } = new();
@@ -649,6 +656,35 @@ public sealed class MqttBroker : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Recomputes the per-node share of every rate limit from live membership.
+    /// </summary>
+    /// <remarks>配置的是集群总量：单节点不缩放，多节点按存活节点均分。</remarks>
+    private void ApplyClusterRateScale()
+    {
+        var alive = Cluster.GetSnapshot().Nodes.Count(node => node.Status == "alive");
+        var size = Math.Max(1, alive);
+
+        if (size == ClusterSize)
+        {
+            return;
+        }
+
+        ClusterSize = size;
+        ConnectionLimits.SetClusterSize(size);
+        TopicQuotas.SetClusterSize(size);
+
+        foreach (var session in Sessions.Snapshot())
+        {
+            if (session.Connection is IRateScalable scalable)
+            {
+                scalable.SetClusterSize(size);
+            }
+        }
+
+        _logger.LogInformation("Rate-limit budgets rescaled for {Nodes} live node(s)", size);
+    }
+
     private void PersistSessionsIfDue(DateTimeOffset now)    {
         if (_sessionStore is null || now < _nextSessionSnapshot)
         {
@@ -795,6 +831,7 @@ public sealed class MqttBroker : IAsyncDisposable
     {
         Retained.PruneExpired(now);
         PersistSessionsIfDue(now);
+        ApplyClusterRateScale();
 
         foreach (var session in Sessions.Snapshot())
         {

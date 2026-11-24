@@ -18,7 +18,7 @@ namespace NextMqtt.Broker.Connections;
 /// Owns one MQTT network connection: framing, protocol state machine,
 /// delivery pump, keep-alive enforcement and clean shutdown.
 /// </summary>
-public sealed class ClientConnection : IClientConnection
+public sealed class ClientConnection : IClientConnection, IRateScalable
 {
     private readonly Stream _stream;
     private readonly MqttBroker _broker;
@@ -29,6 +29,9 @@ public sealed class ClientConnection : IClientConnection
     private readonly string _remoteAddress;
     private readonly Dictionary<ushort, string> _inboundAliases = new();
     private readonly TokenBucket? _publishBucket;
+    private readonly int _publishRate;
+    private readonly int _publishBurst;
+    private int _clusterSize = 1;
     private BrokerSession? _session;
     private Task? _writerTask;
     private MqttProtocolVersion _version = MqttProtocolVersion.V311;
@@ -64,12 +67,35 @@ public sealed class ClientConnection : IClientConnection
         _maxTopicAlias = (ushort)Math.Min(broker.Options.MaxTopicAlias, ushort.MaxValue);
 
         var limits = broker.Options.RateLimits;
+        _clusterSize = Math.Max(1, broker.ClusterSize);
+
         if (limits.LimitsPublishes)
         {
+            _publishRate = limits.PublishPerSecondPerClient;
+            _publishBurst = limits.PublishBurst > 0 ? limits.PublishBurst : limits.PublishPerSecondPerClient;
             _publishBucket = new TokenBucket(
-                limits.PublishPerSecondPerClient,
-                limits.PublishBurst > 0 ? limits.PublishBurst : limits.PublishPerSecondPerClient);
+                Math.Max(1, _publishRate / _clusterSize),
+                Math.Max(1, _publishBurst / _clusterSize));
         }
+    }
+
+    /// <summary>
+    /// Rescales the per-client publish quota when cluster membership changes.
+    /// </summary>
+    /// <remarks>每个节点只放行总配额的 1/N，避免多节点叠加放大限额。</remarks>
+    public void SetClusterSize(int nodes)
+    {
+        var size = Math.Max(1, nodes);
+
+        if (size == _clusterSize || _publishBucket is null)
+        {
+            return;
+        }
+
+        _clusterSize = size;
+        _publishBucket.Reconfigure(
+            Math.Max(1.0, (double)_publishRate / size),
+            Math.Max(1.0, (double)_publishBurst / size));
     }
 
     public string RemoteAddress => _remoteAddress;
