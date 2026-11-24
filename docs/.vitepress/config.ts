@@ -7,7 +7,7 @@ export default defineConfig({
   lang: 'en',
   title: 'NextMQTT',
   titleTemplate: ':title · NextMQTT',
-  description: 'Cloud-native MQTT 3.1.1 and 5.0 broker built on .NET 10 and Vue 3.',
+  description: 'Next-generation .NET-native MQTT platform for cloud, edge and real-time data.',
   cleanUrls: false,
   lastUpdated: true,
   ignoreDeadLinks: [/^http:\/\/localhost/],
