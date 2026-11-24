@@ -59,6 +59,19 @@ public sealed class RateLimitOptions
     public bool LimitsConnections => ConnectPerSecondPerIp > 0;
 
     public bool LimitsPublishes => PublishPerSecondPerClient > 0;
+
+    /// <summary>Per-topic publish quotas; empty disables topic quotas.</summary>
+    public List<TopicQuotaOptions> Topics { get; set; } = [];
+}
+
+/// <summary>A publish quota applied to every topic matching a filter.</summary>
+public sealed class TopicQuotaOptions
+{
+    public string Filter { get; set; } = string.Empty;
+
+    public int PublishPerSecond { get; set; }
+
+    public int Burst { get; set; }
 }
 
 /// <summary>Authentication configuration.</summary>

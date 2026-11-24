@@ -22,7 +22,7 @@ dotnet test NextMqtt.slnx -c Release
 | `NextMqtt.Broker.Tests` | 会话、队列、保留消息、认证、ACL、集群 |
 | `NextMqtt.Server.Tests` | 真实 TCP 集成测试 |
 
-当前 141 个测试通过。
+当前 147 个测试通过。
 
 ## 控制台
 

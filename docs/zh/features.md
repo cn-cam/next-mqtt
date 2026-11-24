@@ -41,7 +41,7 @@
 | 包 ID 分配 | ✅ | 跳过 inflight 中已用 ID |
 | 离线队列上限 | ✅ | 丢弃最旧消息并计数 |
 | 重叠订阅聚合 | ✅ | 每客户端一条，取最高 QoS |
-| 重启后状态保留 | ⚠️ | 保留消息可写入磁盘日志；会话与队列仍在内存 |
+| 重启后状态保留 | ⚠️ | 保留消息日志 + 定期会话快照；inflight 状态不持久化 |`n| 会话备份与恢复 | ✅ | `GET`/`POST /api/v1/backup` 导入导出保留消息与会话 |`n| 优雅停机 | ✅ | 关闭前等待 inflight 确认，上限 `Server:DrainTimeoutSeconds` |
 | 跨节点会话迁移 | ❌ | 会话归属单节点 |
 
 ## 安全
@@ -57,7 +57,7 @@
 | 控制台令牌认证 | ✅ | HS256 Bearer |
 | API Key | ✅ | SHA-256 摘要白名单 |
 | 控制台 RBAC | ❌ | 当前仅管理员角色 |
-| 连接/消息速率限制 | ✅ | 按来源地址与按客户端的令牌桶 |
+| 连接/消息速率限制 | ✅ | 按来源地址与按客户端的令牌桶 |`n| 主题级发布配额 | ✅ | 按主题过滤器共享令牌桶 |
 | mTLS 策略 | ⚠️ | 可选客户端证书，平台默认校验 |
 
 ## 集群
@@ -91,7 +91,7 @@
 | Compose 单机/三节点 | ✅ | `docker-compose.yml`、`deploy/compose` |
 | Kustomize | ✅ | StatefulSet、PDB、HPA、Ingress、NetworkPolicy |
 | Helm | ✅ | 探针、自动扩缩容、Ingress、existingSecret |
-| 持久化/备份 | ⚠️ | 保留消息可持久化；会话仍在内存 |
+| 持久化/备份 | ✅ | 保留消息日志、会话快照与备份 API |
 | 分布式追踪 | ❌ | 路线图 |
 
 ## 验证方式
@@ -108,7 +108,7 @@
 | 镜像构建与健康/登录冒烟 | CI `Container image` |
 | CodeQL | `codeql.yml` |
 
-当前共 **141 个测试通过**（63 核心、56 Broker、22 Server 集成）。
+当前共 **147 个测试通过**（63 核心、61 Broker、23 Server 集成）。
 
 ## 扩展性
 

@@ -124,6 +124,14 @@ dotnet NextMqtt.Server.dll
 时间戳和 MQTT 5 属性。启动时按顺序重放，跳过已过期条目，文件过大时压缩；最后
 一行损坏会被忽略而不会导致启动失败。每个集群节点各自保留日志。
 
+持久会话单独快照：`Session:Mode` 设为 `File` 后写入 `Session:Path`（默认
+`data/sessions.json`），每 `Session:SnapshotSeconds`（默认 30）秒重写一次，状态
+未变则跳过。快照包含身份、过期时间、订阅与离线队列；inflight QoS 握手不持久化，
+优雅停机时也会写入。
+
+逻辑备份：`GET /api/v1/backup` 导出保留消息与会话，`POST /api/v1/backup` 导入
+（替换保留集合，仅补入当前不在线的会话）。
+
 ## 认证与 ACL
 
 ```json

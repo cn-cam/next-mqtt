@@ -42,7 +42,9 @@ Legend: ✅ implemented · ⚠️ partial or with documented limits · ❌ not i
 | Packet-id allocation | ✅ | Skips ids already inflight |
 | Offline queue bounds | ✅ | Oldest messages dropped and counted |
 | Overlapping subscription aggregation | ✅ | One delivery per client at maximum QoS |
-| Persistent state across restart | ⚠️ | Retained messages can be journaled to disk; sessions and queues are in memory |
+| Persistent state across restart | ⚠️ | Retained journal and periodic session snapshots; inflight QoS state is not persisted |
+| Session backup and restore | ✅ | `GET`/`POST /api/v1/backup` export and import retained and session state |
+| Graceful shutdown drain | ✅ | Waits up to `Server:DrainTimeoutSeconds` for inflight acknowledgements |
 | Cross-node session migration | ❌ | Sessions are node-affine |
 
 ## Security
@@ -59,6 +61,7 @@ Legend: ✅ implemented · ⚠️ partial or with documented limits · ❌ not i
 | API keys | ✅ | SHA-256 digest allow-list |
 | Role-based dashboard permissions | ❌ | Single admin role today |
 | Client connection/message rate limits | ✅ | Token buckets per remote address and per client |
+| Topic-level publish quotas | ✅ | One token bucket per topic filter, shared across clients |
 | mTLS policy | ⚠️ | Optional client certificate request; platform validation |
 
 ## Cluster
@@ -111,7 +114,7 @@ The claims above are covered by the repository's tests and CI:
 | Container build + health/login smoke | CI `Container image` job |
 | CodeQL | `codeql.yml` |
 
-Current test count: 141 passing tests (63 core, 56 broker, 22 server)
+Current test count: 147 passing tests (63 core, 61 broker, 23 server)
 integration).
 
 ## Extensibility

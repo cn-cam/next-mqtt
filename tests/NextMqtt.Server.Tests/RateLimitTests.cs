@@ -80,6 +80,27 @@ public class RateLimitTests
     }
 
     [Fact]
+    public async Task Topic_quota_is_shared_across_clients()
+    {
+        await using var server = MqttTestServer.Start(configure: options => options.RateLimits = new RateLimitOptions
+        {
+            Topics =
+            [
+                new TopicQuotaOptions { Filter = "quota/#", PublishPerSecond = 1, Burst = 1 },
+            ],
+        });
+
+        await using var first = await server.ConnectAsync(Connect("first"));
+        await using var second = await server.ConnectAsync(Connect("second"));
+
+        await first.PublishAsync("quota/shared", "one", MqttQoS.AtMostOnce);
+        await second.PublishAsync("quota/shared", "two", MqttQoS.AtMostOnce);
+
+        Assert.True(await server.WaitForAsync(() => server.Broker.Metrics.PublishesRateLimited == 1));
+        Assert.Equal(2, server.Broker.Metrics.PublishesReceived);
+    }
+
+    [Fact]
     public async Task Publish_rate_limit_drops_messages_but_still_acknowledges()
     {
         await using var server = MqttTestServer.Start(configure: options => options.RateLimits = new RateLimitOptions

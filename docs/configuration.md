@@ -89,6 +89,7 @@ tokens. Set the same value on every node in production.
 | `Http:WebSocketPort` | `8083` | Additional Kestrel endpoint for browser MQTT |
 | `Http:TlsPort` | `8084` | HTTPS endpoint when a certificate is configured |
 | `Http:AllowedOrigins` | localhost dev origins | CORS allow-list for the dashboard API |
+| `DrainTimeoutSeconds` | `5` | On shutdown, how long to wait for inflight QoS acknowledgements |
 
 Setting `Http:WebSocketPort` equal to `Http:Port` disables the extra endpoint.
 
@@ -146,11 +147,28 @@ sustained rate applies.
 | `ConnectBurst` | `0` | Burst size for connects; `0` uses the per-second rate |
 | `PublishPerSecondPerClient` | `0` | Accepted PUBLISH packets per second per client; `0` disables |
 | `PublishBurst` | `0` | Burst size for publishes; `0` uses the per-second rate |
+| `Topics[].Filter` | – | Topic filter for a shared quota |
+| `Topics[].PublishPerSecond` | `0` | Accepted publishes per second across all clients |
+| `Topics[].Burst` | `0` | Burst size; `0` uses the per-second rate |
 
 ```bash
 NEXTMQTT_RATELIMITS__CONNECTPERSECONDPERIP=20 \
 NEXTMQTT_RATELIMITS__PUBLISHPERSECONDPERCLIENT=500 \
 nextmqtt-server
+```
+
+Topic quotas are configured as a list, so a deployment can protect a few hot
+topics without throttling everything:
+
+```json
+{
+  "RateLimits": {
+    "Topics": [
+      { "Filter": "telemetry/#", "PublishPerSecond": 2000, "Burst": 4000 },
+      { "Filter": "commands/#", "PublishPerSecond": 50 }
+    ]
+  }
+}
 ```
 
 Behaviour when a limit is hit:
@@ -204,6 +222,53 @@ topic, base64 payload, QoS, timestamps and MQTT 5 properties. The broker replays
 it at startup, skips expired entries and compacts when the file is too large; a
 torn final line is ignored instead of failing the boot. Each cluster node keeps
 its own journal, so a node that was offline still recovers what it had stored.
+
+Persistent sessions are snapshotted separately:
+
+```json
+{
+  "Storage": {
+    "Session": {
+      "Mode": "Memory",
+      "Path": "data/sessions.json",
+      "SnapshotSeconds": 30
+    }
+  }
+}
+```
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `Mode` | `Memory` | `Memory` or `File` |
+| `Path` | `data/sessions.json` | Snapshot file, replaced atomically |
+| `SnapshotSeconds` | 30 | Rewrite interval; unchanged state is skipped |
+
+A snapshot holds every persistent session: identity, expiry, subscriptions and
+the offline queue with its MQTT 5 properties. Inflight QoS handshakes are not
+persisted — after a restart those messages are delivered again on the next
+publish rather than resumed, and the window is bounded by
+`MaxInflightMessages`. Snapshots are also written on graceful shutdown.
+
+## Backups
+
+`GET /api/v1/backup` returns a portable JSON document with retained messages and
+persistent sessions; `POST /api/v1/backup` imports one. Import replaces the
+retained set, adds sessions whose client id is not currently online and keeps
+live sessions untouched.
+
+```bash
+TOKEN=$(curl -s -X POST http://localhost:8080/api/v1/auth/login \
+  -H 'content-type: application/json' \
+  -d '{"username":"admin","password":"..."}' | jq -r .token)
+
+curl -s http://localhost:8080/api/v1/backup \
+  -H "Authorization: Bearer $TOKEN" > nextmqtt-backup.json
+
+curl -s -X POST http://localhost:8080/api/v1/backup \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'content-type: application/json' \
+  --data @nextmqtt-backup.json
+```
 
 ## Authentication
 

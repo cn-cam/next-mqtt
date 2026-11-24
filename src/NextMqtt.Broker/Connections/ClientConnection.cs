@@ -381,7 +381,8 @@ public sealed class ClientConnection : IClientConnection
         var expired = expiry == 0;
         var principal = _session!.Principal;
 
-        if (_publishBucket is not null && !_publishBucket.TryTake())
+        if ((_publishBucket is not null && !_publishBucket.TryTake())
+            || !_broker.TopicQuotas.TryAcquire(publish.Topic))
         {
             _broker.Metrics.PublishRateLimited();
             _broker.Metrics.MessageDropped();

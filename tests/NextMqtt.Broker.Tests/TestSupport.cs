@@ -64,7 +64,8 @@ internal static class TestBroker
         BrokerOptions? options = null,
         IClientAuthenticator? authenticator = null,
         ITopicAuthorizer? authorizer = null,
-        NextMqtt.Broker.Clustering.IClusterRouter? cluster = null)
+        NextMqtt.Broker.Clustering.IClusterRouter? cluster = null,
+        NextMqtt.Broker.Storage.ISessionSnapshotStore? sessionStore = null)
     {
         options ??= new BrokerOptions
         {
@@ -77,7 +78,9 @@ internal static class TestBroker
             authenticator ?? new AllowAllAuthenticator(),
             authorizer ?? new AllowAllAuthorizer(),
             cluster ?? NullClusterRouter.Instance,
-            NullLogger<MqttBroker>.Instance);
+            NullLogger<MqttBroker>.Instance,
+            retainedJournal: null,
+            sessionStore: sessionStore);
     }
 
     public static ConnectPacket Connect(

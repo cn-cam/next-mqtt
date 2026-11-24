@@ -30,6 +30,10 @@ public sealed class MqttBroker : IAsyncDisposable
     private readonly Dictionary<string, CancellationTokenSource> _pendingWills = new(StringComparer.Ordinal);
     private readonly object _willGate = new();
     private readonly CancellationTokenSource _lifetime = new();
+    private readonly ISessionSnapshotStore? _sessionStore;
+    private readonly TimeSpan _sessionSnapshotInterval;
+    private DateTimeOffset _nextSessionSnapshot = DateTimeOffset.MinValue;
+    private (int Sessions, int Queued, int Subscriptions) _lastSessionFingerprint = (-1, -1, -1);
     private Task? _maintenanceTask;
     private bool _disposed;
 
@@ -39,15 +43,25 @@ public sealed class MqttBroker : IAsyncDisposable
         ITopicAuthorizer authorizer,
         IClusterRouter cluster,
         ILogger<MqttBroker> logger,
-        IRetainedJournal? retainedJournal = null)
+        IRetainedJournal? retainedJournal = null,
+        ISessionSnapshotStore? sessionStore = null,
+        int sessionSnapshotSeconds = 30)
     {
         Options = options;
         Authenticator = authenticator;
         Authorizer = authorizer;
         Cluster = cluster;
         ConnectionLimits = new ConnectionRateLimiter(options.RateLimits);
+        TopicQuotas = new TopicQuotaLimiter(options.RateLimits);
         Retained = new RetainedMessageStore(retainedJournal);
         _logger = logger;
+        _sessionStore = sessionStore;
+        _sessionSnapshotInterval = TimeSpan.FromSeconds(Math.Max(1, sessionSnapshotSeconds));
+
+        if (sessionStore is not null)
+        {
+            RestoreSessions(sessionStore.Load());
+        }
     }
 
     public BrokerOptions Options { get; }
@@ -60,6 +74,9 @@ public sealed class MqttBroker : IAsyncDisposable
 
     /// <summary>Per-address CONNECT limiter, disabled unless configured.</summary>
     public ConnectionRateLimiter ConnectionLimits { get; }
+
+    /// <summary>Shared per-topic publish quotas, disabled unless configured.</summary>
+    public TopicQuotaLimiter TopicQuotas { get; }
 
     public SessionRegistry Sessions { get; } = new();
 
@@ -428,6 +445,7 @@ public sealed class MqttBroker : IAsyncDisposable
 
         _disposed = true;
         await StopAsync().ConfigureAwait(false);
+        PersistSessions(force: true);
 
         lock (_willGate)
         {
@@ -451,8 +469,304 @@ public sealed class MqttBroker : IAsyncDisposable
         _lifetime.Dispose();
     }
 
-    private async Task MaintenanceLoopAsync(CancellationToken cancellationToken)
+    private void RestoreSessions(IReadOnlyList<PersistedSession> persisted)
     {
+        if (persisted.Count == 0)
+        {
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var restored = 0;
+
+        foreach (var record in persisted)
+        {
+            if (string.IsNullOrWhiteSpace(record.ClientId)
+                || record.ClientId.Length > Options.MaxClientIdLength
+                || (record.ExpiresAt is { } expiry && expiry <= now)
+                || Sessions.Get(record.ClientId) is not null)
+            {
+                continue;
+            }
+
+            var claims = new Dictionary<string, string>(StringComparer.Ordinal);
+
+            if (record.Claims is not null)
+            {
+                foreach (var pair in record.Claims)
+                {
+                    claims[pair.Key] = pair.Value;
+                }
+            }
+
+            var principal = new ClientPrincipal(
+                record.Name ?? record.ClientId,
+                record.Username,
+                record.ClientId,
+                record.IsSuperuser,
+                claims);
+
+            var session = new BrokerSession(record.ClientId, Options, Metrics);
+
+            session.Restore(
+                principal,
+                (MqttProtocolVersion)record.ProtocolVersion,
+                record.SessionExpiryInterval,
+                record.ExpiresAt,
+                record.LastSeen,
+                record.Queue.Select(TryToOutbound).OfType<OutboundMessage>());
+
+            if (!Sessions.TryAdd(session))
+            {
+                session.Dispose();
+                continue;
+            }
+
+            foreach (var subscription in record.Subscriptions)
+            {
+                if (!MqttTopic.IsValidFilter(subscription.Filter, out _))
+                {
+                    continue;
+                }
+
+                Subscriptions.AddOrReplace(new Subscription
+                {
+                    ClientId = record.ClientId,
+                    Filter = TopicFilter.Parse(subscription.Filter),
+                    Options = new MqttSubscriptionOptions(
+                        (MqttQoS)subscription.QoS,
+                        subscription.NoLocal,
+                        subscription.RetainAsPublished,
+                        (MqttRetainHandling)subscription.RetainHandling),
+                    Identifier = subscription.Identifier,
+                });
+            }
+
+            restored++;
+        }
+
+        if (restored > 0)
+        {
+            _logger.LogInformation("Restored {Count} persistent session(s) from disk", restored);
+        }
+    }
+
+    /// <summary>Exports retained messages and persistent sessions.</summary>
+    public BrokerBackup CreateBackup() => new()
+    {
+        CreatedAt = DateTimeOffset.UtcNow,
+        Retained = Retained.Snapshot()
+            .Select(message => new PersistedRetained
+            {
+                Topic = message.Topic,
+                Payload = Convert.ToBase64String(message.Payload),
+                QoS = (int)message.QoS,
+                StoredAt = message.StoredAt,
+                ExpiresAt = message.ExpiresAt,
+                Properties = PropertyRecord.FromProperties(message.Properties),
+            })
+            .ToList(),
+        Sessions = SnapshotSessions(),
+    };
+
+    /// <summary>
+    /// Imports a backup. Retained messages replace the current set; sessions are
+    /// only added when no live session with the same client id exists.
+    /// </summary>
+    public RestoreResult RestoreBackup(BrokerBackup backup)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var retained = 0;
+
+        Retained.Clear();
+
+        foreach (var item in backup.Retained)
+        {
+            try
+            {
+                var message = new RetainedMessage
+                {
+                    Topic = item.Topic,
+                    Payload = Convert.FromBase64String(item.Payload),
+                    QoS = (MqttQoS)item.QoS,
+                    StoredAt = item.StoredAt,
+                    ExpiresAt = item.ExpiresAt,
+                    Properties = PropertyRecord.ToProperties(item.Properties),
+                };
+
+                if (message.IsExpired(now) || !MqttTopic.IsValidTopicName(message.Topic, out _))
+                {
+                    continue;
+                }
+
+                Retained.Set(message);
+                retained++;
+            }
+            catch (FormatException)
+            {
+                // Skip an unreadable payload rather than failing the whole import.
+            }
+        }
+
+        var before = Sessions.Count;
+
+        RestoreSessions(
+            backup.Sessions
+                .Where(session => Sessions.Get(session.ClientId) is null)
+                .ToList());
+
+        var sessions = Sessions.Count - before;
+
+        PersistSessions(force: true);
+        return new RestoreResult(retained, sessions);
+    }
+
+    /// <summary>
+    /// Waits for in-flight QoS traffic to be acknowledged before shutdown.
+    /// Returns the number of sessions that still had inflight messages.
+    /// </summary>
+    public async Task<int> DrainAsync(TimeSpan timeout, CancellationToken cancellationToken = default)
+    {
+        var deadline = DateTimeOffset.UtcNow + timeout;
+
+        while (true)
+        {
+            var pending = Sessions.Snapshot().Count(session => session.IsOnline && session.InflightCount > 0);
+
+            if (pending == 0 || DateTimeOffset.UtcNow >= deadline)
+            {
+                return pending;
+            }
+
+            try
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(100), cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                return pending;
+            }
+        }
+    }
+
+    private void PersistSessionsIfDue(DateTimeOffset now)    {
+        if (_sessionStore is null || now < _nextSessionSnapshot)
+        {
+            return;
+        }
+
+        _nextSessionSnapshot = now + _sessionSnapshotInterval;
+        PersistSessions(force: false);
+    }
+
+    private void PersistSessions(bool force)
+    {
+        if (_sessionStore is null)
+        {
+            return;
+        }
+
+        var snapshot = SnapshotSessions();
+        var fingerprint = (
+            snapshot.Count,
+            snapshot.Sum(session => session.Queue.Count),
+            snapshot.Sum(session => session.Subscriptions.Count));
+
+        if (!force && fingerprint == _lastSessionFingerprint)
+        {
+            return;
+        }
+
+        _sessionStore.Save(snapshot);
+        _lastSessionFingerprint = fingerprint;
+    }
+
+    private List<PersistedSession> SnapshotSessions()
+    {
+        var subscriptions = Subscriptions.GetAll()
+            .GroupBy(subscription => subscription.ClientId, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.ToList(), StringComparer.Ordinal);
+
+        var snapshot = new List<PersistedSession>();
+
+        foreach (var session in Sessions.Snapshot())
+        {
+            if (!session.Persistent)
+            {
+                continue;
+            }
+
+            var principal = session.Principal;
+
+            var record = new PersistedSession
+            {
+                ClientId = session.ClientId,
+                Name = principal.Name,
+                Username = principal.Username,
+                IsSuperuser = principal.IsSuperuser,
+                Claims = principal.Claims.Count == 0
+                    ? null
+                    : principal.Claims.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal),
+                ProtocolVersion = (int)session.ProtocolVersion,
+                SessionExpiryInterval = session.SessionExpiryInterval,
+                ExpiresAt = session.ExpiresAt,
+                LastSeen = session.LastSeen,
+            };
+
+            if (subscriptions.TryGetValue(session.ClientId, out var clientSubscriptions))
+            {
+                record.Subscriptions = clientSubscriptions
+                    .Select(subscription => new PersistedSubscription
+                    {
+                        Filter = subscription.Filter.Original,
+                        QoS = (int)subscription.Options.QoS,
+                        NoLocal = subscription.Options.NoLocal,
+                        RetainAsPublished = subscription.Options.RetainAsPublished,
+                        RetainHandling = (int)subscription.Options.RetainHandling,
+                        Identifier = subscription.Identifier,
+                    })
+                    .ToList();
+            }
+
+            record.Queue = session.SnapshotQueue()
+                .Select(message => new PersistedMessage
+                {
+                    Topic = message.Topic,
+                    Payload = Convert.ToBase64String(message.Payload),
+                    QoS = (int)message.QoS,
+                    Retain = message.Retain,
+                    ExpiresAt = message.ExpiresAt,
+                    Properties = PropertyRecord.FromProperties(message.Properties),
+                })
+                .ToList();
+
+            snapshot.Add(record);
+        }
+
+        return snapshot;
+    }
+
+    private static OutboundMessage? TryToOutbound(PersistedMessage message)
+    {
+        try
+        {
+            return new OutboundMessage
+            {
+                Topic = message.Topic,
+                Payload = Convert.FromBase64String(message.Payload),
+                QoS = (MqttQoS)message.QoS,
+                Retain = message.Retain,
+                ExpiresAt = message.ExpiresAt,
+                Properties = PropertyRecord.ToProperties(message.Properties),
+            };
+        }
+        catch (FormatException)
+        {
+            return null;
+        }
+    }
+
+    private async Task MaintenanceLoopAsync(CancellationToken cancellationToken)    {
         var interval = Options.SweepInterval < Options.RetransmitInterval
             ? Options.SweepInterval
             : Options.RetransmitInterval;
@@ -480,6 +794,7 @@ public sealed class MqttBroker : IAsyncDisposable
     private void Sweep(DateTimeOffset now)
     {
         Retained.PruneExpired(now);
+        PersistSessionsIfDue(now);
 
         foreach (var session in Sessions.Snapshot())
         {

@@ -5,6 +5,9 @@ public sealed class ServerOptions
 {
     public const string SectionName = "Server";
 
+    /// <summary>Seconds to wait for inflight QoS acknowledgements on shutdown.</summary>
+    public int DrainTimeoutSeconds { get; set; } = 5;
+
     public TcpListenerOptions Tcp { get; set; } = new();
 
     public TlsListenerOptions Tls { get; set; } = new();

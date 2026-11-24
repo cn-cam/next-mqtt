@@ -101,6 +101,14 @@ QoS, 시각, MQTT 5 속성을 담습니다. 시작 시 순서대로 재생하고
 파일이 커지면 compaction합니다. 마지막 줄이 깨져도 기동은 실패하지 않습니다. 각
 노드가 자체 저널을 유지합니다.
 
+영구 세션은 별도 스냅샷입니다. `Session:Mode=File`이면 `Session:Path`(기본
+`data/sessions.json`)에 쓰고 `Session:SnapshotSeconds`(기본 30)마다 갱신합니다.
+스냅샷에는 identity, 만료, 구독, 오프라인 큐가 들어가며 inflight QoS는 포함되지
+않습니다. 정상 종료 시에도 기록합니다.
+
+논리 백업은 `GET /api/v1/backup`으로 내려받고 `POST /api/v1/backup`으로
+복원합니다(retained 교체, 온라인이 아닌 세션만 추가).
+
 ## 인증
 
 ```json

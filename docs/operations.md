@@ -175,8 +175,20 @@ persistence lands.
 There is no on-disk state to back up unless retained persistence is enabled. With
 `Storage:Retained:Mode` set to `file`, the journal at `Storage:Retained:Path`
 holds every retained message and can be copied while the broker runs (it is
-append-only and compaction uses an atomic rename). Sessions, queues and
-subscriptions are still in memory, so they do not survive a restart.
+append-only and compaction uses an atomic rename). Persistent sessions are
+snapshotted to `Storage:Session:Path` when `Storage:Session:Mode` is `file`.
+
+For a logical backup independent of the storage mode, use the API:
+
+```bash
+curl -s http://localhost:8080/api/v1/backup -H "Authorization: Bearer $TOKEN" \
+  > nextmqtt-backup.json
+curl -s -X POST http://localhost:8080/api/v1/backup -H "Authorization: Bearer $TOKEN" \
+  -H 'content-type: application/json' --data @nextmqtt-backup.json
+```
+
+Import replaces retained messages and adds persistent sessions that are not
+currently online. Inflight QoS handshakes are not part of a backup.
 
 Configuration lives in environment variables and Kubernetes/Compose files; back
 those up. The admin token secret and cluster secret must be preserved to avoid

@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using NextMqtt.Broker.Options;
+using NextMqtt.Core.Topics;
 
 namespace NextMqtt.Broker.RateLimiting;
 
@@ -70,6 +71,56 @@ public sealed class TokenBucket
 
         _lastTimestamp = now;
         _tokens = Math.Min(_capacity, _tokens + (elapsed * _refillPerSecond));
+    }
+}
+
+/// <summary>
+/// Global publish quota per topic filter. One bucket per rule, shared by every
+/// client, so a topic cannot be flooded by opening more connections.
+/// </summary>
+public sealed class TopicQuotaLimiter
+{
+    private readonly List<(TopicFilter Filter, TokenBucket Bucket)> _rules = [];
+    private readonly object _gate = new();
+
+    public TopicQuotaLimiter(RateLimitOptions options)
+    {
+        foreach (var rule in options.Topics)
+        {
+            if (rule.PublishPerSecond <= 0 || !MqttTopic.IsValidFilter(rule.Filter, out _))
+            {
+                continue;
+            }
+
+            var burst = rule.Burst > 0 ? rule.Burst : rule.PublishPerSecond;
+            _rules.Add((TopicFilter.Parse(rule.Filter), new TokenBucket(rule.PublishPerSecond, burst)));
+        }
+    }
+
+    public bool Enabled => _rules.Count > 0;
+
+    public int RuleCount => _rules.Count;
+
+    /// <summary>Consumes quota for every matching rule; false when any is exhausted.</summary>
+    public bool TryAcquire(string topic)
+    {
+        if (_rules.Count == 0)
+        {
+            return true;
+        }
+
+        lock (_gate)
+        {
+            foreach (var rule in _rules)
+            {
+                if (rule.Filter.Matches(topic) && !rule.Bucket.TryTake())
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
     }
 }
 

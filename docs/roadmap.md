@@ -19,13 +19,13 @@ security needs.
 
 - [x] File-backed retained store with an append-only journal (0.4.0)
 - [x] Journal compaction at startup and when the file grows (0.4.0)
-- [ ] Pluggable session store
+- [x] Durable session snapshots with resumed queues and subscriptions (0.5.0)
 - [ ] SQLite and PostgreSQL providers
-- [ ] Session backup and restore procedures
-- [ ] Graceful node drain that waits for inflight acknowledgements
+- [x] Backup and restore of retained and session state (0.5.0)
+- [x] Graceful drain that waits for inflight acknowledgements (0.5.0)
 - [x] Per-client and per-IP connection rate limits (0.3.0)
 - [x] Message-rate quotas per client (0.3.0)
-- [ ] Topic-level quotas
+- [x] Topic-level publish quotas (0.5.0)
 - [ ] OpenTelemetry traces for publish and delivery paths
 
 ## 0.3 — Protocol depth

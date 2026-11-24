@@ -160,6 +160,40 @@ public sealed class BrokerSession : IDisposable
         }
     }
 
+    /// <summary>Copies the offline queue for persistence.</summary>
+    public List<OutboundMessage> SnapshotQueue()
+    {
+        lock (_gate)
+        {
+            return _queue.Select(entry => entry.Message).ToList();
+        }
+    }
+
+    /// <summary>Rebuilds a restored session from disk (always offline).</summary>
+    public void Restore(
+        ClientPrincipal principal,
+        MqttProtocolVersion protocolVersion,
+        uint sessionExpiryInterval,
+        DateTimeOffset? expiresAt,
+        DateTimeOffset lastSeen,
+        IEnumerable<OutboundMessage> queued)
+    {
+        lock (_gate)
+        {
+            Principal = principal;
+            ProtocolVersion = protocolVersion;
+            Persistent = sessionExpiryInterval > 0;
+            SessionExpiryInterval = sessionExpiryInterval;
+            ExpiresAt = expiresAt;
+            LastSeen = lastSeen;
+
+            foreach (var message in queued)
+            {
+                EnqueueLocked(message);
+            }
+        }
+    }
+
     /// <summary>
     /// Queues or sends a message. Returns false if the message was dropped
     /// (fresh non-persistent session, expired message or full queue).

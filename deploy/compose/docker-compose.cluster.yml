@@ -19,6 +19,8 @@ x-node: &node
     # "file" journals retained messages under /app/data so they survive restarts.
     NEXTMQTT_STORAGE__RETAINED__MODE: ${NEXTMQTT_RETAINED_MODE:-memory}
     NEXTMQTT_STORAGE__RETAINED__PATH: /app/data/retained.log
+    NEXTMQTT_STORAGE__SESSION__MODE: ${NEXTMQTT_SESSION_MODE:-memory}
+    NEXTMQTT_STORAGE__SESSION__PATH: /app/data/sessions.json
   security_opt:
     - no-new-privileges:true
   healthcheck:

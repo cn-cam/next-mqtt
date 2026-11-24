@@ -17,7 +17,7 @@
 | 구독 옵션 | ✅ | noLocal, RAP, retain handling |
 | 토픽 별칭 | ⚠️ | 인바운드만 |
 | 강화 인증 AUTH | ❌ | `0x8C` 반환 |
-| 영구 저장 | ⚠️ | retained는 파일 로그 가능, 세션은 메모리 |
+| 영구 저장 | ⚠️ | retained 저널 + 세션 스냅샷 (inflight 제외) |`n| 백업/복구 | ✅ | `GET`/`POST /api/v1/backup` |`n| 우아한 종료 | ✅ | inflight 확인 응답 대기 (`Server:DrainTimeoutSeconds`) |
 
 ## 보안
 
@@ -29,7 +29,7 @@
 | TLS / WSS | ✅ |
 | 관리 토큰 / API 키 | ✅ |
 | 역할 기반 관리 권한 | ❌ |
-| 속도 제한 | ✅ |
+| 속도 제한 | ✅ |`n| 토픽 단위 발행 할당량 | ✅ | 필터 단위로 클라이언트 공유 |
 
 ## 클러스터
 
@@ -58,7 +58,7 @@
 
 ## 검증
 
-현재 **141개 테스트** 통과(Core 63, Broker 56, Server 22). CI에서 빌드, 테스트,
+현재 **147개 테스트** 통과(Core 63, Broker 61, Server 23). CI에서 빌드, 테스트,
 대시보드, 문서, Helm/Kustomize, 이미지, CodeQL을 검증합니다.
 
 ## 확장성

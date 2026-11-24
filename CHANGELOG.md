@@ -5,6 +5,22 @@ All notable changes to NextMQTT are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.5.0] - 2026-11-24
+
+### Added
+
+- Durable persistent sessions: periodic atomic snapshots of identity, expiry,
+  subscriptions and offline queues (`Storage:Session`), restored on startup.
+- `GET` and `POST /api/v1/backup` to export and import retained messages and
+  persistent sessions.
+- Graceful shutdown drain that waits for inflight QoS acknowledgements
+  (`Server:DrainTimeoutSeconds`).
+- Topic-level publish quotas shared across clients (`RateLimits:Topics`).
+
+### Changed
+
+- Retained and session stores share one `StorageMode` enum.
+
 ## [0.4.0] - 2026-11-24
 
 ### Added
@@ -137,7 +153,8 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 - GitHub Actions for CI, CodeQL, releases and GitHub Pages.
 - Mechanical brand/trademark compliance scanner and repository policy.
 
-[Unreleased]: https://github.com/cn-cam/next-mqtt/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/cn-cam/next-mqtt/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.5.0
 [0.4.0]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.4.0
 [0.3.0]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.3.0
 [0.2.0]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.2.0

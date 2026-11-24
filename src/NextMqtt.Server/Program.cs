@@ -91,7 +91,7 @@ builder.Services.AddSingleton(sp => new ClusterRouter(
     sp.GetRequiredService<HttpClient>()));
 builder.Services.AddSingleton<IClusterRouter>(sp => sp.GetRequiredService<ClusterRouter>());
 
-if (storageOptions.Retained.Mode == RetainedStoreMode.File)
+if (storageOptions.Retained.Mode == StorageMode.File)
 {
     builder.Services.AddSingleton<IRetainedJournal>(sp =>
     {
@@ -104,6 +104,12 @@ if (storageOptions.Retained.Mode == RetainedStoreMode.File)
     });
 }
 
+if (storageOptions.Session.Mode == StorageMode.File)
+{
+    builder.Services.AddSingleton<ISessionSnapshotStore>(
+        new FileSessionSnapshotStore(storageOptions.Session.Path));
+}
+
 builder.Services.AddSingleton(sp =>
 {
     var cluster = sp.GetRequiredService<IClusterRouter>();
@@ -113,7 +119,9 @@ builder.Services.AddSingleton(sp =>
         sp.GetRequiredService<ITopicAuthorizer>(),
         cluster,
         sp.GetRequiredService<ILogger<MqttBroker>>(),
-        sp.GetService<IRetainedJournal>());
+        sp.GetService<IRetainedJournal>(),
+        sp.GetService<ISessionSnapshotStore>(),
+        storageOptions.Session.SnapshotSeconds);
 
     if (cluster is ClusterRouter clusterRouter)
     {
@@ -365,6 +373,14 @@ api.MapPost("/publish", async (PublishRequest request, MqttBroker b, Cancellatio
 });
 
 api.MapGet("/cluster", (MqttBroker b) => Results.Ok(b.GetCluster()));
+
+api.MapGet("/backup", (MqttBroker b) => Results.Ok(b.CreateBackup()));
+
+api.MapPost("/backup", (MqttBroker b, BrokerBackup backup) =>
+{
+    var result = b.RestoreBackup(backup);
+    return Results.Ok(new { retained = result.Retained, sessions = result.Sessions });
+});
 
 api.MapGet("/config", (MqttBroker b) => Results.Ok(new
 {

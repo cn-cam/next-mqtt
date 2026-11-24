@@ -101,6 +101,10 @@ dotnet NextMqtt.Server.dll
 を除外し、肥大時に compaction します。最後の行が壊れていても起動は失敗しません。
 各ノードが自分のジャーナルを持ちます。
 
+永続セッションは別スナップショットです。Session:Mode=File で Session:Path（既定 data/sessions.json）に書き、Session:SnapshotSeconds（既定 30）ごとに更新します。スナップショットには identity、期限、購読、オフラインキューが入り、inflight QoS は含みません。正常停止時にも書き出します。
+
+論理バックアップは GET /api/v1/backup で取得し、POST /api/v1/backup で復元します（retained は置換、オンラインでないセッションのみ追加）。
+
 ## 認証
 
 ```json
