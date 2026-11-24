@@ -1,5 +1,6 @@
 ---
 layout: home
+title: Cloud-native MQTT platform
 
 hero:
   name: NextMQTT

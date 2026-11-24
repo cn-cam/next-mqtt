@@ -124,7 +124,7 @@ filter:
 | `sensors/#` | `sensors/+/temperature` | ✅ |
 | `sensors/#` | `sensors/#` | ✅ |
 | `sensors/+` | `sensors/#` | ❌ |
-| `#` | `$SYS/#` | ✅ (superuser or explicit rule needed in practice) |
+| `#` | `$SYS/#` | ❌ (leading-`$` rule) |
 | `devices/${clientid}/#` | `devices/device-1/#` | ✅ for client `device-1` |
 
 Retained messages are checked again at delivery time, so a client cannot read a

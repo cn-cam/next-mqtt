@@ -32,6 +32,7 @@ public sealed class ClusterRouter : IClusterRouter
     private Member? _self;
     private long _publishesSent;
     private long _publishesReceived;
+    private int _stopped;
 
     public ClusterRouter(
         ClusterOptions options,
@@ -91,6 +92,11 @@ public sealed class ClusterRouter : IClusterRouter
 
     public async ValueTask StopAsync()
     {
+        if (Interlocked.Exchange(ref _stopped, 1) != 0)
+        {
+            return;
+        }
+
         _lifetime.Cancel();
 
         if (_loop is not null)

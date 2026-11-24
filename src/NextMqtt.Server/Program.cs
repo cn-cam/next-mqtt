@@ -370,7 +370,7 @@ app.MapGet("/metrics", (HttpContext context) =>
         return Results.Unauthorized();
     }
 
-    var text = PrometheusFormatter.Format(broker.GetStats(), broker.GetCluster().Nodes.Count, version);
+    var text = PrometheusFormatter.Format(broker.GetStats(), Math.Max(1, broker.GetCluster().Nodes.Count), version);
     return Results.Text(text, "text/plain; version=0.0.4; charset=utf-8");
 });
 

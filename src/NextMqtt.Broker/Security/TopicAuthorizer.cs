@@ -135,6 +135,12 @@ public sealed class TopicAuthorizer : ITopicAuthorizer
             return false;
         }
 
+        if (requestedFilter.StartsWith('$')
+            && (aclFilter.Levels[0] == "#" || aclFilter.Levels[0] == "+"))
+        {
+            return false;
+        }
+
         var requested = MqttTopic.SplitLevels(requestedFilter);
         var allowed = aclFilter.Levels;
 

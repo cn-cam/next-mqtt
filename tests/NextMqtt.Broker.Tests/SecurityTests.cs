@@ -232,6 +232,22 @@ public class SecurityTests
     }
 
     [Fact]
+    public void Wildcard_rule_does_not_cover_dollar_topics()
+    {
+        var authorizer = new TopicAuthorizer(new AclOptions
+        {
+            Rules = [new AclRuleOptions { Topic = "#" }],
+        });
+
+        var user = ClientPrincipal.Create("alice", "c1", isSuperuser: false);
+
+        Assert.True(authorizer.CanSubscribe(user, "sensors/#"));
+        Assert.False(authorizer.CanSubscribe(user, "$SYS/#"));
+        Assert.True(authorizer.CanPublish(user, "sensors/a"));
+        Assert.False(authorizer.CanPublish(user, "$SYS/load"));
+    }
+
+    [Fact]
     public void Shared_subscription_acl_uses_the_effective_filter()
     {
         var authorizer = new TopicAuthorizer(new AclOptions
