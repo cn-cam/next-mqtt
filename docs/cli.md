@@ -89,6 +89,23 @@ The benchmark prints elapsed time, messages/second, MiB/second and failures. It
 is a synthetic publisher benchmark, not a full conformance or capacity test.
 Run it in an isolated environment and watch broker CPU and drop metrics.
 
+### Connection benchmark
+
+```bash
+nextmqtt bench-connections --connections 5000 --hold 5
+```
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `--connections` | 1000 | Connections opened in parallel |
+| `--hold` | 5 | Seconds to keep them open (0 = close immediately) |
+
+It prints how many connections were accepted, the accept rate in conn/s, the
+failure count and, after the hold window, closes everything. The exit code is
+non-zero when any connection failed. Above roughly 10k connections from one
+host, raise the client's ephemeral port range or run several generators,
+otherwise the client, not the broker, becomes the limit.
+
 ## Password hashing
 
 ```bash

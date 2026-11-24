@@ -67,6 +67,14 @@ Clients, subscriptions and retained tables poll every five seconds and paginate
 server-side. The publish console uses the same ACL-free administrative path as
 the REST API.
 
+The MQTT debugger (Messaging → Debugger) connects straight from the browser to
+the broker over WebSocket, so it exercises the real protocol rather than the
+administrative API. It supports MQTT 3.1.1 and 5.0, QoS 0–2, retained messages,
+will messages, MQTT 5 session and publish properties, topic filters with noLocal,
+retain-as-published and retain handling, PING, a packet trace and JSON log
+export. It uses the same credentials as any MQTT client and is subject to the
+broker's authentication and ACL rules.
+
 ## Logs
 
 Logs are written to stdout. Useful messages include:
@@ -101,6 +109,23 @@ Memory is dominated by:
 Lower the queue limit or session expiry when memory is constrained. There is no
 global retained-message quota in this release; monitor
 `nextmqtt_retained_messages` and payload sizes.
+
+### Measured reference numbers
+
+| Scenario | Result |
+| --- | --- |
+| 1,000 concurrent connections | 1,000 accepted in 1.09 s (≈920 conn/s) |
+| 5,000 concurrent connections | 5,000 accepted in 3.16 s (≈1,580 conn/s), 0 failures |
+| QoS 0, 50 clients × 2,000 messages, 64 B | ≈194,000 msg/s |
+| QoS 0, 100 clients × 2,000 messages, 128 B | ≈186,000 msg/s |
+| QoS 1, 20 clients × 500 messages | ≈19,800 msg/s |
+
+Hardware: one machine, Windows 11, Intel Core i7-11700F (8 cores / 16 threads),
+32 GiB RAM, broker and load generator sharing the same CPU over loopback. These
+numbers are deliberately conservative — a separate generator, Linux and a
+release build on a dedicated host do better. Reproduce them with
+`nextmqtt bench` and `nextmqtt bench-connections`; TLS, retained-heavy topics
+and large fan-out all reduce them.
 
 ## Session lifecycle
 

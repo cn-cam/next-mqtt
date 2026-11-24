@@ -42,6 +42,12 @@ security needs.
 - [ ] Kafka and NATS bridge modules
 - [ ] Rule engine for topic routing, filtering and enrichment
 - [ ] Plugin SDK for .NET extensions
+
+  Scoped as a first-party extension host: a versioned contract, an explicit
+  lifecycle and a manifest this project defines, not a foreign plugin API. It
+  needs its own ADR before code lands (see
+  [ADR 0005](adr/0005-extension-interfaces.md)). Until then, extension points are
+  the interfaces listed in [Features](features.md#extensibility).
 - [ ] Schema registry hooks for payload validation
 - [ ] Multi-tenant namespaces
 

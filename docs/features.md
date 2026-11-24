@@ -82,6 +82,7 @@ Legend: ✅ implemented · ⚠️ partial or with documented limits · ❌ not i
 | --- | --- | --- |
 | REST management API | ✅ | Clients, subscriptions, retained, publish, cluster, config |
 | Vue 3 dashboard | ✅ | English/Chinese, dark/light, live polling |
+| MQTT debugger | ✅ | Browser client over WebSocket: MQTT 3.1.1 and 5.0, QoS 0–2, MQTT 5 properties, subscriptions, packet trace, log export |
 | Prometheus metrics | ✅ | `/metrics`, counters and gauges |
 | JSON statistics | ✅ | 60-second publish series |
 | Health and readiness | ✅ | `/healthz`, `/readyz` |
@@ -110,14 +111,34 @@ The claims above are covered by the repository's tests and CI:
 | Container build + health/login smoke | CI `Container image` job |
 | CodeQL | `codeql.yml` |
 
-Current test count: 125 passing tests (63 core, 49 broker, 13 server
+Current test count: 126 passing tests (63 core, 50 broker, 13 server)
 integration).
+
+## Extensibility
+
+NextMQTT 0.1.x has extension **interfaces**, not a plugin ABI. Plugin packages
+built for other MQTT brokers are not loaded, are not compatible, and are not
+supported.
+
+| Extension point | Interface | Purpose |
+| --- | --- | --- |
+| Client authentication | `IClientAuthenticator` | Replace or extend username/password and API-key checks |
+| Topic authorisation | `ITopicAuthorizer` | Allow or deny publish/subscribe per client |
+| Cluster routing | `IClusterRouter` | Replace the HTTP forwarding strategy |
+
+Each is resolved from dependency injection, so an extension is a source change
+plus a rebuild — no external runtime and no configuration schema of its own.
+Out-of-process integrations use the versioned REST API (`/api/v1`) and the
+cluster endpoints (`/internal/cluster`). A first-party extension host is on the
+roadmap and needs its own ADR first (see
+[ADR 0005](adr/0005-extension-interfaces.md)).
 
 ## Known limitations
 
 - State is in memory; restarts drop sessions, queues and retained messages.
 - Cluster forwarding is best effort and shared subscriptions are node-local.
-- Enhanced authentication, outbound topic aliases, rate limiting, persistence,
-  bridges and a plugin SDK are not in this release.
+- Enhanced authentication, outbound topic aliases, rate limiting, persistence
+  and bridges are not in this release.
+- Extending behaviour means changing source; there is no plugin host yet.
 - The default configuration is development-friendly; harden it before exposing
   the broker.
