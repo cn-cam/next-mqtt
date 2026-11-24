@@ -122,7 +122,7 @@ CLI 支持 MQTT 5 / 3.1.1、TLS，并可用 `hash-password` 生成控制台或 A
 - Compose：[`docker-compose.yml`](docker-compose.yml)
 
 ```bash
-kubectl apply -k deploy/kubernetes/overlays/production
+kubectl apply -k deploy/kubernetes
 helm install nextmqtt deploy/helm/next-mqtt \
   --namespace nextmqtt --create-namespace \
   --set auth.adminPassword='change-me-now'

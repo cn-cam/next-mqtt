@@ -151,7 +151,7 @@ All ports are configurable via `NEXTMQTT_*` environment variables or
 - Compose: [`docker-compose.yml`](docker-compose.yml)
 
 ```bash
-kubectl apply -k deploy/kubernetes/overlays/production
+kubectl apply -k deploy/kubernetes
 # or
 helm install nextmqtt deploy/helm/next-mqtt \
   --namespace nextmqtt --create-namespace \
