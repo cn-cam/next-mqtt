@@ -5,6 +5,21 @@ All notable changes to NextMQTT are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.4.0] - 2026-11-24
+
+### Added
+
+- File-backed retained-message store: append-only JSON-lines journal with
+  startup replay, expiry filtering, torn-line tolerance and compaction
+  (`Storage:Retained`).
+- Cluster Compose nodes mount a data volume so the retained journal survives
+  container restarts.
+
+### Changed
+
+- Retained messages can survive a restart; sessions, queues and subscriptions
+  are still in memory.
+
 ## [0.3.0] - 2026-11-24
 
 ### Added
@@ -122,7 +137,8 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 - GitHub Actions for CI, CodeQL, releases and GitHub Pages.
 - Mechanical brand/trademark compliance scanner and repository policy.
 
-[Unreleased]: https://github.com/cn-cam/next-mqtt/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/cn-cam/next-mqtt/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.4.0
 [0.3.0]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.3.0
 [0.2.0]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.2.0
 [0.1.2]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.1.2
