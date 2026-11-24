@@ -1,6 +1,6 @@
 # NextMQTT
 
-**基于 .NET 10 与 Vue 3 从零构建的现代云原生 MQTT 平台。**
+**基于 .NET 10 与 Vue 3 原生构建的下一代 MQTT 平台。**
 
 NextMQTT 是 OASIS MQTT 3.1.1 / MQTT 5.0 规范的独立实现，包含异步 Broker、
 管理 REST API、实时运维控制台，以及完整的 Docker / Kubernetes 部署资产。

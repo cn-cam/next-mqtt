@@ -1,6 +1,6 @@
 # NextMQTT
 
-**A modern, cloud-native MQTT platform built from scratch on .NET 10 and Vue 3.**
+**The next-generation MQTT platform, built natively on .NET 10 and Vue 3.**
 
 NextMQTT is an independent implementation of the OASIS MQTT 3.1.1 and MQTT 5.0
 specifications. It ships an async broker, a management REST API, a

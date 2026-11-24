@@ -5,7 +5,7 @@ title: Cloud-native MQTT platform
 hero:
   name: NextMQTT
   text: Cloud-native MQTT platform
-  tagline: An independent MQTT 3.1.1 and 5.0 broker built from scratch on .NET 10 and Vue 3, with clustering, a management API and a real-time dashboard.
+  tagline: A next-generation, .NET-native MQTT platform for cloud, edge and real-time data — with clustering, a management API and a dashboard built in.
   image:
     src: /logo.svg
     alt: NextMQTT
