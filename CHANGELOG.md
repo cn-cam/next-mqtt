@@ -21,6 +21,30 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 - Enhanced authentication (`AUTH`) providers.
 - Global shared-subscription coordination.
 
+## [0.2.0] - 2026-11-24
+
+### Added
+
+- MQTT debugger in the dashboard: MQTT 3.1.1 and 5.0 over WebSocket with
+  subscriptions, QoS 0-2 publishing, MQTT 5 properties, wills, packet trace and
+  JSON log export.
+- `nextmqtt bench-connections` connection benchmark with accept rate, failure
+  count and a hold window.
+- Measured throughput and connection numbers in the operations guide.
+- ADR 0005 and an English ADR index.
+
+### Changed
+
+- Docker Hub publishing is skipped when the login fails, so releases still
+  publish to GHCR.
+- Cluster composition sets a shared dashboard token secret so one sign-in works
+  across nodes.
+
+### Fixed
+
+- The cluster heartbeat loop no longer stops when a peer cannot be resolved,
+  which previously froze membership until restart.
+
 ## [0.1.2] - 2026-11-24
 
 ### Added
@@ -85,7 +109,8 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 - GitHub Actions for CI, CodeQL, releases and GitHub Pages.
 - Mechanical brand/trademark compliance scanner and repository policy.
 
-[Unreleased]: https://github.com/cn-cam/next-mqtt/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/cn-cam/next-mqtt/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.2.0
 [0.1.2]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.1.2
 [0.1.1]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.1.1
 [0.1.0]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.1.0
