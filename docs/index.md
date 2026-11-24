@@ -41,13 +41,12 @@ features:
     details: Clean-room code, Apache-2.0, no third-party broker source, configuration formats, logos or trademarks.
 ---
 
-## Why another broker?
+## A new foundation for MQTT
 
-Most MQTT deployments fail operationally, not at the protocol layer. NextMQTT
-focuses on the things that make a broker maintainable in production:
+NextMQTT is built for teams standardizing on .NET: one modern process, explicit
+resource limits and operations tooling that ships with the broker.
 
-- **A single .NET process** with no external database, Erlang VM or message
-  broker dependency.
+- **A single .NET 10 process** with no external database or message middleware.
 - **Observable state** at every layer: connections, sessions, inflight windows,
   subscriptions, retained messages and cluster membership.
 - **Predictable async pipelines** built on `System.IO.Pipelines` and bounded

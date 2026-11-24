@@ -55,8 +55,8 @@ security needs.
 
 ## Explicit non-goals
 
-- Compatibility with another broker's private plugin API.
-- Reusing another broker's configuration files or dashboards.
+- Compatibility with a third-party broker's private plugin API.
+- Reusing a third-party broker's configuration files or dashboards.
 - Copying source, tests or documentation from another implementation.
 - Claiming certification or endorsement by a broker vendor.
 

@@ -1,6 +1,6 @@
 # FAQ
 
-## Is NextMQTT a fork or reimplementation of another broker?
+## Is NextMQTT a fork or reimplementation of an existing product?
 
 No. It is an independent clean-room implementation of the OASIS MQTT 3.1.1 and
 5.0 specifications. It contains no source code, documentation text,

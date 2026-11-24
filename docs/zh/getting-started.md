@@ -128,6 +128,8 @@ dotnet run --project src/NextMqtt.Cli -- pub --topic demo/hello --message "hello
 
 ## 下一步
 
+- [功能对齐清单](/zh/features) — 已实现、部分实现与规划能力
+- [命令行参考](/zh/cli) — 发布、订阅、压测与密码哈希
 - [配置](/configuration) — 全部选项与环境变量
 - [认证与 ACL](/authentication) — 用户、JWT 与主题规则
 - [部署](/deployment) — Docker、Kubernetes 与 Helm

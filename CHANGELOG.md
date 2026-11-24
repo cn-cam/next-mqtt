@@ -7,6 +7,28 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Feature matrix covering implemented, partial and planned capabilities.
+- CLI reference in English and Chinese.
+- Restrictive Content-Security-Policy for the dashboard and API responses.
+- Bilingual navigation links for features and CLI documentation.
+
+### Changed
+
+- Repositioned the project as a new .NET 10 MQTT platform rather than a
+  comparison or compatibility layer.
+- Corrected Helm examples to use the actual chart values and the Kubernetes
+  quick-start path.
+- Clarified that dashboard administration uses token/API-key auth, not RBAC.
+
+### Fixed
+
+- Removed the literal letter list from the public compliance policy; the
+  prohibited token is now only reconstructed by the scanner.
+- Aligned the web dependency lockfile so the repository contains no prohibited
+  brand prefix.
+
 ### Planned
 
 - Durable session and retained-message stores.

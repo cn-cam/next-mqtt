@@ -24,6 +24,7 @@ export default defineConfig({
     nav: [
       { text: 'Guide', link: '/getting-started', activeMatch: '/(getting-started|configuration|authentication|tls|operations)' },
       { text: 'Architecture', link: '/architecture' },
+      { text: 'Features', link: '/features' },
       { text: 'Protocol', link: '/protocol' },
       { text: 'Deploy', link: '/deployment', activeMatch: '/(deployment|clustering)' },
       { text: 'API', link: '/api' },
@@ -44,6 +45,7 @@ export default defineConfig({
         text: 'Guide',
         items: [
           { text: 'Getting started', link: '/getting-started' },
+          { text: 'Feature matrix', link: '/features' },
           { text: 'Configuration', link: '/configuration' },
           { text: 'Authentication & ACL', link: '/authentication' },
           { text: 'TLS', link: '/tls' },
@@ -63,6 +65,7 @@ export default defineConfig({
         text: 'Reference',
         items: [
           { text: 'REST API', link: '/api' },
+          { text: 'CLI', link: '/cli' },
           { text: 'Deployment', link: '/deployment' },
           { text: 'Development', link: '/development' },
           { text: 'Architecture decisions', link: '/adr/' },

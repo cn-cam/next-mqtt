@@ -2,7 +2,7 @@
 
 **基于 .NET 10 与 Vue 3 从零构建的现代云原生 MQTT 平台。**
 
-NextMQTT 是 OASIS MQTT 3.1.1 / MQTT 5.0 规范的独立实现，包含高性能 Broker、
+NextMQTT 是 OASIS MQTT 3.1.1 / MQTT 5.0 规范的独立实现，包含异步 Broker、
 管理 REST API、实时运维控制台，以及完整的 Docker / Kubernetes 部署资产。
 
 [![CI](https://github.com/cn-cam/next-mqtt/actions/workflows/ci.yml/badge.svg)](https://github.com/cn-cam/next-mqtt/actions/workflows/ci.yml)
@@ -10,7 +10,8 @@ NextMQTT 是 OASIS MQTT 3.1.1 / MQTT 5.0 规范的独立实现，包含高性能
 
 ## 特性
 
-- **单二进制、零外部依赖**： broker 与 API 运行在 .NET 10 上，无需外部数据库。
+- **全新的 .NET 10 基础**：broker、管理 API 与控制台运行在同一个现代 ASP.NET
+  Core 进程中，无需外部数据库或消息中间件。
 - **面向运维**： 客户端/订阅实时视图、保留消息管理、集群拓扑、消息发布台、
   Prometheus 指标全部内置。
 - **可预测的并发模型**： `System.IO.Pipelines` 组帧、有界 Channel 背压、
@@ -25,7 +26,7 @@ NextMQTT 是 OASIS MQTT 3.1.1 / MQTT 5.0 规范的独立实现，包含高性能
 | 会话 | Clean Start、持久会话、会话过期、会话接管、离线队列 |
 | 消息 | 保留消息、消息过期、遗嘱消息、遗嘱延迟 |
 | 订阅 | 通配符、共享订阅、no-local、retain-as-published、retain handling |
-| 安全 | 密码认证、JWT、匿名开关、主题 ACL、TLS、管理端 RBAC |
+| 安全 | 密码认证、JWT、匿名开关、主题 ACL、TLS、管理令牌认证 |
 | 集群 | 成员 gossip、签名节点通信、跨节点路由 |
 | 可观测 | Prometheus、JSON 统计、结构化日志、健康检查 |
 
@@ -125,8 +126,20 @@ CLI 支持 MQTT 5 / 3.1.1、TLS，并可用 `hash-password` 生成控制台或 A
 kubectl apply -k deploy/kubernetes
 helm install nextmqtt deploy/helm/next-mqtt \
   --namespace nextmqtt --create-namespace \
-  --set auth.adminPassword='change-me-now'
+  --set admin.password='change-me-now' \
+  --set cluster.secret='change-me-shared-secret'
 ```
+
+## 文档
+
+- [功能对齐清单](docs/zh/features.md) — 已实现、部分实现与规划能力
+- [命令行参考](docs/zh/cli.md) — 发布、订阅、压测与密码哈希
+- [架构设计](docs/zh/architecture.md) — 组件、数据结构与扩展
+- [部署](docs/deployment.md) — 单机、集群、Kubernetes
+- [配置](docs/configuration.md) — 全部选项与环境变量
+- [认证与 ACL](docs/authentication.md) — 用户、JWT 与主题规则
+- [API](docs/api.md) — REST 接口
+- [运维](docs/operations.md) — 指标、健康检查与排错
 
 ## 独立性与合规
 

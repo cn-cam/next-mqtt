@@ -3,7 +3,7 @@
 **A modern, cloud-native MQTT platform built from scratch on .NET 10 and Vue 3.**
 
 NextMQTT is an independent implementation of the OASIS MQTT 3.1.1 and MQTT 5.0
-specifications. It ships a high-throughput broker, a management REST API, a
+specifications. It ships an async broker, a management REST API, a
 real-time operations dashboard, and first-class Docker / Kubernetes
 deployment assets.
 
@@ -16,8 +16,9 @@ deployment assets.
 
 ## Why NextMQTT
 
-- **One binary, zero runtime dependencies.** The broker and API are plain
-  ASP.NET Core on .NET 10. No Erlang VM, no external database required.
+- **A new .NET 10 foundation.** The broker, management API and dashboard run in
+  one modern ASP.NET Core process. No external database or message middleware
+  is required.
 - **Designed for operations.** Live client/subscription views, retained
   message inspection, cluster topology, publish console and Prometheus
   metrics are built in.
@@ -38,7 +39,7 @@ deployment assets.
 | Sessions | Clean start, persistent sessions, session expiry, takeover, offline queue |
 | Messaging | Retained messages, message expiry, will messages, will delay |
 | Subscriptions | Wildcards, shared subscriptions, no-local, retain-as-published, retain handling |
-| Security | Password auth, JWT auth, anonymous toggle, topic ACLs, TLS, admin RBAC |
+| Security | Password auth, JWT auth, anonymous toggle, topic ACLs, TLS, admin token auth |
 | Cluster | Gossip membership, signed node-to-node transport, cross-node routing |
 | Observability | Prometheus metrics, JSON statistics, structured logs, health probes |
 | Management | REST API, Vue 3 dashboard, audit-friendly admin tokens |
@@ -155,7 +156,8 @@ kubectl apply -k deploy/kubernetes
 # or
 helm install nextmqtt deploy/helm/next-mqtt \
   --namespace nextmqtt --create-namespace \
-  --set auth.adminPassword='change-me-now'
+  --set admin.password='change-me-now' \
+  --set cluster.secret='change-me-shared-secret'
 ```
 
 ## Project layout
@@ -174,8 +176,10 @@ deploy/                  Docker, Compose, Kubernetes and Helm assets
 ## Documentation
 
 - [Architecture](docs/architecture.md) — components, data structures, scaling
+- [Feature matrix](docs/features.md) — implemented, partial and planned capabilities
 - [Protocol support](docs/protocol.md) — implemented MQTT features and limits
 - [Configuration](docs/configuration.md) — every option and env variable
+- [CLI reference](docs/cli.md) — publish, subscribe, benchmark, password hashing
 - [Security](docs/security.md) — auth, ACLs, TLS, admin API
 - [Deployment](docs/deployment.md) — single node, cluster, Kubernetes
 - [Clustering](docs/clustering.md) — membership, routing, guarantees

@@ -18,7 +18,7 @@ and the trade-offs.
 4. **Control plane is replaceable.** The REST API and dashboard use the same
    broker facade as the protocol engine; no private back doors.
 5. **Clean-room independence.** Behaviour follows the OASIS MQTT
-   specifications, not another broker's implementation.
+   specifications, not the internals of any other MQTT product.
 
 ## Component map
 
@@ -233,7 +233,7 @@ last-known values rather than as a durable message log.
 
 ## What NextMQTT deliberately does not do
 
-- No Erlang/BEAM compatibility layer, no third-party broker plugin API.
+- No third-party broker runtime compatibility layer or private plugin API.
 - No embedded rule engine, bridge or external database requirement.
 - No claim of compatibility certification with any other broker.
 

@@ -1,0 +1,117 @@
+# 功能对齐清单
+
+本页是当前版本的实现契约：明确区分“已实现”“部分实现”和“未实现”，避免部署决策
+依赖宣传文案。
+
+图例：✅ 已实现 · ⚠️ 部分实现或有限制 · ❌ 未实现
+
+## 协议与传输
+
+| 能力 | 状态 | 说明 |
+| --- | --- | --- |
+| MQTT 3.1.1（level 4） | ✅ | 编解码、标志位、CONNACK 返回码 |
+| MQTT 5.0（level 5） | ✅ | 核心报文与属性 |
+| TCP | ✅ | 默认 1883 |
+| TLS | ✅ | 可选 PFX/PEM 证书，TLS 1.2/1.3 |
+| WebSocket | ✅ | `/mqtt`，子协议 `mqtt` |
+| 安全 WebSocket | ✅ | Kestrel HTTPS + `/mqtt` |
+| QoS 0/1/2 | ✅ | 双向、重传、去重 |
+| 保留消息 | ✅ | 通配符检索、过期、删除 |
+| 遗嘱与遗嘱延迟 | ✅ | 正常 DISCONNECT 时抑制 |
+| 会话过期 | ✅ | MQTT 5 interval，可在 DISCONNECT 更新 |
+| 会话接管 | ✅ | 旧连接收到 `0x8E` |
+| 离线队列 | ✅ | 每个持久会话有界 |
+| 共享订阅 | ✅ | `$share/{group}/{filter}`，节点内轮询 |
+| 订阅选项 | ✅ | `noLocal`、`retainAsPublished`、retain handling |
+| 主题别名 | ⚠️ | 支持入站；出站别名计划中 |
+| 增强认证（`AUTH`） | ❌ | 返回 `0x8C`；外部认证提供方计划中 |
+| 服务端 receive-maximum 强制 | ⚠️ | 广播并限制自身 inflight 窗口 |
+| 客户端最大报文限制 | ⚠️ | 入站已限制；出站未按客户端上限裁剪 |
+| MQTT over QUIC | ❌ | 研究项 |
+| 桥接/规则引擎/插件 SDK | ❌ | 路线图 |
+
+## 会话与投递
+
+| 能力 | 状态 | 说明 |
+| --- | --- | --- |
+| Clean Start / Session Present | ✅ | 3.1.1 与 5.0 语义 |
+| 持久会话 | ✅ | 内存态，见下方持久化 |
+| 会话过期清理 | ✅ | 后台维护循环 |
+| QoS 1/2 inflight 窗口 | ✅ | 每会话可配置 |
+| 包 ID 分配 | ✅ | 跳过 inflight 中已用 ID |
+| 离线队列上限 | ✅ | 丢弃最旧消息并计数 |
+| 重叠订阅聚合 | ✅ | 每客户端一条，取最高 QoS |
+| 重启后状态保留 | ❌ | 0.1.x 仅内存态 |
+| 跨节点会话迁移 | ❌ | 会话归属单节点 |
+
+## 安全
+
+| 能力 | 状态 | 说明 |
+| --- | --- | --- |
+| PBKDF2-SHA256 密码 | ✅ | 版本化格式，210k 迭代 |
+| HS256 JWT | ✅ | exp/nbf/issuer/audience/roles |
+| 匿名访问 | ✅ | 必须显式开启 |
+| 主题 ACL | ✅ | 有序规则、身份占位符、glob |
+| 保留消息读取 ACL | ✅ | 投递时再次校验 |
+| TLS | ✅ | MQTT、控制台/WSS |
+| 控制台令牌认证 | ✅ | HS256 Bearer |
+| API Key | ✅ | SHA-256 摘要白名单 |
+| 控制台 RBAC | ❌ | 当前仅管理员角色 |
+| 连接/消息速率限制 | ❌ | 建议边缘限流；路线图 |
+| mTLS 策略 | ⚠️ | 可选客户端证书，平台默认校验 |
+
+## 集群
+
+| 能力 | 状态 | 说明 |
+| --- | --- | --- |
+| Gossip 成员管理 | ✅ | 心跳、种子发现、suspect/dead |
+| 签名节点通信 | ✅ | HMAC-SHA256，5 分钟时间窗 |
+| 跨节点路由 | ✅ | 仅转发给广告了匹配过滤器的节点 |
+| 保留消息复制 | ✅ | 尽力复制到存活节点 |
+| 消息去重 | ✅ | 有界已见消息缓存 |
+| 环路防止 | ✅ | 远端消息不再转发 |
+| 全局共享订阅 | ❌ | 共享组按节点计算 |
+| 跨节点 QoS 保证 | ❌ | 转发为尽力而为 HTTP |
+| 无重启轮换集群密钥 | ❌ | 单一共享密钥 |
+| 大规模过滤器路由 | ⚠️ | 每心跳全量快照，上限 10,000 |
+
+## 运维与管理
+
+| 能力 | 状态 | 说明 |
+| --- | --- | --- |
+| REST 管理 API | ✅ | 客户端、订阅、保留、发布、集群、配置 |
+| Vue 3 控制台 | ✅ | 中英文、深浅主题、实时轮询 |
+| Prometheus 指标 | ✅ | `/metrics`，计数器与 gauge |
+| JSON 统计 | ✅ | 60 秒发布序列 |
+| 健康检查 | ✅ | `/healthz`、`/readyz` |
+| 结构化日志 | ✅ | stdout，可配置级别 |
+| CLI | ✅ | `pub`、`sub`、`bench`、`hash-password` |
+| Docker 镜像 | ✅ | 多架构、非 root、健康检查 |
+| Compose 单机/三节点 | ✅ | `docker-compose.yml`、`deploy/compose` |
+| Kustomize | ✅ | StatefulSet、PDB、HPA、Ingress、NetworkPolicy |
+| Helm | ✅ | 探针、自动扩缩容、Ingress、existingSecret |
+| 持久化/备份 | ❌ | 路线图 |
+| 分布式追踪 | ❌ | 路线图 |
+
+## 验证方式
+
+| 检查 | 位置 |
+| --- | --- |
+| 报文往返与畸形输入 | `tests/NextMqtt.Core.Tests` |
+| 主题匹配与保留消息 Trie | `tests/NextMqtt.Core.Tests` |
+| 会话、QoS、队列、ACL、认证、集群路由 | `tests/NextMqtt.Broker.Tests` |
+| 真实 TCP CONNECT/SUBSCRIBE/PUBLISH/QoS | `tests/NextMqtt.Server.Tests` |
+| 控制台类型检查与生产构建 | CI `Dashboard` |
+| 文档构建 | CI `Documentation` |
+| Helm/Kustomize 渲染 | CI `Kubernetes manifests and Helm chart` |
+| 镜像构建与健康/登录冒烟 | CI `Container image` |
+| CodeQL | `codeql.yml` |
+
+当前共 **125 个测试通过**（63 核心、49 Broker、13 Server 集成）。
+
+## 已知限制
+
+- 状态在内存中，重启会丢失会话、队列和保留消息。
+- 集群转发为尽力而为，共享订阅按节点独立计算。
+- 增强认证、出站主题别名、速率限制、持久化、桥接和插件 SDK 尚未实现。
+- 默认配置偏向开发体验，公网部署前必须加固。
