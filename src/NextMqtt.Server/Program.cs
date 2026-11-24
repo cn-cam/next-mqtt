@@ -113,7 +113,7 @@ var app = builder.Build();
 var broker = app.Services.GetRequiredService<MqttBroker>();
 var adminAuth = app.Services.GetRequiredService<AdminAuthService>();
 var clusterRouter = app.Services.GetRequiredService<ClusterRouter>();
-var version = typeof(Program).Assembly.GetName().Version?.ToString(3) ?? "0.1.1";
+var version = typeof(Program).Assembly.GetName().Version?.ToString(3) ?? "0.1.2";
 
 app.UseWebSockets(new WebSocketOptions
 {

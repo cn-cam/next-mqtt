@@ -284,7 +284,7 @@ internal static class CliApplication
 
     private static int PrintVersion()
     {
-        Console.WriteLine("nextmqtt 0.1.1");
+        Console.WriteLine("nextmqtt 0.1.2");
         return 0;
     }
 

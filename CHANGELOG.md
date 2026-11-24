@@ -7,6 +7,15 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Planned
+
+- Durable session and retained-message stores.
+- Connection and message rate limiting.
+- Enhanced authentication (`AUTH`) providers.
+- Global shared-subscription coordination.
+
+## [0.1.2] - 2026-11-24
+
 ### Added
 
 - Feature matrix covering implemented, partial and planned capabilities.
@@ -28,13 +37,6 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
   prohibited token is now only reconstructed by the scanner.
 - Aligned the web dependency lockfile so the repository contains no prohibited
   brand prefix.
-
-### Planned
-
-- Durable session and retained-message stores.
-- Connection and message rate limiting.
-- Enhanced authentication (`AUTH`) providers.
-- Global shared-subscription coordination.
 
 ## [0.1.1] - 2026-11-24
 
@@ -76,6 +78,7 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 - GitHub Actions for CI, CodeQL, releases and GitHub Pages.
 - Mechanical brand/trademark compliance scanner and repository policy.
 
-[Unreleased]: https://github.com/cn-cam/next-mqtt/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/cn-cam/next-mqtt/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.1.2
 [0.1.1]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.1.1
 [0.1.0]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.1.0
