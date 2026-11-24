@@ -145,7 +145,7 @@ public sealed class ClientAuthenticator : IClientAuthenticator
         }
 
         _superusers = new HashSet<string>(options.Superusers, StringComparer.Ordinal);
-        _allowAnonymous = options.AllowAnonymous || (_users.Count == 0 && !options.Jwt.Enabled);
+        _allowAnonymous = options.AllowAnonymous;
         _jwt = options.Jwt.Enabled ? new JwtValidator(options.Jwt) : null;
     }
 

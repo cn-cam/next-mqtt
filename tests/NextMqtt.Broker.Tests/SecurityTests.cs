@@ -87,6 +87,16 @@ public class SecurityTests
     }
 
     [Fact]
+    public async Task Anonymous_is_rejected_when_not_enabled()
+    {
+        var authenticator = new ClientAuthenticator(new AuthenticationOptions { AllowAnonymous = false });
+        var context = new ClientAuthenticationContext(
+            "client-6", null, ReadOnlyMemory<byte>.Empty, "test", Core.Protocol.MqttProtocolVersion.V500);
+
+        Assert.False((await authenticator.AuthenticateAsync(context)).Succeeded);
+    }
+
+    [Fact]
     public async Task Jwt_password_authenticates_and_carries_roles()
     {
         var secret = "unit-test-secret-with-enough-entropy";
