@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net.Security;
 using System.Net.Sockets;
@@ -267,6 +268,7 @@ internal static class CliApplication
                 "pub" or "publish" => await PublishAsync(args[1..]),
                 "sub" or "subscribe" => await SubscribeAsync(args[1..]),
                 "bench" or "benchmark" => await BenchmarkAsync(args[1..]),
+                "bench-connections" or "connect-bench" => await BenchmarkConnectionsAsync(args[1..]),
                 "hash" or "hash-password" => HashPassword(args[1..]),
                 _ => Unknown(args[0]),
             };
@@ -407,6 +409,61 @@ internal static class CliApplication
 
         await client.DisconnectAsync(CancellationToken.None);
         return 0;
+    }
+
+    private static async Task<int> BenchmarkConnectionsAsync(string[] args)
+    {
+        var options = ParseOptions(args);
+        var count = ParseInt(options.GetValueOrDefault("connections"), 1000, 1, 100_000);
+        var holdSeconds = ParseInt(options.GetValueOrDefault("hold"), 5, 0, 300);
+        var clients = new ConcurrentBag<MqttCliClient>();
+        var failures = 0;
+
+        Console.WriteLine($"connection benchmark: {count} client(s), hold {holdSeconds}s");
+
+        var stopwatch = Stopwatch.StartNew();
+
+        await Task.WhenAll(Enumerable.Range(0, count).Select(async index =>
+        {
+            var clientOptions = BuildClientOptions(options) with
+            {
+                ClientId = $"{options.GetValueOrDefault("client-id") ?? "nextmqtt-conn"}-{index}",
+            };
+
+            try
+            {
+                var client = await MqttCliClient.ConnectAsync(clientOptions, CancellationToken.None);
+                clients.Add(client);
+            }
+            catch (Exception ex)
+            {
+                Interlocked.Increment(ref failures);
+                if (failures <= 5)
+                {
+                    Console.Error.WriteLine($"client {index}: {ex.Message}");
+                }
+            }
+        }));
+
+        stopwatch.Stop();
+        var connected = count - failures;
+        var rate = connected / Math.Max(stopwatch.Elapsed.TotalSeconds, 0.001);
+
+        Console.WriteLine(
+            $"connected {connected:N0}/{count:N0} in {stopwatch.Elapsed.TotalSeconds:F2}s · {rate:N0} conn/s · failures={failures}");
+
+        if (holdSeconds > 0)
+        {
+            Console.WriteLine($"holding {connected:N0} connection(s) for {holdSeconds}s...");
+            await Task.Delay(TimeSpan.FromSeconds(holdSeconds));
+        }
+
+        foreach (var client in clients)
+        {
+            await client.DisposeAsync();
+        }
+
+        return failures > 0 ? 1 : 0;
     }
 
     private static async Task<int> BenchmarkAsync(string[] args)
@@ -592,6 +649,8 @@ internal static class CliApplication
                              [connection options]
               nextmqtt bench [--clients 10] [--messages 1000] [--size 64] [--qos 0]
                              [--topic bench] [connection options]
+              nextmqtt bench-connections [--connections 1000] [--hold 5]
+                             [connection options]
               nextmqtt hash-password [--password <secret>]
               nextmqtt version
 
