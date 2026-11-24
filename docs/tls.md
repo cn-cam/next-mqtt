@@ -149,8 +149,6 @@ spec:
               value: "true"
             - name: NEXTMQTT_SERVER__TLS__CERTIFICATEPATH
               value: /certs/tls.crt
-            - name: NEXTMQTT_SERVER__TLS__CERTIFICATEKEYPATH
-              value: /certs/tls.key
           volumeMounts:
             - name: mqtt-tls
               mountPath: /certs
@@ -161,10 +159,8 @@ spec:
             secretName: nextmqtt-mqtt-tls
 ```
 
-`CertificateKeyPath` is reserved for future use; PEM loading looks for a `.key`
-file next to the certificate. For a Kubernetes secret named `tls.crt`/`tls.key`,
-mount both and point `CertificatePath` at `/certs/tls.crt` after renaming the
-key or use a PFX.
+The PEM loader looks for `tls.key` next to `tls.crt`, which matches the files
+created by `kubectl create secret tls`.
 
 ## Troubleshooting
 
