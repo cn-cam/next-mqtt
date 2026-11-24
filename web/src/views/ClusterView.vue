@@ -166,7 +166,7 @@ NEXTMQTT_CLUSTER__NODEID=node-a
 NEXTMQTT_CLUSTER__ADVERTISEURL=http://node-a:8080
 NEXTMQTT_CLUSTER__SEEDS__0=http://node-b:8080
 NEXTMQTT_CLUSTER__SECRET=change-me-shared-secret</pre>
-          <a class="button ghost" href="https://cn-cam.github.io/next-mqtt/deployment.html#clustering" target="_blank" rel="noreferrer">
+          <a class="button ghost" href="https://cn-cam.github.io/next-mqtt/clustering.html" target="_blank" rel="noreferrer">
             <Icon name="external" :size="15" />
             {{ t('cluster.docs') }}
           </a>
