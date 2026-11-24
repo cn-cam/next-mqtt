@@ -38,7 +38,9 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Login to Docker Hub
+        id: dockerhub
         if: ${{ env.DOCKERHUB_ENABLED == 'true' }}
+        continue-on-error: true
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -53,7 +55,7 @@ jobs:
             type=sha,prefix=sha-,format=short
       - name: Metadata (GHCR and Docker Hub)
         id: meta-both
-        if: ${{ env.DOCKERHUB_ENABLED == 'true' }}
+        if: ${{ steps.dockerhub.outcome == 'success' }}
         uses: docker/metadata-action@v5
         with:
           images: |
@@ -65,16 +67,17 @@ jobs:
       - name: Select image metadata
         id: meta
         env:
+          DOCKERHUB_READY: ${{ steps.dockerhub.outcome == 'success' }}
           GHCR_TAGS: ${{ steps.meta-ghcr.outputs.tags }}
           GHCR_LABELS: ${{ steps.meta-ghcr.outputs.labels }}
           BOTH_TAGS: ${{ steps.meta-both.outputs.tags }}
           BOTH_LABELS: ${{ steps.meta-both.outputs.labels }}
         run: |
-          if [ "$DOCKERHUB_ENABLED" = "true" ]; then
+          if [ "$DOCKERHUB_READY" = "true" ]; then
             tags="$BOTH_TAGS"
             labels="$BOTH_LABELS"
           else
-            echo "Docker Hub credentials are absent; publishing to GHCR only."
+            echo "Docker Hub is not configured or the login failed; publishing to GHCR only."
             tags="$GHCR_TAGS"
             labels="$GHCR_LABELS"
           fi
