@@ -427,7 +427,7 @@ public sealed class ClientConnection : IClientConnection
     private async Task HandleSubscribeAsync(SubscribePacket subscribe, CancellationToken cancellationToken)
     {
         var reasonCodes = new List<byte>(subscribe.Subscriptions.Count);
-        var granted = new List<Subscription>(subscribe.Subscriptions.Count);
+        var retainedTargets = new List<Subscription>();
         var identifier = subscribe.Properties.GetVariableByteInteger(MqttPropertyId.SubscriptionIdentifier);
         var existing = _broker.Subscriptions.GetByClient(_session!.ClientId)
             .Select(subscription => subscription.Filter.Original)
@@ -468,15 +468,12 @@ public sealed class ClientConnection : IClientConnection
             _broker.Metrics.SubscriptionCreated();
 
             reasonCodes.Add((byte)request.Options.QoS);
-            granted.Add(subscription);
 
-            if (request.Options.RetainHandling == MqttRetainHandling.DoNotSend
-                || (request.Options.RetainHandling == MqttRetainHandling.SendAtSubscribeIfNew && !isNew))
+            if (request.Options.RetainHandling != MqttRetainHandling.DoNotSend
+                && (request.Options.RetainHandling != MqttRetainHandling.SendAtSubscribeIfNew || isNew))
             {
-                continue;
+                retainedTargets.Add(subscription);
             }
-
-            await DeliverRetainedAsync(subscription, cancellationToken).ConfigureAwait(false);
         }
 
         TrySend(new SubAckPacket
@@ -484,6 +481,11 @@ public sealed class ClientConnection : IClientConnection
             PacketId = subscribe.PacketId,
             ReasonCodes = reasonCodes,
         });
+
+        foreach (var subscription in retainedTargets)
+        {
+            await DeliverRetainedAsync(subscription, cancellationToken).ConfigureAwait(false);
+        }
     }
 
     private async Task HandleUnsubscribeAsync(UnsubscribePacket unsubscribe, CancellationToken cancellationToken)

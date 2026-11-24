@@ -1,9 +1,405 @@
-var builder = WebApplication.CreateBuilder(args);
-var app = builder.Build();
+using System.Text;
+using Microsoft.AspNetCore.Http.Json;
+using Microsoft.AspNetCore.Server.Kestrel.Https;
+using Microsoft.Extensions.FileProviders;
+using NextMqtt.Broker;
+using NextMqtt.Broker.Clustering;
+using NextMqtt.Broker.Connections;
+using NextMqtt.Broker.Options;
+using NextMqtt.Broker.Security;
+using NextMqtt.Server.Api;
+using NextMqtt.Server.Networking;
+using NextMqtt.Server.Options;
+using NextMqtt.Server.Security;
 
-app.MapGet("/", () => Results.Text("NextMQTT"));
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Configuration.AddEnvironmentVariables("NEXTMQTT_");
+
+var serverOptions = builder.Configuration.GetSection(ServerOptions.SectionName).Get<ServerOptions>() ?? new ServerOptions();
+var brokerOptions = builder.Configuration.GetSection(BrokerOptions.SectionName).Get<BrokerOptions>() ?? new BrokerOptions();
+var authenticationOptions = builder.Configuration.GetSection(AuthenticationOptions.SectionName).Get<AuthenticationOptions>() ?? new AuthenticationOptions();
+var aclOptions = builder.Configuration.GetSection(AclOptions.SectionName).Get<AclOptions>() ?? new AclOptions();
+var adminOptions = builder.Configuration.GetSection(AdminOptions.SectionName).Get<AdminOptions>() ?? new AdminOptions();
+
+if (bool.TryParse(Environment.GetEnvironmentVariable("NEXTMQTT_ALLOW_ANONYMOUS"), out var allowAnonymous))
+{
+    authenticationOptions.AllowAnonymous = allowAnonymous;
+}
+
+builder.WebHost.ConfigureKestrel(kestrel =>
+{
+    kestrel.AddServerHeader = false;
+    kestrel.Limits.MaxRequestBodySize = 16 * 1024 * 1024;
+    kestrel.ListenAnyIP(serverOptions.Http.Port);
+
+    if (serverOptions.Http.WebSocketPort > 0 && serverOptions.Http.WebSocketPort != serverOptions.Http.Port)
+    {
+        kestrel.ListenAnyIP(serverOptions.Http.WebSocketPort);
+    }
+
+    if (serverOptions.Http.TlsPort is { } tlsPort && !string.IsNullOrEmpty(serverOptions.Http.CertificatePath))
+    {
+        var certificate = MqttCertificateLoader.Load(
+            serverOptions.Http.CertificatePath,
+            serverOptions.Http.CertificatePassword);
+
+        kestrel.ListenAnyIP(tlsPort, listen => listen.UseHttps(certificate));
+    }
+});
+
+builder.Services.AddProblemDetails();
+builder.Services.Configure<JsonOptions>(json =>
+{
+    json.SerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+    json.SerializerOptions.DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull;
+});
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("dashboard", policy =>
+    {
+        if (serverOptions.Http.AllowedOrigins.Count > 0)
+        {
+            policy.WithOrigins(serverOptions.Http.AllowedOrigins.ToArray())
+                .AllowAnyHeader()
+                .AllowAnyMethod();
+        }
+    });
+});
+
+builder.Services.AddSingleton(serverOptions);
+builder.Services.AddSingleton(brokerOptions);
+builder.Services.AddSingleton(adminOptions);
+builder.Services.AddSingleton<IClientAuthenticator>(_ => new ClientAuthenticator(authenticationOptions));
+builder.Services.AddSingleton<ITopicAuthorizer>(_ => new TopicAuthorizer(aclOptions));
+builder.Services.AddSingleton<IClusterRouter>(_ => NullClusterRouter.Instance);
+builder.Services.AddSingleton<MqttBroker>();
+builder.Services.AddSingleton(sp => AdminAuthService.Create(
+    adminOptions,
+    sp.GetRequiredService<ILoggerFactory>().CreateLogger<AdminAuthService>()));
+builder.Services.AddSingleton<BrokerLifecycleService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<BrokerLifecycleService>());
+builder.Services.AddHostedService<MqttTcpListenerService>();
+
+var app = builder.Build();
+var broker = app.Services.GetRequiredService<MqttBroker>();
+var adminAuth = app.Services.GetRequiredService<AdminAuthService>();
+var version = typeof(Program).Assembly.GetName().Version?.ToString(3) ?? "0.1.0";
+
+app.UseWebSockets(new WebSocketOptions
+{
+    KeepAliveInterval = TimeSpan.FromSeconds(20),
+});
+
+app.UseCors("dashboard");
+
+app.Use(async (context, next) =>
+{
+    context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+    context.Response.Headers["X-Frame-Options"] = "DENY";
+    context.Response.Headers["Referrer-Policy"] = "no-referrer";
+
+    if (context.Request.Path.StartsWithSegments("/api/v1") && !IsPublicApi(context.Request.Path))
+    {
+        var principal = adminAuth.Authenticate(context.Request);
+
+        if (principal is null)
+        {
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            context.Response.Headers.WWWAuthenticate = "Bearer";
+            await context.Response.WriteAsJsonAsync(
+                new ApiError("unauthorized", "A valid bearer token or API key is required."));
+            return;
+        }
+
+        context.Items["principal"] = principal;
+    }
+
+    await next();
+});
+
+app.UseDefaultFiles();
+app.UseStaticFiles();
+
+var dashboardDist = Path.GetFullPath(Path.Combine(app.Environment.ContentRootPath, "..", "..", "web", "dist"));
+
+if (Directory.Exists(dashboardDist))
+{
+    app.UseStaticFiles(new StaticFileOptions
+    {
+        FileProvider = new PhysicalFileProvider(dashboardDist),
+    });
+}
+
+if (serverOptions.WebSocket.Enabled)
+{
+    app.Map(serverOptions.WebSocket.Path, async context =>
+    {
+        if (!context.WebSockets.IsWebSocketRequest)
+        {
+            context.Response.StatusCode = StatusCodes.Status400BadRequest;
+            await context.Response.WriteAsync("This endpoint expects a WebSocket upgrade.");
+            return;
+        }
+
+        var subProtocol = context.WebSockets.WebSocketRequestedProtocols.Contains("mqtt", StringComparer.OrdinalIgnoreCase)
+            ? "mqtt"
+            : null;
+
+        using var webSocket = await context.WebSockets.AcceptWebSocketAsync(subProtocol);
+        await using var stream = new WebSocketStream(webSocket);
+
+        var connection = new ClientConnection(
+            stream,
+            context.Connection.RemoteIpAddress?.ToString() ?? "websocket",
+            broker,
+            context.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger<ClientConnection>());
+
+        await connection.RunAsync(context.RequestAborted);
+    });
+}
+
+var api = app.MapGroup("/api/v1");
+
+api.MapGet("/health", () => Results.Ok(new { status = "ok", version }));
+api.MapGet("/ready", (MqttBroker b) => Results.Ok(new { status = "ready", sessions = b.Sessions.Count }));
+api.MapGet("/version", () => Results.Ok(new VersionInfo(
+    "NextMQTT",
+    version,
+    System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription,
+    app.Environment.EnvironmentName)));
+
+api.MapPost("/auth/login", (LoginRequest request, AdminAuthService auth) =>
+{
+    if (string.IsNullOrEmpty(request.Username)
+        || string.IsNullOrEmpty(request.Password)
+        || !auth.ValidateCredentials(request.Username, request.Password))
+    {
+        return Results.Json(
+            new ApiError("invalid_credentials", "Invalid username or password."),
+            statusCode: StatusCodes.Status401Unauthorized);
+    }
+
+    var token = auth.IssueToken(out var expiresAt);
+    return Results.Ok(new LoginResponse(token, expiresAt, request.Username));
+});
+
+api.MapGet("/auth/me", (HttpContext context) =>
+{
+    var principal = context.Items["principal"] as ClientPrincipal;
+    return Results.Ok(new
+    {
+        username = principal?.Username,
+        superuser = principal?.IsSuperuser ?? false,
+    });
+});
+
+api.MapGet("/stats", (MqttBroker b) => Results.Ok(b.GetStats()));
+
+api.MapGet("/clients", (MqttBroker b, string? search, int page = 1, int pageSize = 50) =>
+{
+    page = Math.Max(1, page);
+    pageSize = Math.Clamp(pageSize, 1, 200);
+
+    var query = b.GetClients().AsEnumerable();
+
+    if (!string.IsNullOrWhiteSpace(search))
+    {
+        query = query.Where(client =>
+            client.ClientId.Contains(search, StringComparison.OrdinalIgnoreCase)
+            || (client.Username?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false)
+            || (client.RemoteAddress?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false));
+    }
+
+    var filtered = query.ToList();
+    var items = filtered.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+
+    return Results.Ok(new PagedResponse<NextMqtt.Broker.Diagnostics.ClientSnapshot>(
+        items, filtered.Count, page, pageSize));
+});
+
+api.MapGet("/clients/{clientId}", (string clientId, MqttBroker b) =>
+{
+    var client = b.GetClients().FirstOrDefault(item => string.Equals(item.ClientId, clientId, StringComparison.Ordinal));
+    return client is null ? Results.NotFound() : Results.Ok(client);
+});
+
+api.MapDelete("/clients/{clientId}", async (string clientId, MqttBroker b, CancellationToken cancellationToken) =>
+    await b.KickClientAsync(clientId, cancellationToken)
+        ? Results.NoContent()
+        : Results.NotFound());
+
+api.MapGet("/subscriptions", (MqttBroker b, string? search, int page = 1, int pageSize = 100) =>
+{
+    page = Math.Max(1, page);
+    pageSize = Math.Clamp(pageSize, 1, 500);
+
+    var query = b.GetSubscriptions().AsEnumerable();
+
+    if (!string.IsNullOrWhiteSpace(search))
+    {
+        query = query.Where(subscription =>
+            subscription.ClientId.Contains(search, StringComparison.OrdinalIgnoreCase)
+            || subscription.Filter.Contains(search, StringComparison.OrdinalIgnoreCase));
+    }
+
+    var filtered = query.ToList();
+    var items = filtered.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+
+    return Results.Ok(new PagedResponse<NextMqtt.Broker.Diagnostics.SubscriptionSnapshot>(
+        items, filtered.Count, page, pageSize));
+});
+
+api.MapGet("/retained", (MqttBroker b, string? search, int page = 1, int pageSize = 100) =>
+{
+    page = Math.Max(1, page);
+    pageSize = Math.Clamp(pageSize, 1, 500);
+
+    var query = b.GetRetained().AsEnumerable();
+
+    if (!string.IsNullOrWhiteSpace(search))
+    {
+        query = query.Where(message => message.Topic.Contains(search, StringComparison.OrdinalIgnoreCase));
+    }
+
+    var filtered = query.ToList();
+    var items = filtered.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+
+    return Results.Ok(new PagedResponse<NextMqtt.Broker.Diagnostics.RetainedSnapshot>(
+        items, filtered.Count, page, pageSize));
+});
+
+api.MapDelete("/retained", (string topic, MqttBroker b) =>
+    b.DeleteRetained(topic) ? Results.NoContent() : Results.NotFound());
+
+api.MapPost("/publish", async (PublishRequest request, MqttBroker b, CancellationToken cancellationToken) =>
+{
+    if (request.QoS is < 0 or > 2)
+    {
+        return Results.BadRequest(new ApiError("invalid_qos", "QoS must be 0, 1 or 2."));
+    }
+
+    byte[] payload;
+
+    try
+    {
+        payload = string.Equals(request.Encoding, "base64", StringComparison.OrdinalIgnoreCase)
+            ? Convert.FromBase64String(request.Payload ?? string.Empty)
+            : Encoding.UTF8.GetBytes(request.Payload ?? string.Empty);
+    }
+    catch (FormatException)
+    {
+        return Results.BadRequest(new ApiError("invalid_payload", "Payload is not valid base64."));
+    }
+
+    try
+    {
+        await b.PublishAsync(request.Topic, payload, (NextMqtt.Core.Protocol.MqttQoS)request.QoS, request.Retain, cancellationToken);
+    }
+    catch (ArgumentException ex)
+    {
+        return Results.BadRequest(new ApiError("invalid_topic", ex.Message));
+    }
+
+    return Results.Ok(new { topic = request.Topic, bytes = payload.Length, qos = request.QoS, retain = request.Retain });
+});
+
+api.MapGet("/cluster", (MqttBroker b) => Results.Ok(b.GetCluster()));
+
+api.MapGet("/config", (MqttBroker b) => Results.Ok(new
+{
+    server = new
+    {
+        tcp = new { serverOptions.Tcp.Enabled, serverOptions.Tcp.Host, serverOptions.Tcp.Port },
+        tls = new { serverOptions.Tls.Enabled, serverOptions.Tls.Port },
+        websocket = new { serverOptions.WebSocket.Enabled, serverOptions.WebSocket.Path },
+        http = new { serverOptions.Http.Port, serverOptions.Http.WebSocketPort },
+    },
+    broker = new
+    {
+        brokerOptions.MaxPacketSize,
+        brokerOptions.MaxInflightMessages,
+        brokerOptions.MaxQueuedMessages,
+        brokerOptions.MaxSubscriptionsPerSession,
+        brokerOptions.MaxTopicAlias,
+    },
+    cluster = b.GetCluster(),
+}));
+
+app.MapGet("/metrics", (HttpContext context) =>
+{
+    if (adminOptions.MetricsRequireAuth && adminAuth.Authenticate(context.Request) is null)
+    {
+        return Results.Unauthorized();
+    }
+
+    var text = PrometheusFormatter.Format(broker.GetStats(), broker.GetCluster().Nodes.Count, version);
+    return Results.Text(text, "text/plain; version=0.0.4; charset=utf-8");
+});
+
+app.MapGet("/healthz", () => Results.Ok(new { status = "ok", version }));
+app.MapGet("/readyz", (MqttBroker b) => Results.Ok(new { status = "ready", sessions = b.Sessions.Count }));
+
+app.MapFallback(async context =>
+{
+    if (context.Request.Path.StartsWithSegments("/api") || context.Request.Path.StartsWithSegments("/mqtt"))
+    {
+        context.Response.StatusCode = StatusCodes.Status404NotFound;
+        return;
+    }
+
+    var webRoot = app.Environment.WebRootPath ?? Path.Combine(app.Environment.ContentRootPath, "wwwroot");
+    var index = Path.Combine(webRoot, "index.html");
+
+    if (File.Exists(index))
+    {
+        context.Response.ContentType = "text/html; charset=utf-8";
+        await context.Response.SendFileAsync(index);
+        return;
+    }
+
+    context.Response.ContentType = "text/html; charset=utf-8";
+    await context.Response.WriteAsync(
+        """
+        <!doctype html>
+        <html lang="en">
+        <head><meta charset="utf-8"><title>NextMQTT</title>
+        <style>body{font-family:system-ui,sans-serif;background:#0b1020;color:#e6edf7;display:grid;place-items:center;height:100vh;margin:0}main{max-width:34rem;padding:2rem}a{color:#6ee7ff}</style>
+        </head>
+        <body><main>
+        <h1>NextMQTT is running</h1>
+        <p>The dashboard bundle is not built yet. Start the UI with:</p>
+        <pre>cd web
+        npm install
+        npm run dev</pre>
+        <p>API: <a href="/api/v1/stats">/api/v1/stats</a> · Metrics: <a href="/metrics">/metrics</a></p>
+        </main></body></html>
+        """);
+});
 
 app.Run();
 
-/// <summary>Entry point marker used by integration tests.</summary>
+static bool IsPublicApi(PathString path)
+    => path.StartsWithSegments("/api/v1/health")
+       || path.StartsWithSegments("/api/v1/ready")
+       || path.StartsWithSegments("/api/v1/version")
+       || path == "/api/v1/auth/login";
+
+/// <summary>Entry point marker used by integration tests and tooling.</summary>
 public partial class Program;
+
+/// <summary>Starts and stops broker background services with the host.</summary>
+public sealed class BrokerLifecycleService : IHostedService
+{
+    private readonly MqttBroker _broker;
+
+    public BrokerLifecycleService(MqttBroker broker)
+    {
+        _broker = broker;
+    }
+
+    public Task StartAsync(CancellationToken cancellationToken) => _broker.StartAsync(cancellationToken);
+
+    public Task StopAsync(CancellationToken cancellationToken) => _broker.StopAsync();
+}
