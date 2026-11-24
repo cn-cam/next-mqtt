@@ -8,6 +8,7 @@ using NextMqtt.Broker.Connections;
 using NextMqtt.Broker.Options;
 using NextMqtt.Broker.Security;
 using NextMqtt.Server.Api;
+using NextMqtt.Server.Hosting;
 using NextMqtt.Server.Networking;
 using NextMqtt.Server.Options;
 using NextMqtt.Server.Security;
@@ -430,17 +431,3 @@ static bool IsPublicApi(PathString path)
 /// <summary>Entry point marker used by integration tests and tooling.</summary>
 public partial class Program;
 
-/// <summary>Starts and stops broker background services with the host.</summary>
-public sealed class BrokerLifecycleService : IHostedService
-{
-    private readonly MqttBroker _broker;
-
-    public BrokerLifecycleService(MqttBroker broker)
-    {
-        _broker = broker;
-    }
-
-    public Task StartAsync(CancellationToken cancellationToken) => _broker.StartAsync(cancellationToken);
-
-    public Task StopAsync(CancellationToken cancellationToken) => _broker.StopAsync();
-}

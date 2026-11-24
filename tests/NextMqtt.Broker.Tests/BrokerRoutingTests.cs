@@ -119,7 +119,7 @@ public class BrokerRoutingTests
 
         Assert.False(Assert.Single(plain.Publishes()).Retain);
         Assert.True(Assert.Single(rapConnection.Publishes()).Retain);
-        Assert.Equal(1, broker.GetRetained().Count);
+        Assert.Single(broker.GetRetained());
     }
 
     [Fact]

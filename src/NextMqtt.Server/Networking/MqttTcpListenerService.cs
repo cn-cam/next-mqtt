@@ -29,7 +29,7 @@ public static class MqttCertificateLoader
                 : X509Certificate2.CreateFromPemFile(path);
         }
 
-        return new X509Certificate2(path, password, X509KeyStorageFlags.EphemeralKeySet);
+        return X509CertificateLoader.LoadPkcs12FromFile(path, password, X509KeyStorageFlags.EphemeralKeySet);
     }
 }
 

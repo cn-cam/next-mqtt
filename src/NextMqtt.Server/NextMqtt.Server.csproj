@@ -13,9 +13,9 @@
   <ItemGroup>
     <!-- Include a prebuilt dashboard bundle when present. CI and Docker build
          the bundle before publishing the server. -->
-    <Content Include="..\..\web\dist\**\*"
-             Link="wwwroot\%(RecursiveDir)%(Filename)%(Extension)"
+    <Content Include="../../web/dist/**/*"
+             Link="wwwroot/%(RecursiveDir)%(Filename)%(Extension)"
              CopyToPublishDirectory="PreserveNewest"
-             Condition="Exists('..\..\web\dist')" />
+             Condition="Exists('../../web/dist')" />
   </ItemGroup>
 </Project>

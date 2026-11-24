@@ -67,7 +67,7 @@ public class ClusterTests
     {
         const string secret = "a-shared-secret-with-entropy";
         const string body = """{"nodeId":"a"}""";
-        var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString();
+        var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(System.Globalization.CultureInfo.InvariantCulture);
 
         var signature = ClusterSignature.Sign(secret, timestamp, body);
 

@@ -326,10 +326,10 @@ internal static class CliApplication
             return 2;
         }
 
-        var payload = options.TryGetValue("file", out var file)
+        var payload = options.TryGetValue("file", out var file) && !string.IsNullOrEmpty(file)
             ? await File.ReadAllBytesAsync(file)
             : options.TryGetValue("message", out var message)
-                ? Encoding.UTF8.GetBytes(message)
+                ? Encoding.UTF8.GetBytes(message ?? string.Empty)
                 : options.ContainsKey("stdin")
                     ? Encoding.UTF8.GetBytes(await Console.In.ReadToEndAsync())
                     : [];
@@ -351,7 +351,7 @@ internal static class CliApplication
     private static async Task<int> SubscribeAsync(string[] args)
     {
         var options = ParseOptions(args);
-        var topics = options.TryGetValue("topic", out var topic)
+        var topics = options.TryGetValue("topic", out var topic) && !string.IsNullOrEmpty(topic)
             ? topic.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             : [];
 
