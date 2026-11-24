@@ -1,0 +1,51 @@
+name: Feature request
+description: Propose a capability or improvement.
+title: "feat: "
+labels: ["enhancement", "triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What operational or development problem should this solve?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: Describe the behaviour, protocol impact and configuration surface.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Protocol
+        - Sessions and delivery
+        - Authentication / ACL
+        - Clustering
+        - API / dashboard
+        - Deployment
+        - Documentation
+        - Tooling
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: This proposal does not copy or depend on another broker's private API, configuration or branding.
+          required: true
+        - label: I searched existing issues and the roadmap.
+          required: true

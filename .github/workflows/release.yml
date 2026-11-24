@@ -1,0 +1,130 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag (for example v0.1.0)
+        required: true
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet test NextMqtt.slnx -c Release
+
+  image:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable=${{ !contains(github.ref_name, '-') }}
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/docker/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  binaries:
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            runtime: linux-x64
+          - os: windows-latest
+            runtime: win-x64
+          - os: macos-latest
+            runtime: osx-arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Build dashboard
+        working-directory: web
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+      - name: Publish broker
+        run: >
+          dotnet publish src/NextMqtt.Server/NextMqtt.Server.csproj
+          -c Release -r ${{ matrix.runtime }} --self-contained true
+          -o publish/server
+          /p:UseAppHost=true
+      - name: Publish CLI
+        run: >
+          dotnet publish src/NextMqtt.Cli/NextMqtt.Cli.csproj
+          -c Release -r ${{ matrix.runtime }} --self-contained true
+          -o publish/cli
+          /p:UseAppHost=true
+      - name: Archive
+        run: tar -czf nextmqtt-${{ matrix.runtime }}.tar.gz -C publish .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binaries-${{ matrix.runtime }}
+          path: nextmqtt-${{ matrix.runtime }}.tar.gz
+
+  publish:
+    needs: [binaries, image]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: binaries-*
+          merge-multiple: true
+          path: release
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          generate_release_notes: true
+          files: release/*.tar.gz
+          body: |
+            NextMQTT ${{ github.ref_name }}
+
+            - Container image: `ghcr.io/${{ github.repository }}:${{ github.ref_name }}`
+            - Documentation: https://cn-cam.github.io/next-mqtt/
+            - Licence: Apache-2.0
+
+            This is an independent implementation of MQTT 3.1.1/5.0. See NOTICE
+            and TRADEMARKS.md for the project's clean-room and naming policy.

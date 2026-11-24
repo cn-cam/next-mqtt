@@ -1,0 +1,70 @@
+name: Bug report
+description: Report a reproducible defect in NextMQTT.
+title: "bug: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. For security issues, **do not** open a public
+        issue; use private vulnerability reporting from SECURITY.md.
+
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      placeholder: 0.1.0 or a SHA
+    validations:
+      required: true
+
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: Deployment
+      options:
+        - Docker
+        - Docker Compose
+        - Kubernetes / Helm
+        - From source
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behaviour
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Include client library/version, QoS, topic filters and relevant configuration (redact secrets).
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Redact tokens, passwords and payloads.
+      render: text
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I am not reporting a security vulnerability publicly.
+          required: true
+        - label: I searched existing issues.
+          required: true
