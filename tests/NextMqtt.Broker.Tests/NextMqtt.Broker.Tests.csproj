@@ -14,4 +14,7 @@
     <ProjectReference Include="..\..\src\NextMqtt.Broker\NextMqtt.Broker.csproj" />
     <ProjectReference Include="..\..\src\NextMqtt.Core\NextMqtt.Core.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
 </Project>

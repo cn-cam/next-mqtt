@@ -1,0 +1,281 @@
+using NextMqtt.Core.Protocol;
+using NextMqtt.Core.Topics;
+
+namespace NextMqtt.Broker.Subscriptions;
+
+/// <summary>A subscription owned by a session.</summary>
+public sealed class Subscription
+{
+    public required string ClientId { get; init; }
+
+    public required TopicFilter Filter { get; init; }
+
+    public required MqttSubscriptionOptions Options { get; init; }
+
+    /// <summary>MQTT 5 subscription identifier, when supplied by the client.</summary>
+    public int? Identifier { get; init; }
+
+    public string EffectiveFilter => Filter.Filter;
+
+    public string Key => $"{ClientId}\0{Filter.Original}";
+}
+
+/// <summary>A subscription selected for a topic, optionally from a shared group.</summary>
+public readonly record struct SubscriptionMatch(Subscription Subscription, string? SharedGroup);
+
+/// <summary>
+/// Cluster-wide (per-node) subscription index. Normal subscriptions are
+/// stored in a topic trie; shared subscriptions additionally round-robin
+/// within each group.
+/// </summary>
+public sealed class SubscriptionIndex
+{
+    private readonly object _gate = new();
+    private readonly TopicTrie<Subscription> _normal = new();
+    private readonly TopicTrie<SharedSubscriptionGroup> _sharedTrie = new();
+    private readonly Dictionary<string, SharedSubscriptionGroup> _sharedGroups = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, Dictionary<string, Subscription>> _byClient = new(StringComparer.Ordinal);
+
+    public int Count
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _normal.Count + _sharedGroups.Values.Sum(group => group.Count);
+            }
+        }
+    }
+
+    public int ClientCount
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _byClient.Count;
+            }
+        }
+    }
+
+    /// <summary>Adds a subscription, replacing an existing one with the same key.</summary>
+    public void AddOrReplace(Subscription subscription)
+    {
+        ArgumentNullException.ThrowIfNull(subscription);
+
+        lock (_gate)
+        {
+            RemoveCore(subscription.ClientId, subscription.Filter.Original);
+
+            if (!_byClient.TryGetValue(subscription.ClientId, out var filters))
+            {
+                filters = new Dictionary<string, Subscription>(StringComparer.Ordinal);
+                _byClient[subscription.ClientId] = filters;
+            }
+
+            filters[subscription.Filter.Original] = subscription;
+
+            if (subscription.Filter.SharedGroup is { } group)
+            {
+                var key = SharedKey(group, subscription.EffectiveFilter);
+
+                if (!_sharedGroups.TryGetValue(key, out var sharedGroup))
+                {
+                    sharedGroup = new SharedSubscriptionGroup(group, subscription.EffectiveFilter);
+                    _sharedGroups[key] = sharedGroup;
+                    _sharedTrie.Add(subscription.EffectiveFilter, sharedGroup);
+                }
+
+                sharedGroup.Add(subscription);
+            }
+            else
+            {
+                _normal.Add(subscription.EffectiveFilter, subscription);
+            }
+        }
+    }
+
+    public bool Remove(string clientId, string originalFilter)
+    {
+        lock (_gate)
+        {
+            return RemoveCore(clientId, originalFilter);
+        }
+    }
+
+    public List<Subscription> RemoveAll(string clientId)
+    {
+        lock (_gate)
+        {
+            if (!_byClient.TryGetValue(clientId, out var filters))
+            {
+                return [];
+            }
+
+            var removed = filters.Values.ToList();
+            _byClient.Remove(clientId);
+
+            foreach (var subscription in removed)
+            {
+                if (subscription.Filter.SharedGroup is { } group)
+                {
+                    RemoveShared(subscription, group);
+                }
+                else
+                {
+                    _normal.Remove(subscription.EffectiveFilter, subscription);
+                }
+            }
+
+            return removed;
+        }
+    }
+
+    public List<SubscriptionMatch> Match(string topic)
+    {
+        lock (_gate)
+        {
+            var results = new List<SubscriptionMatch>();
+
+            foreach (var subscription in _normal.Match(topic))
+            {
+                results.Add(new SubscriptionMatch(subscription, null));
+            }
+
+            foreach (var group in _sharedTrie.Match(topic))
+            {
+                var member = group.Pick();
+                if (member is not null)
+                {
+                    results.Add(new SubscriptionMatch(member, group.Group));
+                }
+            }
+
+            return results;
+        }
+    }
+
+    public List<Subscription> GetByClient(string clientId)
+    {
+        lock (_gate)
+        {
+            return _byClient.TryGetValue(clientId, out var filters)
+                ? filters.Values.ToList()
+                : [];
+        }
+    }
+
+    public List<Subscription> GetAll()
+    {
+        lock (_gate)
+        {
+            var results = _normal.ToList();
+
+            foreach (var group in _sharedGroups.Values)
+            {
+                results.AddRange(group.Members);
+            }
+
+            return results;
+        }
+    }
+
+    public void Clear()
+    {
+        lock (_gate)
+        {
+            _normal.Clear();
+            _sharedTrie.Clear();
+            _sharedGroups.Clear();
+            _byClient.Clear();
+        }
+    }
+
+    private bool RemoveCore(string clientId, string originalFilter)
+    {
+        if (!_byClient.TryGetValue(clientId, out var filters)
+            || !filters.Remove(originalFilter, out var subscription))
+        {
+            return false;
+        }
+
+        if (filters.Count == 0)
+        {
+            _byClient.Remove(clientId);
+        }
+
+        if (subscription.Filter.SharedGroup is { } group)
+        {
+            RemoveShared(subscription, group);
+        }
+        else
+        {
+            _normal.Remove(subscription.EffectiveFilter, subscription);
+        }
+
+        return true;
+    }
+
+    private void RemoveShared(Subscription subscription, string group)
+    {
+        var key = SharedKey(group, subscription.EffectiveFilter);
+
+        if (!_sharedGroups.TryGetValue(key, out var sharedGroup))
+        {
+            return;
+        }
+
+        sharedGroup.Remove(subscription);
+
+        if (sharedGroup.Count == 0)
+        {
+            _sharedGroups.Remove(key);
+            _sharedTrie.Remove(subscription.EffectiveFilter, sharedGroup);
+        }
+    }
+
+    private static string SharedKey(string group, string filter) => $"{group}\0{filter}";
+}
+
+/// <summary>Round-robin membership for one shared subscription group.</summary>
+internal sealed class SharedSubscriptionGroup
+{
+    private readonly List<Subscription> _members = [];
+    private int _next;
+
+    public SharedSubscriptionGroup(string group, string filter)
+    {
+        Group = group;
+        Filter = filter;
+    }
+
+    public string Group { get; }
+
+    public string Filter { get; }
+
+    public int Count => _members.Count;
+
+    public IReadOnlyList<Subscription> Members => _members;
+
+    public void Add(Subscription subscription) => _members.Add(subscription);
+
+    public void Remove(Subscription subscription)
+    {
+        _members.Remove(subscription);
+        if (_next >= _members.Count && _members.Count > 0)
+        {
+            _next = 0;
+        }
+    }
+
+    public Subscription? Pick()
+    {
+        if (_members.Count == 0)
+        {
+            return null;
+        }
+
+        var index = _next++ % _members.Count;
+        return _members[index];
+    }
+}

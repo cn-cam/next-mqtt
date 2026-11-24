@@ -39,3 +39,10 @@ indent_size = 4
 dotnet_diagnostic.CA1707.severity = none
 dotnet_diagnostic.CA1861.severity = none
 dotnet_diagnostic.CA2007.severity = none
+
+[src/**/*.cs]
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1873.severity = none
+dotnet_diagnostic.CA1068.severity = none
+dotnet_diagnostic.CA1822.severity = none
+dotnet_diagnostic.CA1001.severity = none
