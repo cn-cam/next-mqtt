@@ -46,6 +46,12 @@ const router = createRouter({
           meta: { title: 'nav.publish' },
         },
         {
+          path: 'debugger',
+          name: 'debugger',
+          component: () => import('../views/DebuggerView.vue'),
+          meta: { title: 'nav.debugger' },
+        },
+        {
           path: 'cluster',
           name: 'cluster',
           component: () => import('../views/ClusterView.vue'),

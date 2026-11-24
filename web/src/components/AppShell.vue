@@ -28,7 +28,10 @@ const groups = computed(() => [
   },
   {
     label: t('nav.messaging'),
-    items: [{ name: 'publish', label: t('nav.publish'), icon: 'publish' }],
+    items: [
+      { name: 'publish', label: t('nav.publish'), icon: 'publish' },
+      { name: 'debugger', label: t('nav.debugger'), icon: 'terminal' },
+    ],
   },
   {
     label: t('nav.system'),

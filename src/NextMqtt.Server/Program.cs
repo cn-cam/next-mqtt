@@ -128,7 +128,7 @@ app.Use(async (context, next) =>
     context.Response.Headers["X-Frame-Options"] = "DENY";
     context.Response.Headers["Referrer-Policy"] = "no-referrer";
     context.Response.Headers["Content-Security-Policy"] =
-        "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' ws: wss:; font-src 'self'; base-uri 'none'; frame-ancestors 'none'";
+        "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; worker-src 'self' blob:; connect-src 'self' ws: wss:; font-src 'self'; base-uri 'none'; frame-ancestors 'none'";
 
     if (context.Request.Path.StartsWithSegments("/api/v1") && !IsPublicApi(context.Request.Path))
     {
