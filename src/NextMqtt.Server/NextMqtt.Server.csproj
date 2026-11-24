@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <RootNamespace>NextMqtt.Server</RootNamespace>
+    <AssemblyName>NextMqtt.Server</AssemblyName>
+    <Description>NextMQTT host: MQTT listeners, admin API and dashboard.</Description>
+    <UserSecretsId>nextmqtt-server</UserSecretsId>
+    <SpaRoot>..\..\web\</SpaRoot>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\NextMqtt.Broker\NextMqtt.Broker.csproj" />
+    <ProjectReference Include="..\NextMqtt.Core\NextMqtt.Core.csproj" />
+  </ItemGroup>
+</Project>

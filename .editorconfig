@@ -34,3 +34,8 @@ indent_size = 2
 
 [*.ps1]
 indent_size = 4
+
+[tests/**/*.cs]
+dotnet_diagnostic.CA1707.severity = none
+dotnet_diagnostic.CA1861.severity = none
+dotnet_diagnostic.CA2007.severity = none

@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>NextMqtt.Broker</RootNamespace>
+    <AssemblyName>NextMqtt.Broker</AssemblyName>
+    <Description>NextMQTT broker engine: sessions, routing, retained messages, auth and clustering.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\NextMqtt.Core\NextMqtt.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+</Project>

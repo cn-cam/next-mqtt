@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>NextMqtt.Cli</RootNamespace>
+    <AssemblyName>nextmqtt</AssemblyName>
+    <Description>Command line client and benchmark tool for NextMQTT.</Description>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>false</SelfContained>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\NextMqtt.Core\NextMqtt.Core.csproj" />
+    <ProjectReference Include="..\NextMqtt.Broker\NextMqtt.Broker.csproj" />
+  </ItemGroup>
+</Project>

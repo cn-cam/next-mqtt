@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/NextMqtt.Core/NextMqtt.Core.csproj" />
+    <Project Path="src/NextMqtt.Broker/NextMqtt.Broker.csproj" />
+    <Project Path="src/NextMqtt.Server/NextMqtt.Server.csproj" />
+    <Project Path="src/NextMqtt.Cli/NextMqtt.Cli.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/NextMqtt.Core.Tests/NextMqtt.Core.Tests.csproj" />
+    <Project Path="tests/NextMqtt.Broker.Tests/NextMqtt.Broker.Tests.csproj" />
+    <Project Path="tests/NextMqtt.Server.Tests/NextMqtt.Server.Tests.csproj" />
+  </Folder>
+</Solution>
