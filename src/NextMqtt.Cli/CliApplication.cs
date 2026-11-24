@@ -30,6 +30,7 @@ internal sealed class MqttCliClient : IAsyncDisposable
     private readonly Stream _stream;
     private readonly MqttPacketReader _reader;
     private readonly SemaphoreSlim _writeGate = new(1, 1);
+    private readonly Queue<MqttPacket> _pending = new();
     private readonly MqttProtocolVersion _version;
     private ushort _nextPacketId;
 
@@ -127,20 +128,32 @@ internal sealed class MqttCliClient : IAsyncDisposable
     }
 
     public async Task<MqttPacket?> ReadPacketAsync(CancellationToken cancellationToken)
-        => await _reader.ReadAsync(_version, cancellationToken);
+    {
+        if (_pending.Count > 0)
+        {
+            return _pending.Dequeue();
+        }
+
+        return await _reader.ReadAsync(_version, cancellationToken);
+    }
 
     public async Task<T> ReadUntilAsync<T>(CancellationToken cancellationToken)
         where T : MqttPacket
     {
         while (true)
         {
-            var packet = await ReadPacketAsync(cancellationToken)
+            // Read from the wire so buffered packets are not returned twice.
+            var packet = await _reader.ReadAsync(_version, cancellationToken)
                 ?? throw new IOException("Connection closed by the broker.");
 
             if (packet is T typed)
             {
                 return typed;
             }
+
+            // A resumed session can receive PUBLISH packets before SUBACK;
+            // keep them for the caller instead of dropping them.
+            _pending.Enqueue(packet);
         }
     }
 
