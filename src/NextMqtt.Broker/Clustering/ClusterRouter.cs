@@ -305,7 +305,20 @@ public sealed class ClusterRouter : IClusterRouter
         {
             while (!cancellationToken.IsCancellationRequested)
             {
-                await BroadcastAsync(cancellationToken).ConfigureAwait(false);
+                try
+                {
+                    await BroadcastAsync(cancellationToken).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    // A single unreachable or unresolvable peer must not stop the
+                    // heartbeat loop; retry on the next tick.
+                    _logger.LogWarning(ex, "Cluster heartbeat round failed; retrying on the next tick");
+                }
 
                 if (!await timer.WaitForNextTickAsync(cancellationToken).ConfigureAwait(false))
                 {
@@ -316,10 +329,6 @@ public sealed class ClusterRouter : IClusterRouter
         catch (OperationCanceledException)
         {
             // Shutdown.
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Cluster heartbeat loop failed");
         }
     }
 
@@ -375,11 +384,7 @@ public sealed class ClusterRouter : IClusterRouter
             DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
             filters);
 
-        var response = await PostAsync<ClusterHeartbeatRequest, ClusterHeartbeatResponse>(
-            baseUrl,
-            "/internal/cluster/heartbeat",
-            request,
-            cancellationToken).ConfigureAwait(false);
+        var response = await PostHeartbeatAsync(baseUrl, request, cancellationToken).ConfigureAwait(false);
 
         if (response is null)
         {
@@ -391,6 +396,32 @@ public sealed class ClusterRouter : IClusterRouter
         foreach (var member in response.Members)
         {
             MergeMember(member.NodeId, member.AdvertiseUrl, member.Filters, now);
+        }
+    }
+
+    private async Task<ClusterHeartbeatResponse?> PostHeartbeatAsync(
+        string baseUrl,
+        ClusterHeartbeatRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await PostAsync<ClusterHeartbeatRequest, ClusterHeartbeatResponse>(
+                baseUrl,
+                "/internal/cluster/heartbeat",
+                request,
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            // Peers can be unresolvable while their container or DNS entry is
+            // still starting; treat the tick as a missed heartbeat.
+            _logger.LogDebug(ex, "Heartbeat to {Url} failed", baseUrl);
+            return null;
         }
     }
 

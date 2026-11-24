@@ -10,6 +10,9 @@ internal sealed class ClusterHttpNetwork : HttpMessageHandler
 {
     private readonly Dictionary<string, ClusterRouter> _nodes = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>Hosts that should fail to resolve, simulating startup DNS gaps.</summary>
+    public HashSet<string> UnresolvableHosts { get; } = new(StringComparer.OrdinalIgnoreCase);
+
     public void Register(string host, ClusterRouter router) => _nodes[host] = router;
 
     protected override async Task<HttpResponseMessage> SendAsync(
@@ -17,6 +20,11 @@ internal sealed class ClusterHttpNetwork : HttpMessageHandler
         CancellationToken cancellationToken)
     {
         var host = request.RequestUri?.Host ?? string.Empty;
+
+        if (UnresolvableHosts.Contains(host))
+        {
+            throw new HttpRequestException($"Name or service not known ({host})");
+        }
 
         if (!_nodes.TryGetValue(host, out var router))
         {
@@ -162,6 +170,74 @@ public class ClusterTests
             Assert.Equal("world"u8.ToArray(), publish.Payload);
             Assert.True(routerA.PublishesSent >= 1);
             Assert.True(routerB.PublishesReceived >= 1);
+        }
+        finally
+        {
+            await routerA.StopAsync();
+            await routerB.StopAsync();
+            http.Dispose();
+        }
+    }
+
+    [Fact]
+    public async Task Unresolvable_seed_does_not_stop_heartbeats()
+    {
+        const string secret = "cluster-test-secret-1234567890";
+
+        var network = new ClusterHttpNetwork();
+
+        var optionsA = new NextMqtt.Broker.Options.ClusterOptions
+        {
+            Enabled = true,
+            NodeId = "node-a",
+            AdvertiseUrl = "http://node-a",
+            Secret = secret,
+            Seeds = ["http://node-b"],
+            HeartbeatSeconds = 1,
+            NodeTimeoutSeconds = 3,
+        };
+
+        var optionsB = new NextMqtt.Broker.Options.ClusterOptions
+        {
+            Enabled = true,
+            NodeId = "node-b",
+            AdvertiseUrl = "http://node-b",
+            Secret = secret,
+            Seeds = ["http://node-a"],
+            HeartbeatSeconds = 1,
+            NodeTimeoutSeconds = 3,
+        };
+
+        var http = new HttpClient(network) { Timeout = TimeSpan.FromSeconds(5) };
+
+        var routerA = new ClusterRouter(optionsA, Microsoft.Extensions.Logging.Abstractions.NullLogger<ClusterRouter>.Instance, http);
+        var routerB = new ClusterRouter(optionsB, Microsoft.Extensions.Logging.Abstractions.NullLogger<ClusterRouter>.Instance, http);
+
+        network.Register("node-a", routerA);
+        network.Register("node-b", routerB);
+
+        var brokerA = TestBroker.Create(cluster: routerA);
+        var brokerB = TestBroker.Create(cluster: routerB);
+
+        routerA.AttachBroker(brokerA);
+        routerB.AttachBroker(brokerB);
+
+        // The seed is unresolvable, as can happen while a peer container is
+        // still starting. The heartbeat loop must keep running regardless.
+        network.UnresolvableHosts.Add("node-b");
+
+        await routerA.StartAsync();
+        await routerB.StartAsync();
+
+        try
+        {
+            // Longer than NodeTimeoutSeconds: a loop that died on the first
+            // failure stops refreshing the self entry and turns it dead.
+            await Task.Delay(TimeSpan.FromSeconds(5));
+
+            Assert.Contains(
+                routerA.GetSnapshot().Nodes,
+                node => node.NodeId == "node-a" && node.Status == "alive");
         }
         finally
         {
