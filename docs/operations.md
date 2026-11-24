@@ -127,6 +127,11 @@ release build on a dedicated host do better. Reproduce them with
 `nextmqtt bench` and `nextmqtt bench-connections`; TLS, retained-heavy topics
 and large fan-out all reduce them.
 
+When the broker runs under Docker Desktop with published ports, the host's port
+forwarder saturates at roughly 2,000 concurrent connections on this machine —
+above that, connects fail before they reach the broker. Run the generator inside
+the container network, or on a Linux host, to measure connection capacity.
+
 ## Session lifecycle
 
 - Persistent sessions remain in memory until their expiry deadline.

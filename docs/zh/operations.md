@@ -65,6 +65,10 @@ Broker 与压测客户端共用同一台机器经 loopback 通信。数据偏保
 Linux 和专用主机上会更高。可用 `nextmqtt bench` 与 `nextmqtt bench-connections`
 复现；启用 TLS、大量保留消息或大扇出都会降低吞吐。
 
+在 Docker Desktop 上通过端口映射运行时，本机端口转发大约在 2,000 个并发连接处饱和，
+超过后连接在到达 Broker 前就会失败。要测真实建连能力，请把压测程序放进容器网络，
+或使用 Linux 主机。
+
 ## 会话生命周期
 
 - 持久会话在过期前保留在内存
