@@ -29,6 +29,7 @@ services:
       - "1883:1883"
       - "8080:8080"
       - "8083:8083"
+      - "8883:8883"
     environment:
       <<: *node-env
       NEXTMQTT_CLUSTER__NODEID: node-a
@@ -43,6 +44,7 @@ services:
       - "1884:1883"
       - "8081:8080"
       - "8084:8083"
+      - "8884:8883"
     environment:
       <<: *node-env
       NEXTMQTT_CLUSTER__NODEID: node-b
@@ -57,6 +59,7 @@ services:
       - "1885:1883"
       - "8082:8080"
       - "8085:8083"
+      - "8885:8883"
     environment:
       <<: *node-env
       NEXTMQTT_CLUSTER__NODEID: node-c

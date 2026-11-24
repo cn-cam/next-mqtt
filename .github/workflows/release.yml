@@ -117,7 +117,7 @@ jobs:
           body: |
             NextMQTT ${{ github.ref_name }}
 
-            - Container image: `ghcr.io/${{ github.repository }}:${{ github.ref_name }}`
+            - Container image: `ghcr.io/${{ github.repository }}:latest` (all release tags are published to the same package)
             - Documentation: https://cn-cam.github.io/next-mqtt/
             - Licence: Apache-2.0
 
