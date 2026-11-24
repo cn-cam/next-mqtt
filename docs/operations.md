@@ -172,7 +172,12 @@ persistence lands.
 
 ## Backups
 
-There is no on-disk state to back up in this release. Configuration lives in
-environment variables and Kubernetes/Compose files; back those up. The admin
-token secret and cluster secret must be preserved to avoid invalidating tokens
-or breaking node trust.
+There is no on-disk state to back up unless retained persistence is enabled. With
+`Storage:Retained:Mode` set to `file`, the journal at `Storage:Retained:Path`
+holds every retained message and can be copied while the broker runs (it is
+append-only and compaction uses an atomic rename). Sessions, queues and
+subscriptions are still in memory, so they do not survive a restart.
+
+Configuration lives in environment variables and Kubernetes/Compose files; back
+those up. The admin token secret and cluster secret must be preserved to avoid
+invalidating tokens or breaking node trust.

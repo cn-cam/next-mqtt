@@ -79,6 +79,28 @@ dotnet NextMqtt.Server.dll
 
 制限はノード単位です。3 ノード構成では各ノードが設定値まで受け付けます。
 
+## ストレージ
+
+retained は既定でメモリ内にあります。`File` にするとディスクへ追記し、再起動後も
+保持します。セッション、キュー、購読はこのリリースではメモリ内のままです。
+
+| 設定 | 既定 | 説明 |
+| --- | --- | --- |
+| `Mode` | `Memory` | `Memory` または `File` |
+| `Path` | `data/retained.log` | ジャーナルファイル（親ディレクトリは自動作成） |
+| `CompactThresholdBytes` | 4 MiB | このサイズを超えたら書き直す |
+
+```bash
+NEXTMQTT_STORAGE__RETAINED__MODE=file \
+NEXTMQTT_STORAGE__RETAINED__PATH=/app/data/retained.log \
+dotnet NextMqtt.Server.dll
+```
+
+ジャーナルは 1 行 1 操作（`set` / `remove`）の JSON 行で、トピック、Base64 の
+ペイロード、QoS、時刻、MQTT 5 プロパティを含みます。起動時に順に再生し、期限切れ
+を除外し、肥大時に compaction します。最後の行が壊れていても起動は失敗しません。
+各ノードが自分のジャーナルを持ちます。
+
 ## 認証
 
 ```json

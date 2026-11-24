@@ -169,6 +169,42 @@ Limits are per node: a cluster of three nodes with `PublishPerSecondPerClient`
 set to 500 allows 500 messages per second per client on each node. Size the
 values for the whole cluster or terminate clients on a single node.
 
+## Storage
+
+Retained messages live in memory by default. Set the store to `File` to journal
+them to disk so they survive a restart; sessions, queues and subscriptions stay
+in memory in this release.
+
+```json
+{
+  "Storage": {
+    "Retained": {
+      "Mode": "Memory",
+      "Path": "data/retained.log",
+      "CompactThresholdBytes": 4194304
+    }
+  }
+}
+```
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `Mode` | `Memory` | `Memory` or `File` |
+| `Path` | `data/retained.log` | Journal file; missing parent directories are created |
+| `CompactThresholdBytes` | 4 MiB | Rewrite the journal once it grows past this size |
+
+```bash
+NEXTMQTT_STORAGE__RETAINED__MODE=file \
+NEXTMQTT_STORAGE__RETAINED__PATH=/app/data/retained.log \
+nextmqtt-server
+```
+
+The journal is JSON lines: one `set` or `remove` operation per line with the
+topic, base64 payload, QoS, timestamps and MQTT 5 properties. The broker replays
+it at startup, skips expired entries and compacts when the file is too large; a
+torn final line is ignored instead of failing the boot. Each cluster node keeps
+its own journal, so a node that was offline still recovers what it had stored.
+
 ## Authentication
 
 ```json

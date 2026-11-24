@@ -42,7 +42,7 @@ Legend: ✅ implemented · ⚠️ partial or with documented limits · ❌ not i
 | Packet-id allocation | ✅ | Skips ids already inflight |
 | Offline queue bounds | ✅ | Oldest messages dropped and counted |
 | Overlapping subscription aggregation | ✅ | One delivery per client at maximum QoS |
-| Persistent state across restart | ❌ | In-memory only in 0.1.x |
+| Persistent state across restart | ⚠️ | Retained messages can be journaled to disk; sessions and queues are in memory |
 | Cross-node session migration | ❌ | Sessions are node-affine |
 
 ## Security
@@ -111,7 +111,7 @@ The claims above are covered by the repository's tests and CI:
 | Container build + health/login smoke | CI `Container image` job |
 | CodeQL | `codeql.yml` |
 
-Current test count: 135 passing tests (63 core, 50 broker, 22 server)
+Current test count: 141 passing tests (63 core, 56 broker, 22 server)
 integration).
 
 ## Extensibility
@@ -137,8 +137,8 @@ roadmap and needs its own ADR first (see
 
 - State is in memory; restarts drop sessions, queues and retained messages.
 - Cluster forwarding is best effort and shared subscriptions are node-local.
-- Enhanced authentication, outbound topic aliases, persistence and bridges are
-  not in this release.
+- Enhanced authentication, outbound topic aliases, durable sessions and bridges
+  are not in this release.
 - Extending behaviour means changing source; there is no plugin host yet.
 - The default configuration is development-friendly; harden it before exposing
   the broker.

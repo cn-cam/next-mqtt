@@ -1,0 +1,403 @@
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using NextMqtt.Broker.Messaging;
+using NextMqtt.Core.Protocol;
+
+namespace NextMqtt.Broker.Storage;
+
+/// <summary>
+/// Durable side of a retained-message store. Implementations persist mutations
+/// as they happen and replay them when the broker starts.
+/// </summary>
+public interface IRetainedJournal
+{
+    /// <summary>Replays the journal and returns the current live messages.</summary>
+    IReadOnlyList<RetainedMessage> Load();
+
+    void AppendSet(RetainedMessage message);
+
+    void AppendRemove(string topic);
+
+    /// <summary>Rewrites the journal so it only contains <paramref name="messages"/>.</summary>
+    void Compact(IReadOnlyList<RetainedMessage> messages);
+}
+
+/// <summary>
+/// Append-only JSON-lines journal for retained messages. Each line is a complete
+/// operation, so a torn last line is skipped instead of corrupting earlier
+/// state. Compaction rewrites the file through a temporary sibling.
+/// </summary>
+public sealed class FileRetainedJournal : IRetainedJournal, IDisposable
+{
+    private static readonly JsonSerializerOptions SerializerOptions = new()
+    {
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+    };
+
+    private readonly string _path;
+    private readonly long _compactThresholdBytes;
+    private readonly object _gate = new();
+    private FileStream? _stream;
+
+    public FileRetainedJournal(string path, long compactThresholdBytes = 4 * 1024 * 1024)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+
+        _path = Path.GetFullPath(path);
+        _compactThresholdBytes = compactThresholdBytes;
+
+        var directory = Path.GetDirectoryName(_path);
+        if (!string.IsNullOrEmpty(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+    }
+
+    public string FilePath => _path;
+
+    public IReadOnlyList<RetainedMessage> Load()
+    {
+        lock (_gate)
+        {
+            var live = new Dictionary<string, RetainedMessage>(StringComparer.Ordinal);
+            long length = 0;
+
+            if (File.Exists(_path))
+            {
+                var now = DateTimeOffset.UtcNow;
+
+                foreach (var line in ReadAllLines())
+                {
+                    length += Encoding.UTF8.GetByteCount(line) + 1;
+
+                    RetainedRecord? record;
+
+                    try
+                    {
+                        record = JsonSerializer.Deserialize<RetainedRecord>(line, SerializerOptions);
+                    }
+                    catch (JsonException)
+                    {
+                        // Torn or hand-edited line: skip it and keep replaying.
+                        continue;
+                    }
+
+                    if (record?.Topic is null)
+                    {
+                        continue;
+                    }
+
+                    if (record.Op == RetainedRecord.RemoveOperation)
+                    {
+                        live.Remove(record.Topic);
+                        continue;
+                    }
+
+                    var message = record.ToMessage();
+                    if (message is null || message.IsExpired(now))
+                    {
+                        live.Remove(record.Topic);
+                        continue;
+                    }
+
+                    live[record.Topic] = message;
+                }
+            }
+
+            var messages = live.Values.ToList();
+
+            OpenAppendStream();
+
+            if (length > _compactThresholdBytes)
+            {
+                CompactCore(messages);
+            }
+
+            return messages;
+        }
+    }
+
+    public void AppendSet(RetainedMessage message)
+    {
+        Append(RetainedRecord.FromMessage(message));
+    }
+
+    public void AppendRemove(string topic)
+    {
+        Append(new RetainedRecord { Op = RetainedRecord.RemoveOperation, Topic = topic });
+    }
+
+    public void Compact(IReadOnlyList<RetainedMessage> messages)
+    {
+        lock (_gate)
+        {
+            CompactCore(messages);
+        }
+    }
+
+    public void Dispose()
+    {
+        lock (_gate)
+        {
+            _stream?.Dispose();
+            _stream = null;
+        }
+    }
+
+    private void Append(RetainedRecord record)
+    {
+        lock (_gate)
+        {
+            OpenAppendStream();
+
+            var line = JsonSerializer.Serialize(record, SerializerOptions) + "\n";
+            var bytes = Encoding.UTF8.GetBytes(line);
+
+            _stream!.Write(bytes, 0, bytes.Length);
+            _stream.Flush(flushToDisk: false);
+
+            if (_stream.Length > _compactThresholdBytes)
+            {
+                CompactCore(ReadLiveUnsafe());
+            }
+        }
+    }
+
+    private void CompactCore(IReadOnlyList<RetainedMessage> messages)
+    {
+        _stream?.Dispose();
+        _stream = null;
+
+        var temporary = _path + ".tmp";
+
+        using (var writer = new StreamWriter(temporary, append: false, Encoding.UTF8))
+        {
+            foreach (var message in messages)
+            {
+                writer.Write(JsonSerializer.Serialize(RetainedRecord.FromMessage(message), SerializerOptions));
+                writer.Write('\n');
+            }
+
+            writer.Flush();
+        }
+
+        File.Move(temporary, _path, overwrite: true);
+        OpenAppendStream();
+    }
+
+    /// <summary>Reads the journal without taking the lock; caller holds it.</summary>
+    private List<RetainedMessage> ReadLiveUnsafe()
+    {
+        var live = new Dictionary<string, RetainedMessage>(StringComparer.Ordinal);
+        var now = DateTimeOffset.UtcNow;
+
+        foreach (var line in ReadAllLines())
+        {
+            RetainedRecord? record;
+
+            try
+            {
+                record = JsonSerializer.Deserialize<RetainedRecord>(line, SerializerOptions);
+            }
+            catch (JsonException)
+            {
+                continue;
+            }
+
+            if (record?.Topic is null)
+            {
+                continue;
+            }
+
+            if (record.Op == RetainedRecord.RemoveOperation)
+            {
+                live.Remove(record.Topic);
+                continue;
+            }
+
+            var message = record.ToMessage();
+            if (message is not null && !message.IsExpired(now))
+            {
+                live[record.Topic] = message;
+            }
+        }
+
+        return live.Values.ToList();
+    }
+
+    private void OpenAppendStream()
+    {
+        _stream ??= new FileStream(
+            _path,
+            FileMode.Append,
+            FileAccess.Write,
+            FileShare.Read,
+            bufferSize: 16 * 1024,
+            FileOptions.None);
+    }
+
+    /// <summary>Reads the file while the append stream holds it open.</summary>
+    private List<string> ReadAllLines()
+    {
+        if (!File.Exists(_path))
+        {
+            return [];
+        }
+
+        var lines = new List<string>();
+
+        using var stream = new FileStream(_path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        using var reader = new StreamReader(stream, Encoding.UTF8);
+
+        while (reader.ReadLine() is { } line)
+        {
+            lines.Add(line);
+        }
+
+        return lines;
+    }
+
+    private sealed class RetainedRecord
+    {
+        public const string RemoveOperation = "remove";
+
+        public string Op { get; set; } = "set";
+
+        public string Topic { get; set; } = string.Empty;
+
+        public string? Payload { get; set; }
+
+        public int QoS { get; set; }
+
+        public DateTimeOffset StoredAt { get; set; }
+
+        public DateTimeOffset? ExpiresAt { get; set; }
+
+        public List<PropertyRecord>? Properties { get; set; }
+
+        public static RetainedRecord FromMessage(RetainedMessage message) => new()
+        {
+            Op = "set",
+            Topic = message.Topic,
+            Payload = Convert.ToBase64String(message.Payload),
+            QoS = (int)message.QoS,
+            StoredAt = message.StoredAt,
+            ExpiresAt = message.ExpiresAt,
+            Properties = PropertyRecord.FromProperties(message.Properties),
+        };
+
+        public RetainedMessage? ToMessage()
+        {
+            MqttProperties properties;
+
+            try
+            {
+                properties = PropertyRecord.ToProperties(Properties);
+            }
+            catch (MqttProtocolException)
+            {
+                return null;
+            }
+
+            return new RetainedMessage
+            {
+                Topic = Topic,
+                Payload = Payload is null ? [] : Convert.FromBase64String(Payload),
+                QoS = (MqttQoS)QoS,
+                Properties = properties,
+                StoredAt = StoredAt,
+                ExpiresAt = ExpiresAt,
+            };
+        }
+    }
+
+    private sealed class PropertyRecord
+    {
+        public int Id { get; set; }
+
+        public int Type { get; set; }
+
+        public string? Value { get; set; }
+
+        public static List<PropertyRecord>? FromProperties(MqttProperties properties)
+        {
+            if (properties.IsEmpty)
+            {
+                return null;
+            }
+
+            var records = new List<PropertyRecord>(properties.Count);
+
+            foreach (var property in properties.Items)
+            {
+                // Expiry is relative on the wire and tracked absolutely here.
+                if (property.Id == MqttPropertyId.MessageExpiryInterval)
+                {
+                    continue;
+                }
+
+                var type = MqttProperties.GetDataType(property.Id);
+                var record = new PropertyRecord { Id = (int)property.Id, Type = (int)type };
+
+                record.Value = type switch
+                {
+                    MqttPropertyDataType.String => property.Value as string,
+                    MqttPropertyDataType.Binary => Convert.ToBase64String((byte[])property.Value),
+                    MqttPropertyDataType.StringPair => JsonSerializer.Serialize(
+                        (KeyValuePair<string, string>)property.Value,
+                        SerializerOptions),
+                    _ => Convert.ToString(property.Value, System.Globalization.CultureInfo.InvariantCulture),
+                };
+
+                records.Add(record);
+            }
+
+            return records.Count == 0 ? null : records;
+        }
+
+        public static MqttProperties ToProperties(List<PropertyRecord>? records)
+        {
+            var properties = new MqttProperties();
+
+            if (records is null)
+            {
+                return properties;
+            }
+
+            foreach (var record in records)
+            {
+                var id = (MqttPropertyId)record.Id;
+                var value = record.Value ?? string.Empty;
+
+                switch ((MqttPropertyDataType)record.Type)
+                {
+                    case MqttPropertyDataType.Byte:
+                        properties.AddByte(id, byte.Parse(value, System.Globalization.CultureInfo.InvariantCulture));
+                        break;
+                    case MqttPropertyDataType.UInt16:
+                        properties.AddUInt16(id, ushort.Parse(value, System.Globalization.CultureInfo.InvariantCulture));
+                        break;
+                    case MqttPropertyDataType.UInt32:
+                        properties.AddUInt32(id, uint.Parse(value, System.Globalization.CultureInfo.InvariantCulture));
+                        break;
+                    case MqttPropertyDataType.VariableByteInteger:
+                        properties.AddVariableByteInteger(id, int.Parse(value, System.Globalization.CultureInfo.InvariantCulture));
+                        break;
+                    case MqttPropertyDataType.String:
+                        properties.AddString(id, value);
+                        break;
+                    case MqttPropertyDataType.Binary:
+                        properties.AddBinary(id, Convert.FromBase64String(value));
+                        break;
+                    case MqttPropertyDataType.StringPair:
+                        var pair = JsonSerializer.Deserialize<KeyValuePair<string, string>>(value, SerializerOptions);
+                        properties.Add(id, pair);
+                        break;
+                }
+            }
+
+            return properties;
+        }
+    }
+}

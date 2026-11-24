@@ -1,3 +1,4 @@
+using NextMqtt.Broker.Storage;
 using NextMqtt.Core.Protocol;
 using NextMqtt.Core.Topics;
 
@@ -41,6 +42,22 @@ public sealed class RetainedMessageStore
 {
     private readonly TopicTrie<RetainedMessage> _trie = new();
     private readonly object _gate = new();
+    private readonly IRetainedJournal? _journal;
+
+    public RetainedMessageStore(IRetainedJournal? journal = null)
+    {
+        _journal = journal;
+
+        if (journal is null)
+        {
+            return;
+        }
+
+        foreach (var message in journal.Load())
+        {
+            _trie.Add(message.Topic, message);
+        }
+    }
 
     public int Count
     {
@@ -71,6 +88,7 @@ public sealed class RetainedMessageStore
         {
             RemoveCore(message.Topic);
             _trie.Add(message.Topic, message);
+            _journal?.AppendSet(message);
         }
     }
 
@@ -78,7 +96,14 @@ public sealed class RetainedMessageStore
     {
         lock (_gate)
         {
-            return RemoveCore(topic);
+            var removed = RemoveCore(topic);
+
+            if (removed)
+            {
+                _journal?.AppendRemove(topic);
+            }
+
+            return removed;
         }
     }
 
@@ -119,6 +144,14 @@ public sealed class RetainedMessageStore
     {
         lock (_gate)
         {
+            if (_journal is not null)
+            {
+                foreach (var message in _trie.ToList())
+                {
+                    _journal.AppendRemove(message.Topic);
+                }
+            }
+
             _trie.Clear();
         }
     }

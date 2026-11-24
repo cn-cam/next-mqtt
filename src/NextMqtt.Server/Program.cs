@@ -7,6 +7,7 @@ using NextMqtt.Broker.Clustering;
 using NextMqtt.Broker.Connections;
 using NextMqtt.Broker.Options;
 using NextMqtt.Broker.Security;
+using NextMqtt.Broker.Storage;
 using NextMqtt.Server.Api;
 using NextMqtt.Server.Hosting;
 using NextMqtt.Server.Networking;
@@ -25,6 +26,8 @@ var adminOptions = builder.Configuration.GetSection(AdminOptions.SectionName).Ge
 var clusterOptions = builder.Configuration.GetSection(ClusterOptions.SectionName).Get<ClusterOptions>() ?? new ClusterOptions();
 brokerOptions.RateLimits = builder.Configuration.GetSection(RateLimitOptions.SectionName).Get<RateLimitOptions>()
     ?? brokerOptions.RateLimits;
+var storageOptions = builder.Configuration.GetSection(StorageOptions.SectionName).Get<StorageOptions>()
+    ?? new StorageOptions();
 
 if (bool.TryParse(Environment.GetEnvironmentVariable("NEXTMQTT_ALLOW_ANONYMOUS"), out var allowAnonymous))
 {
@@ -87,6 +90,20 @@ builder.Services.AddSingleton(sp => new ClusterRouter(
     sp.GetRequiredService<ILogger<ClusterRouter>>(),
     sp.GetRequiredService<HttpClient>()));
 builder.Services.AddSingleton<IClusterRouter>(sp => sp.GetRequiredService<ClusterRouter>());
+
+if (storageOptions.Retained.Mode == RetainedStoreMode.File)
+{
+    builder.Services.AddSingleton<IRetainedJournal>(sp =>
+    {
+        var journal = new FileRetainedJournal(
+            storageOptions.Retained.Path,
+            storageOptions.Retained.CompactThresholdBytes);
+
+        sp.GetRequiredService<IHostApplicationLifetime>().ApplicationStopping.Register(journal.Dispose);
+        return journal;
+    });
+}
+
 builder.Services.AddSingleton(sp =>
 {
     var cluster = sp.GetRequiredService<IClusterRouter>();
@@ -95,7 +112,8 @@ builder.Services.AddSingleton(sp =>
         sp.GetRequiredService<IClientAuthenticator>(),
         sp.GetRequiredService<ITopicAuthorizer>(),
         cluster,
-        sp.GetRequiredService<ILogger<MqttBroker>>());
+        sp.GetRequiredService<ILogger<MqttBroker>>(),
+        sp.GetService<IRetainedJournal>());
 
     if (cluster is ClusterRouter clusterRouter)
     {

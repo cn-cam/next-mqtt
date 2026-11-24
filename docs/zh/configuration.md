@@ -103,6 +103,27 @@ dotnet NextMqtt.Server.dll
 
 限流按节点生效：三节点集群每节点各自放行配置的速率。
 
+## 存储
+
+保留消息默认保存在内存中。将存储模式设为 `File` 可写入磁盘日志，重启后仍可用；
+本版本的会话、队列与订阅仍在内存中。
+
+| 选项 | 默认 | 说明 |
+| --- | --- | --- |
+| `Mode` | `Memory` | `Memory` 或 `File` |
+| `Path` | `data/retained.log` | 日志文件，父目录不存在会自动创建 |
+| `CompactThresholdBytes` | 4 MiB | 超过该大小后重写日志 |
+
+```bash
+NEXTMQTT_STORAGE__RETAINED__MODE=file \
+NEXTMQTT_STORAGE__RETAINED__PATH=/app/data/retained.log \
+dotnet NextMqtt.Server.dll
+```
+
+日志为 JSON 行：每行一条 `set` 或 `remove` 操作，包含主题、Base64 负载、QoS、
+时间戳和 MQTT 5 属性。启动时按顺序重放，跳过已过期条目，文件过大时压缩；最后
+一行损坏会被忽略而不会导致启动失败。每个集群节点各自保留日志。
+
 ## 认证与 ACL
 
 ```json

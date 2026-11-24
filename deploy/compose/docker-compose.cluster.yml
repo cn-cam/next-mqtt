@@ -16,6 +16,9 @@ x-node: &node
     NEXTMQTT_CLUSTER__SECRET: ${NEXTMQTT_CLUSTER_SECRET:-change-me-cluster-secret}
     NEXTMQTT_CLUSTER__HEARTBEATSECONDS: "2"
     NEXTMQTT_CLUSTER__NODETIMEOUTSECONDS: "15"
+    # "file" journals retained messages under /app/data so they survive restarts.
+    NEXTMQTT_STORAGE__RETAINED__MODE: ${NEXTMQTT_RETAINED_MODE:-memory}
+    NEXTMQTT_STORAGE__RETAINED__PATH: /app/data/retained.log
   security_opt:
     - no-new-privileges:true
   healthcheck:
@@ -28,6 +31,8 @@ services:
   node-a:
     <<: *node
     container_name: nextmqtt-node-a
+    volumes:
+      - node-a-data:/app/data
     ports:
       - "1883:1883"
       - "8080:8080"
@@ -43,6 +48,8 @@ services:
   node-b:
     <<: *node
     container_name: nextmqtt-node-b
+    volumes:
+      - node-b-data:/app/data
     ports:
       - "1884:1883"
       - "8081:8080"
@@ -58,6 +65,8 @@ services:
   node-c:
     <<: *node
     container_name: nextmqtt-node-c
+    volumes:
+      - node-c-data:/app/data
     ports:
       - "1885:1883"
       - "8082:8080"
@@ -69,3 +78,8 @@ services:
       NEXTMQTT_CLUSTER__ADVERTISEURL: http://node-c:8080
       NEXTMQTT_CLUSTER__SEEDS__0: http://node-a:8080
       NEXTMQTT_CLUSTER__SEEDS__1: http://node-b:8080
+
+volumes:
+  node-a-data:
+  node-b-data:
+  node-c-data:

@@ -6,6 +6,7 @@ using NextMqtt.Broker.Options;
 using NextMqtt.Broker.RateLimiting;
 using NextMqtt.Broker.Security;
 using NextMqtt.Broker.Sessions;
+using NextMqtt.Broker.Storage;
 using NextMqtt.Broker.Subscriptions;
 using NextMqtt.Core.Protocol;
 using NextMqtt.Core.Topics;
@@ -37,13 +38,15 @@ public sealed class MqttBroker : IAsyncDisposable
         IClientAuthenticator authenticator,
         ITopicAuthorizer authorizer,
         IClusterRouter cluster,
-        ILogger<MqttBroker> logger)
+        ILogger<MqttBroker> logger,
+        IRetainedJournal? retainedJournal = null)
     {
         Options = options;
         Authenticator = authenticator;
         Authorizer = authorizer;
         Cluster = cluster;
         ConnectionLimits = new ConnectionRateLimiter(options.RateLimits);
+        Retained = new RetainedMessageStore(retainedJournal);
         _logger = logger;
     }
 
@@ -62,7 +65,7 @@ public sealed class MqttBroker : IAsyncDisposable
 
     public SubscriptionIndex Subscriptions { get; } = new();
 
-    public RetainedMessageStore Retained { get; } = new();
+    public RetainedMessageStore Retained { get; }
 
     public BrokerMetrics Metrics { get; } = new();
 

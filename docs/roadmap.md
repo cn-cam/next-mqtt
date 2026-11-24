@@ -17,10 +17,11 @@ security needs.
 
 ## 0.2 — Durability and operations
 
-- [ ] Pluggable session and retained stores
-- [ ] File-based append-only store with compaction
-- [ ] Optional SQLite and PostgreSQL providers
-- [ ] Session and retained backup/restore procedures
+- [x] File-backed retained store with an append-only journal (0.4.0)
+- [x] Journal compaction at startup and when the file grows (0.4.0)
+- [ ] Pluggable session store
+- [ ] SQLite and PostgreSQL providers
+- [ ] Session backup and restore procedures
 - [ ] Graceful node drain that waits for inflight acknowledgements
 - [x] Per-client and per-IP connection rate limits (0.3.0)
 - [x] Message-rate quotas per client (0.3.0)

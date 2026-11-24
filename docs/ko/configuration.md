@@ -79,6 +79,28 @@ dotnet NextMqtt.Server.dll
 
 제한은 노드 단위입니다. 3노드 클러스터에서는 각 노드가 설정값까지 허용합니다.
 
+## 스토리지
+
+retained는 기본적으로 메모리에 있습니다. `File`로 설정하면 디스크에 기록해 재시작
+후에도 유지합니다. 세션, 큐, 구독은 이 릴리스에서 여전히 메모리에 있습니다.
+
+| 설정 | 기본 | 설명 |
+| --- | --- | --- |
+| `Mode` | `Memory` | `Memory` 또는 `File` |
+| `Path` | `data/retained.log` | 저널 파일 (상위 디렉터리는 자동 생성) |
+| `CompactThresholdBytes` | 4 MiB | 이 크기를 넘으면 파일을 다시 씁니다 |
+
+```bash
+NEXTMQTT_STORAGE__RETAINED__MODE=file \
+NEXTMQTT_STORAGE__RETAINED__PATH=/app/data/retained.log \
+dotnet NextMqtt.Server.dll
+```
+
+저널은 한 줄에 한 작업(`set` / `remove`)인 JSON 라인으로, 토픽, Base64 페이로드,
+QoS, 시각, MQTT 5 속성을 담습니다. 시작 시 순서대로 재생하고 만료 항목을 건너뛰며,
+파일이 커지면 compaction합니다. 마지막 줄이 깨져도 기동은 실패하지 않습니다. 각
+노드가 자체 저널을 유지합니다.
+
 ## 인증
 
 ```json
