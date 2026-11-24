@@ -25,7 +25,7 @@ docker run -d --name nextmqtt \
 Docker Hub 镜像：
 
 ```bash
-docker pull ooooooooocam/next-mqtt:latest
+docker pull oooooooooocam/next-mqtt:latest
 ```
 
 浏览器打开 <http://localhost:8080>，使用 `admin` 与上面的密码登录。

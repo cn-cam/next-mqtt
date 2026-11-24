@@ -9,7 +9,7 @@
 ```bash
 docker pull ghcr.io/cn-cam/next-mqtt:latest
 # 또는 Docker Hub
-docker pull ooooooooocam/next-mqtt:latest
+docker pull oooooooooocam/next-mqtt:latest
 ```
 
 ```bash

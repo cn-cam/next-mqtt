@@ -98,7 +98,7 @@ Docker Hub mirror:
 docker run -d --name nextmqtt \
   -p 1883:1883 -p 8080:8080 -p 8083:8083 \
   -e NEXTMQTT_ADMIN_PASSWORD='change-me-now' \
-  ooooooooocam/next-mqtt:latest
+  oooooooooocam/next-mqtt:latest
 ```
 
 Open <http://localhost:8080> and sign in as `admin` with the password you
@@ -156,7 +156,7 @@ All ports are configurable via `NEXTMQTT_*` environment variables or
 
 ## Deployment
 
-- Container image: `ghcr.io/cn-cam/next-mqtt` and `oooooooocam/next-mqtt` (linux/amd64, linux/arm64)
+- Container image: `ghcr.io/cn-cam/next-mqtt` and `oooooooooocam/next-mqtt` (linux/amd64, linux/arm64)
 - Kubernetes: `deploy/kubernetes` (Kustomize) and `deploy/helm/next-mqtt`
 - Compose: [`docker-compose.yml`](docker-compose.yml)
 

@@ -20,7 +20,7 @@ docker run -d --name nextmqtt \
 Docker Hub からも取得できます：
 
 ```bash
-docker pull ooooooooocam/next-mqtt:latest
+docker pull oooooooooocam/next-mqtt:latest
 ```
 
 `http://localhost:8080` を開き、`admin` と設定したパスワードでログインします。

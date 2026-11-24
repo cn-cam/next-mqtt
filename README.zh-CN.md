@@ -81,7 +81,7 @@ Docker Hub 镜像：
 docker run -d --name nextmqtt \
   -p 1883:1883 -p 8080:8080 -p 8083:8083 \
   -e NEXTMQTT_ADMIN_PASSWORD='change-me-now' \
-  ooooooooocam/next-mqtt:latest
+  oooooooooocam/next-mqtt:latest
 ```
 
 浏览器打开 <http://localhost:8080>，使用 `admin` 与上面设置的密码登录。
@@ -127,7 +127,7 @@ CLI 支持 MQTT 5 / 3.1.1、TLS，并可用 `hash-password` 生成控制台或 A
 
 ## 部署
 
-- 镜像：`ghcr.io/cn-cam/next-mqtt` 与 `oooooooocam/next-mqtt`（linux/amd64、linux/arm64）
+- 镜像：`ghcr.io/cn-cam/next-mqtt` 与 `oooooooooocam/next-mqtt`（linux/amd64、linux/arm64）
 - Kubernetes：`deploy/kubernetes` 与 `deploy/helm/next-mqtt`
 - Compose：[`docker-compose.yml`](docker-compose.yml)
 

@@ -27,7 +27,7 @@ docker run -d --name nextmqtt \
 A Docker Hub mirror is also published:
 
 ```bash
-docker pull ooooooooocam/next-mqtt:latest
+docker pull oooooooooocam/next-mqtt:latest
 ```
 
 Open <http://localhost:8080> and sign in as `admin` with the password you
