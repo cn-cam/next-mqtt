@@ -14,6 +14,18 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 - Enhanced authentication (`AUTH`) providers.
 - Global shared-subscription coordination.
 
+## [0.1.1] - 2026-11-24
+
+### Fixed
+
+- Anonymous MQTT clients are no longer accepted when `AllowAnonymous` is false.
+  Anonymous access now requires an explicit opt-in.
+- Cluster shutdown is idempotent when the host stops and disposes the broker.
+- ACL wildcard rules no longer cover leading-`$` topics such as `$SYS/#`.
+- Certificate loading uses the non-obsolete `X509CertificateLoader`.
+- Documentation titles no longer repeat the product name.
+- CLI nullability warnings and the dashboard publish history are cleaned up.
+
 ## [0.1.0] - 2026-11-24
 
 ### Added
@@ -42,5 +54,6 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 - GitHub Actions for CI, CodeQL, releases and GitHub Pages.
 - Mechanical brand/trademark compliance scanner and repository policy.
 
-[Unreleased]: https://github.com/cn-cam/next-mqtt/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/cn-cam/next-mqtt/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.1.1
 [0.1.0]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.1.0
