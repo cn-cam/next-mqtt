@@ -5,6 +5,20 @@ All notable changes to NextMQTT are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.0] - 2026-11-24
+
+### Added
+
+- Per-address CONNECT rate limits and per-client PUBLISH rate limits, both
+  token buckets with configurable burst and sustained rate (`RateLimits`).
+- Rate-limit counters: `nextmqtt_connections_rate_limited_total` and
+  `nextmqtt_publishes_rate_limited_total`.
+
+### Changed
+
+- Rate-limited publishes are acknowledged but not routed, so publishers do not
+  retransmit. MQTT 5 QoS 2 rejections carry `0x96 Message rate too high`.
+
 ## [Unreleased]
 
 ### Added
@@ -17,7 +31,6 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 ### Planned
 
 - Durable session and retained-message stores.
-- Connection and message rate limiting.
 - Enhanced authentication (`AUTH`) providers.
 - Global shared-subscription coordination.
 
@@ -109,7 +122,8 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 - GitHub Actions for CI, CodeQL, releases and GitHub Pages.
 - Mechanical brand/trademark compliance scanner and repository policy.
 
-[Unreleased]: https://github.com/cn-cam/next-mqtt/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/cn-cam/next-mqtt/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.3.0
 [0.2.0]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.2.0
 [0.1.2]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.1.2
 [0.1.1]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.1.1
