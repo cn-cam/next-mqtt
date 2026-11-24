@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Channels;
 using Microsoft.Extensions.Logging;
 using NextMqtt.Broker.Options;
+using NextMqtt.Broker.RateLimiting;
 using NextMqtt.Broker.Security;
 using NextMqtt.Broker.Sessions;
 using NextMqtt.Broker.Subscriptions;
@@ -27,6 +28,7 @@ public sealed class ClientConnection : IClientConnection
     private readonly CancellationTokenSource _lifetime = new();
     private readonly string _remoteAddress;
     private readonly Dictionary<ushort, string> _inboundAliases = new();
+    private readonly TokenBucket? _publishBucket;
     private BrokerSession? _session;
     private Task? _writerTask;
     private MqttProtocolVersion _version = MqttProtocolVersion.V311;
@@ -60,6 +62,14 @@ public sealed class ClientConnection : IClientConnection
             });
 
         _maxTopicAlias = (ushort)Math.Min(broker.Options.MaxTopicAlias, ushort.MaxValue);
+
+        var limits = broker.Options.RateLimits;
+        if (limits.LimitsPublishes)
+        {
+            _publishBucket = new TokenBucket(
+                limits.PublishPerSecondPerClient,
+                limits.PublishBurst > 0 ? limits.PublishBurst : limits.PublishPerSecondPerClient);
+        }
     }
 
     public string RemoteAddress => _remoteAddress;
@@ -168,6 +178,25 @@ public sealed class ClientConnection : IClientConnection
     private async Task<bool> HandleConnectAsync(ConnectPacket connect, CancellationToken cancellationToken)
     {
         _version = connect.ProtocolVersion;
+
+        if (!_broker.ConnectionLimits.TryAcquire(_remoteAddress))
+        {
+            _broker.Metrics.ConnectionRateLimited();
+            _logger.LogDebug(
+                "Connection rate limit exceeded for {RemoteAddress}",
+                _remoteAddress);
+
+            await WriteConnAckAsync(
+                new ConnAckPacket
+                {
+                    ReasonCode = connect.ProtocolVersion == MqttProtocolVersion.V500
+                        ? MqttReasonCodes.ConnectionRateExceeded
+                        : MqttReasonCodes.ServerUnavailable,
+                },
+                cancellationToken).ConfigureAwait(false);
+
+            return false;
+        }
 
         string clientId;
         var assignedIdentifier = false;
@@ -351,6 +380,36 @@ public sealed class ClientConnection : IClientConnection
         var expiry = publish.Properties.GetUInt32(MqttPropertyId.MessageExpiryInterval);
         var expired = expiry == 0;
         var principal = _session!.Principal;
+
+        if (_publishBucket is not null && !_publishBucket.TryTake())
+        {
+            _broker.Metrics.PublishRateLimited();
+            _broker.Metrics.MessageDropped();
+            _broker.Metrics.PublishReceived();
+
+            // Acknowledge the packet so the client does not retransmit, but do
+            // not route it: the quota consumed the message.
+            if (publish.QoS == MqttQoS.AtMostOnce)
+            {
+                return;
+            }
+
+            if (publish.QoS == MqttQoS.AtLeastOnce)
+            {
+                _session.OnPubAck(publish.PacketId);
+                TrySend(new PubAckPacket { PacketId = publish.PacketId });
+                return;
+            }
+
+            TrySend(new PubRecPacket
+            {
+                PacketId = publish.PacketId,
+                ReasonCode = _version == MqttProtocolVersion.V500
+                    ? MqttReasonCodes.MessageRateTooHigh
+                    : (byte)0,
+            });
+            return;
+        }
 
         if (!_broker.Authorizer.CanPublish(principal, publish.Topic))
         {

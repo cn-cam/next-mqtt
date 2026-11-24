@@ -75,6 +75,34 @@ NEXTMQTT_CLUSTER__SEEDS__0=http://node-b:8080
 | `MaxClientIdLength` | 256 | 客户端 ID 长度 |
 | `AllowZeroLengthClientId` | `true` | 自动分配 ID |
 
+## 限流
+
+默认关闭。两项都是令牌桶：允许突发，然后按持续速率放行。
+
+| 选项 | 默认 | 说明 |
+| --- | --- | --- |
+| `ConnectPerSecondPerIp` | `0` | 每个来源地址每秒接受的 CONNECT 数，`0` 关闭 |
+| `ConnectBurst` | `0` | 建连突发大小，`0` 取每秒速率 |
+| `PublishPerSecondPerClient` | `0` | 每客户端每秒接受的 PUBLISH 数，`0` 关闭 |
+| `PublishBurst` | `0` | 发布突发大小，`0` 取每秒速率 |
+
+```bash
+NEXTMQTT_RATELIMITS__CONNECTPERSECONDPERIP=20 \
+NEXTMQTT_RATELIMITS__PUBLISHPERSECONDPERCLIENT=500 \
+dotnet NextMqtt.Server.dll
+```
+
+超限行为：
+
+- 超过建连速率的 CONNECT 在 MQTT 5 下返回 CONNACK `0x9F`，MQTT 3.1.1 下返回
+  `0x03`，随后断开。
+- 超过发布速率的 PUBLISH 会被**丢弃但仍确认**（PUBACK；MQTT 5 QoS 2 为 PUBREC
+  `0x96`），避免客户端无限重传。计数见
+  `nextmqtt_publishes_rate_limited_total`、`nextmqtt_messages_dropped_total`。
+- 建连拒绝计入 `nextmqtt_connections_rate_limited_total`。
+
+限流按节点生效：三节点集群每节点各自放行配置的速率。
+
 ## 认证与 ACL
 
 ```json

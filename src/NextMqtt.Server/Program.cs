@@ -23,6 +23,8 @@ var authenticationOptions = builder.Configuration.GetSection(AuthenticationOptio
 var aclOptions = builder.Configuration.GetSection(AclOptions.SectionName).Get<AclOptions>() ?? new AclOptions();
 var adminOptions = builder.Configuration.GetSection(AdminOptions.SectionName).Get<AdminOptions>() ?? new AdminOptions();
 var clusterOptions = builder.Configuration.GetSection(ClusterOptions.SectionName).Get<ClusterOptions>() ?? new ClusterOptions();
+brokerOptions.RateLimits = builder.Configuration.GetSection(RateLimitOptions.SectionName).Get<RateLimitOptions>()
+    ?? brokerOptions.RateLimits;
 
 if (bool.TryParse(Environment.GetEnvironmentVariable("NEXTMQTT_ALLOW_ANONYMOUS"), out var allowAnonymous))
 {

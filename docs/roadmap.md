@@ -22,8 +22,9 @@ security needs.
 - [ ] Optional SQLite and PostgreSQL providers
 - [ ] Session and retained backup/restore procedures
 - [ ] Graceful node drain that waits for inflight acknowledgements
-- [ ] Per-client and per-IP connection rate limits
-- [ ] Message-rate quotas and topic-level quotas
+- [x] Per-client and per-IP connection rate limits (0.3.0)
+- [x] Message-rate quotas per client (0.3.0)
+- [ ] Topic-level quotas
 - [ ] OpenTelemetry traces for publish and delivery paths
 
 ## 0.3 — Protocol depth

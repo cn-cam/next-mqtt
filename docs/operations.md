@@ -34,6 +34,8 @@ key.
 | `nextmqtt_retransmissions_total` | counter | QoS retransmissions |
 | `nextmqtt_subscriptions_created_total` | counter | Successful subscriptions |
 | `nextmqtt_sessions_expired_total` | counter | Sessions removed after expiry |
+| `nextmqtt_connections_rate_limited_total` | counter | CONNECTs rejected by the connection rate limit |
+| `nextmqtt_publishes_rate_limited_total` | counter | PUBLISH packets dropped by the per-client rate limit |
 | `nextmqtt_clients_connected` | gauge | Online connections |
 | `nextmqtt_sessions` | gauge | Sessions in the registry |
 | `nextmqtt_subscriptions` | gauge | Active subscriptions |

@@ -22,6 +22,8 @@ public static class PrometheusFormatter
         Counter(builder, "nextmqtt_retransmissions_total", "QoS retransmissions", stats.Retransmissions);
         Counter(builder, "nextmqtt_subscriptions_created_total", "Successful subscriptions", stats.SubscriptionsCreated);
         Counter(builder, "nextmqtt_sessions_expired_total", "Sessions removed after expiry", stats.SessionsExpired);
+        Counter(builder, "nextmqtt_connections_rate_limited_total", "CONNECTs rejected by the connection rate limit", stats.ConnectionsRateLimited);
+        Counter(builder, "nextmqtt_publishes_rate_limited_total", "PUBLISH packets dropped by the per-client rate limit", stats.PublishesRateLimited);
         Gauge(builder, "nextmqtt_clients_connected", "Clients currently connected", stats.ConnectedClients);
         Gauge(builder, "nextmqtt_sessions", "Sessions in the registry", stats.Sessions);
         Gauge(builder, "nextmqtt_subscriptions", "Active subscriptions", stats.Subscriptions);

@@ -50,6 +50,35 @@ NEXTMQTT_CLUSTER__SEEDS__0=http://node-b:8080
 | `RetransmitInterval` | 10 s |
 | `SweepInterval` | 30 s |
 
+## レート制限
+
+既定は無効。どちらもトークンバケットで、バースト後に持続レートで制限します。
+
+| 設定 | 既定 | 説明 |
+| --- | --- | --- |
+| `ConnectPerSecondPerIp` | `0` | 送信元アドレスあたり毎秒の CONNECT 受付数。`0` で無効 |
+| `ConnectBurst` | `0` | 接続のバースト。`0` は毎秒レート |
+| `PublishPerSecondPerClient` | `0` | クライアントあたり毎秒の PUBLISH 受付数。`0` で無効 |
+| `PublishBurst` | `0` | 公開のバースト。`0` は毎秒レート |
+
+```bash
+NEXTMQTT_RATELIMITS__CONNECTPERSECONDPERIP=20 \
+NEXTMQTT_RATELIMITS__PUBLISHPERSECONDPERCLIENT=500 \
+dotnet NextMqtt.Server.dll
+```
+
+上限を超えた場合:
+
+- 接続レート超過の CONNECT は MQTT 5 では CONNACK `0x9F`、MQTT 3.1.1 では
+  `0x03` を返して切断します。
+- 公開レート超過の PUBLISH は**破棄しますが確認応答は返します**（PUBACK、
+  MQTT 5 の QoS 2 は PUBREC `0x96`）。再送ループを避けるためです。件数は
+  `nextmqtt_publishes_rate_limited_total` と
+  `nextmqtt_messages_dropped_total` で確認できます。
+- 接続拒否は `nextmqtt_connections_rate_limited_total` に計上されます。
+
+制限はノード単位です。3 ノード構成では各ノードが設定値まで受け付けます。
+
 ## 認証
 
 ```json

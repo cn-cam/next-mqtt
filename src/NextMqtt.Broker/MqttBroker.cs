@@ -3,6 +3,7 @@ using NextMqtt.Broker.Clustering;
 using NextMqtt.Broker.Diagnostics;
 using NextMqtt.Broker.Messaging;
 using NextMqtt.Broker.Options;
+using NextMqtt.Broker.RateLimiting;
 using NextMqtt.Broker.Security;
 using NextMqtt.Broker.Sessions;
 using NextMqtt.Broker.Subscriptions;
@@ -42,6 +43,7 @@ public sealed class MqttBroker : IAsyncDisposable
         Authenticator = authenticator;
         Authorizer = authorizer;
         Cluster = cluster;
+        ConnectionLimits = new ConnectionRateLimiter(options.RateLimits);
         _logger = logger;
     }
 
@@ -52,6 +54,9 @@ public sealed class MqttBroker : IAsyncDisposable
     public ITopicAuthorizer Authorizer { get; }
 
     public IClusterRouter Cluster { get; }
+
+    /// <summary>Per-address CONNECT limiter, disabled unless configured.</summary>
+    public ConnectionRateLimiter ConnectionLimits { get; }
 
     public SessionRegistry Sessions { get; } = new();
 

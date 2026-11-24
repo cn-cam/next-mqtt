@@ -50,6 +50,35 @@ NEXTMQTT_CLUSTER__SEEDS__0=http://node-b:8080
 | `RetransmitInterval` | 10초 |
 | `SweepInterval` | 30초 |
 
+## 속도 제한
+
+기본은 비활성. 두 제한 모두 토큰 버킷이라 버스트를 허용한 뒤 지속 속도로 제한합니다.
+
+| 설정 | 기본 | 설명 |
+| --- | --- | --- |
+| `ConnectPerSecondPerIp` | `0` | 원격 주소당 초당 CONNECT 허용 수. `0`이면 비활성 |
+| `ConnectBurst` | `0` | 연결 버스트. `0`이면 초당 속도 사용 |
+| `PublishPerSecondPerClient` | `0` | 클라이언트당 초당 PUBLISH 허용 수. `0`이면 비활성 |
+| `PublishBurst` | `0` | 발행 버스트. `0`이면 초당 속도 사용 |
+
+```bash
+NEXTMQTT_RATELIMITS__CONNECTPERSECONDPERIP=20 \
+NEXTMQTT_RATELIMITS__PUBLISHPERSECONDPERCLIENT=500 \
+dotnet NextMqtt.Server.dll
+```
+
+한도를 넘으면:
+
+- 연결 속도를 넘은 CONNECT는 MQTT 5에서 CONNACK `0x9F`, MQTT 3.1.1에서 `0x03`을
+  받고 연결이 닫힙니다.
+- 발행 속도를 넘은 PUBLISH는 **버리지만 확인 응답은 보냅니다**(PUBACK, MQTT 5
+  QoS 2는 PUBREC `0x96`). 재전송 폭주를 막기 위해서입니다. 건수는
+  `nextmqtt_publishes_rate_limited_total`과 `nextmqtt_messages_dropped_total`로
+  확인합니다.
+- 연결 거부는 `nextmqtt_connections_rate_limited_total`에 집계됩니다.
+
+제한은 노드 단위입니다. 3노드 클러스터에서는 각 노드가 설정값까지 허용합니다.
+
 ## 인증
 
 ```json

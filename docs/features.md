@@ -58,7 +58,7 @@ Legend: ✅ implemented · ⚠️ partial or with documented limits · ❌ not i
 | Dashboard token auth | ✅ | HS256 bearer tokens |
 | API keys | ✅ | SHA-256 digest allow-list |
 | Role-based dashboard permissions | ❌ | Single admin role today |
-| Client connection/message rate limits | ❌ | Use edge limits; roadmap |
+| Client connection/message rate limits | ✅ | Token buckets per remote address and per client |
 | mTLS policy | ⚠️ | Optional client certificate request; platform validation |
 
 ## Cluster
@@ -111,7 +111,7 @@ The claims above are covered by the repository's tests and CI:
 | Container build + health/login smoke | CI `Container image` job |
 | CodeQL | `codeql.yml` |
 
-Current test count: 126 passing tests (63 core, 50 broker, 13 server)
+Current test count: 135 passing tests (63 core, 50 broker, 22 server)
 integration).
 
 ## Extensibility
@@ -137,8 +137,8 @@ roadmap and needs its own ADR first (see
 
 - State is in memory; restarts drop sessions, queues and retained messages.
 - Cluster forwarding is best effort and shared subscriptions are node-local.
-- Enhanced authentication, outbound topic aliases, rate limiting, persistence
-  and bridges are not in this release.
+- Enhanced authentication, outbound topic aliases, persistence and bridges are
+  not in this release.
 - Extending behaviour means changing source; there is no plugin host yet.
 - The default configuration is development-friendly; harden it before exposing
   the broker.

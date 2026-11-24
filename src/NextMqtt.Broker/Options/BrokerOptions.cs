@@ -34,6 +34,31 @@ public sealed class BrokerOptions
 
     /// <summary>Whether the broker assigns identifiers for zero-length client ids.</summary>
     public bool AllowZeroLengthClientId { get; set; } = true;
+
+    /// <summary>Connection and publish rate limits; both are unlimited by default.</summary>
+    public RateLimitOptions RateLimits { get; set; } = new();
+}
+
+/// <summary>Token-bucket rate limits applied per remote address and per client.</summary>
+public sealed class RateLimitOptions
+{
+    public const string SectionName = "RateLimits";
+
+    /// <summary>Accepted CONNECTs per second per remote address; 0 disables the limit.</summary>
+    public int ConnectPerSecondPerIp { get; set; }
+
+    /// <summary>Burst size for connect limiting; 0 uses the per-second rate.</summary>
+    public int ConnectBurst { get; set; }
+
+    /// <summary>Accepted PUBLISH packets per second per client; 0 disables the limit.</summary>
+    public int PublishPerSecondPerClient { get; set; }
+
+    /// <summary>Burst size for publish limiting; 0 uses the per-second rate.</summary>
+    public int PublishBurst { get; set; }
+
+    public bool LimitsConnections => ConnectPerSecondPerIp > 0;
+
+    public bool LimitsPublishes => PublishPerSecondPerClient > 0;
 }
 
 /// <summary>Authentication configuration.</summary>

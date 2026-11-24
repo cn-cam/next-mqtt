@@ -17,6 +17,8 @@ public sealed class BrokerMetrics
     private long _retransmissions;
     private long _subscriptionsCreated;
     private long _sessionsExpired;
+    private long _connectionsRateLimited;
+    private long _publishesRateLimited;
 
     public long ConnectionsOpened => Interlocked.Read(ref _connectionsOpened);
     public long ConnectionsClosed => Interlocked.Read(ref _connectionsClosed);
@@ -30,6 +32,8 @@ public sealed class BrokerMetrics
     public long Retransmissions => Interlocked.Read(ref _retransmissions);
     public long SubscriptionsCreated => Interlocked.Read(ref _subscriptionsCreated);
     public long SessionsExpired => Interlocked.Read(ref _sessionsExpired);
+    public long ConnectionsRateLimited => Interlocked.Read(ref _connectionsRateLimited);
+    public long PublishesRateLimited => Interlocked.Read(ref _publishesRateLimited);
 
     public void ConnectionOpened() => Interlocked.Increment(ref _connectionsOpened);
     public void ConnectionClosed() => Interlocked.Increment(ref _connectionsClosed);
@@ -43,6 +47,8 @@ public sealed class BrokerMetrics
     public void Retransmitted() => Interlocked.Increment(ref _retransmissions);
     public void SubscriptionCreated() => Interlocked.Increment(ref _subscriptionsCreated);
     public void SessionExpired() => Interlocked.Increment(ref _sessionsExpired);
+    public void ConnectionRateLimited() => Interlocked.Increment(ref _connectionsRateLimited);
+    public void PublishRateLimited() => Interlocked.Increment(ref _publishesRateLimited);
 
     public BrokerStats Snapshot(
         int connectedClients,
@@ -64,6 +70,8 @@ public sealed class BrokerMetrics
             Retransmissions,
             SubscriptionsCreated,
             SessionsExpired,
+            ConnectionsRateLimited,
+            PublishesRateLimited,
             connectedClients,
             sessions,
             subscriptions,
@@ -86,6 +94,8 @@ public sealed record BrokerStats(
     long Retransmissions,
     long SubscriptionsCreated,
     long SessionsExpired,
+    long ConnectionsRateLimited,
+    long PublishesRateLimited,
     int ConnectedClients,
     int Sessions,
     int Subscriptions,

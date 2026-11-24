@@ -124,6 +124,51 @@ Setting `Http:WebSocketPort` equal to `Http:Port` disables the extra endpoint.
 | `MaxClientIdLength` | 256 | Reject longer identifiers |
 | `AllowZeroLengthClientId` | `true` | Assign an id when the client sends none |
 
+## Rate limits
+
+Off by default. Both limits are token buckets: a burst is allowed, then the
+sustained rate applies.
+
+```json
+{
+  "RateLimits": {
+    "ConnectPerSecondPerIp": 0,
+    "ConnectBurst": 0,
+    "PublishPerSecondPerClient": 0,
+    "PublishBurst": 0
+  }
+}
+```
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `ConnectPerSecondPerIp` | `0` | Accepted CONNECTs per second per remote address; `0` disables |
+| `ConnectBurst` | `0` | Burst size for connects; `0` uses the per-second rate |
+| `PublishPerSecondPerClient` | `0` | Accepted PUBLISH packets per second per client; `0` disables |
+| `PublishBurst` | `0` | Burst size for publishes; `0` uses the per-second rate |
+
+```bash
+NEXTMQTT_RATELIMITS__CONNECTPERSECONDPERIP=20 \
+NEXTMQTT_RATELIMITS__PUBLISHPERSECONDPERCLIENT=500 \
+nextmqtt-server
+```
+
+Behaviour when a limit is hit:
+
+- **CONNECT** above the per-address rate is answered with CONNACK
+  `0x9F Connection rate exceeded` on MQTT 5, or `0x03 Server unavailable` on
+  MQTT 3.1.1, then the socket is closed.
+- **PUBLISH** above the per-client rate is *dropped* but still acknowledged
+  (PUBACK, or PUBREC with `0x96 Message rate too high` on MQTT 5), so clients do
+  not retransmit. Dropped messages increment
+  `nextmqtt_publishes_rate_limited_total`, `nextmqtt_messages_dropped_total` and
+  `nextmqtt_publishes_received_total`.
+- CONNECT rejections increment `nextmqtt_connections_rate_limited_total`.
+
+Limits are per node: a cluster of three nodes with `PublishPerSecondPerClient`
+set to 500 allows 500 messages per second per client on each node. Size the
+values for the whole cluster or terminate clients on a single node.
+
 ## Authentication
 
 ```json

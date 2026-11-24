@@ -22,7 +22,7 @@ dotnet test NextMqtt.slnx -c Release
 | Broker.Tests | session, queue, retained, auth, ACL, cluster |
 | Server.Tests | 실제 TCP 통합 |
 
-현재 126개 테스트 통과.
+현재 135개 테스트 통과.
 
 ## 대시보드
 
