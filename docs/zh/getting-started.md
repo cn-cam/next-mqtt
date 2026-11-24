@@ -22,6 +22,12 @@ docker run -d --name nextmqtt \
   ghcr.io/cn-cam/next-mqtt:latest
 ```
 
+Docker Hub 镜像：
+
+```bash
+docker pull ooooooooocam/next-mqtt:latest
+```
+
 浏览器打开 <http://localhost:8080>，使用 `admin` 与上面的密码登录。
 
 ::: warning 开发默认值
@@ -130,8 +136,8 @@ dotnet run --project src/NextMqtt.Cli -- pub --topic demo/hello --message "hello
 
 - [功能对齐清单](/zh/features) — 已实现、部分实现与规划能力
 - [命令行参考](/zh/cli) — 发布、订阅、压测与密码哈希
-- [配置](/configuration) — 全部选项与环境变量
-- [认证与 ACL](/authentication) — 用户、JWT 与主题规则
-- [部署](/deployment) — Docker、Kubernetes 与 Helm
-- [集群](/clustering) — 三节点与路由模型
-- [运维](/operations) — 指标、健康检查与排错
+- [配置](/zh/configuration) — 全部选项与环境变量
+- [认证与 ACL](/zh/authentication) — 用户、JWT 与主题规则
+- [部署](/zh/deployment) — Docker、Kubernetes 与 Helm
+- [集群](/zh/clustering) — 三节点与路由模型
+- [运维](/zh/operations) — 指标、健康检查与排错

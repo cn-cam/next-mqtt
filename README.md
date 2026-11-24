@@ -92,6 +92,15 @@ docker run -d --name nextmqtt \
   ghcr.io/cn-cam/next-mqtt:latest
 ```
 
+Docker Hub mirror:
+
+```bash
+docker run -d --name nextmqtt \
+  -p 1883:1883 -p 8080:8080 -p 8083:8083 \
+  -e NEXTMQTT_ADMIN_PASSWORD='change-me-now' \
+  ooooooooocam/next-mqtt:latest
+```
+
 Open <http://localhost:8080> and sign in as `admin` with the password you
 passed. MQTT clients connect to `mqtt://localhost:1883`.
 
@@ -147,7 +156,7 @@ All ports are configurable via `NEXTMQTT_*` environment variables or
 
 ## Deployment
 
-- Container image: `ghcr.io/cn-cam/next-mqtt` (linux/amd64, linux/arm64)
+- Container image: `ghcr.io/cn-cam/next-mqtt` and `oooooooocam/next-mqtt` (linux/amd64, linux/arm64)
 - Kubernetes: `deploy/kubernetes` (Kustomize) and `deploy/helm/next-mqtt`
 - Compose: [`docker-compose.yml`](docker-compose.yml)
 
@@ -174,6 +183,9 @@ deploy/                  Docker, Compose, Kubernetes and Helm assets
 ```
 
 ## Documentation
+
+The documentation site is available in **English, 简体中文, 日本語 and 한국어**:
+<https://cn-cam.github.io/next-mqtt/>.
 
 - [Architecture](docs/architecture.md) — components, data structures, scaling
 - [Feature matrix](docs/features.md) — implemented, partial and planned capabilities

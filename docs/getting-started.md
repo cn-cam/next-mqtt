@@ -24,6 +24,12 @@ docker run -d --name nextmqtt \
   ghcr.io/cn-cam/next-mqtt:latest
 ```
 
+A Docker Hub mirror is also published:
+
+```bash
+docker pull ooooooooocam/next-mqtt:latest
+```
+
 Open <http://localhost:8080> and sign in as `admin` with the password you
 passed. The dashboard is served by the broker itself; no separate web server is
 required.

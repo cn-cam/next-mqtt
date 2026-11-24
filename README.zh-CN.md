@@ -75,6 +75,15 @@ docker run -d --name nextmqtt \
   ghcr.io/cn-cam/next-mqtt:latest
 ```
 
+Docker Hub 镜像：
+
+```bash
+docker run -d --name nextmqtt \
+  -p 1883:1883 -p 8080:8080 -p 8083:8083 \
+  -e NEXTMQTT_ADMIN_PASSWORD='change-me-now' \
+  ooooooooocam/next-mqtt:latest
+```
+
 浏览器打开 <http://localhost:8080>，使用 `admin` 与上面设置的密码登录。
 MQTT 客户端连接 `mqtt://localhost:1883`。
 
@@ -118,7 +127,7 @@ CLI 支持 MQTT 5 / 3.1.1、TLS，并可用 `hash-password` 生成控制台或 A
 
 ## 部署
 
-- 镜像：`ghcr.io/cn-cam/next-mqtt`（linux/amd64、linux/arm64）
+- 镜像：`ghcr.io/cn-cam/next-mqtt` 与 `oooooooocam/next-mqtt`（linux/amd64、linux/arm64）
 - Kubernetes：`deploy/kubernetes` 与 `deploy/helm/next-mqtt`
 - Compose：[`docker-compose.yml`](docker-compose.yml)
 
@@ -131,6 +140,9 @@ helm install nextmqtt deploy/helm/next-mqtt \
 ```
 
 ## 文档
+
+文档站提供 **English、简体中文、日本語、한국어** 四种语言：
+<https://cn-cam.github.io/next-mqtt/>。
 
 - [功能对齐清单](docs/zh/features.md) — 已实现、部分实现与规划能力
 - [命令行参考](docs/zh/cli.md) — 发布、订阅、压测与密码哈希

@@ -7,6 +7,13 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Complete Japanese and Korean documentation sites, plus the missing Chinese
+  reference pages and a four-language VitePress locale switcher.
+- Docker Hub publishing from the release pipeline and a main-branch `edge`
+  image workflow.
+
 ### Planned
 
 - Durable session and retained-message stores.
