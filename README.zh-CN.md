@@ -80,7 +80,7 @@ MQTT 客户端连接 `mqtt://localhost:1883`。
 ### Docker Compose 三节点集群
 
 ```bash
-docker compose --profile cluster up -d
+docker compose -f deploy/compose/docker-compose.cluster.yml up -d
 ```
 
 ### 源码运行
@@ -94,6 +94,16 @@ npm run dev
 ```
 
 环境要求：.NET SDK 10.0.100+，Node.js 22+（推荐 24）。
+
+### 命令行客户端
+
+```bash
+dotnet run --project src/NextMqtt.Cli -- sub --topic demo/# --qos 1
+dotnet run --project src/NextMqtt.Cli -- pub --topic demo/hello --message hi --qos 1 --retain
+dotnet run --project src/NextMqtt.Cli -- bench --clients 20 --messages 1000 --size 128
+```
+
+CLI 支持 MQTT 5 / 3.1.1、TLS，并可用 `hash-password` 生成控制台或 ACL 密码哈希。
 
 ## 端口
 

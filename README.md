@@ -97,8 +97,8 @@ passed. MQTT clients connect to `mqtt://localhost:1883`.
 ### Docker Compose (three-node cluster)
 
 ```bash
-docker compose --profile cluster up -d
-docker compose logs -f node-a
+docker compose -f deploy/compose/docker-compose.cluster.yml up -d
+docker compose -f deploy/compose/docker-compose.cluster.yml logs -f node-a
 ```
 
 ### From source
@@ -114,6 +114,22 @@ npm run dev
 ```
 
 Requirements: .NET SDK 10.0.100+, Node.js 22+ (24 recommended).
+
+### Command line client
+
+```bash
+# subscribe in one terminal
+dotnet run --project src/NextMqtt.Cli -- sub --topic demo/# --qos 1
+
+# publish from another
+dotnet run --project src/NextMqtt.Cli -- pub --topic demo/hello --message hi --qos 1 --retain
+
+# throughput check
+dotnet run --project src/NextMqtt.Cli -- bench --clients 20 --messages 1000 --size 128
+```
+
+The CLI speaks MQTT 5 and 3.1.1, supports TLS, and can hash dashboard/ACL
+passwords with `hash-password`.
 
 ## Ports
 
@@ -151,7 +167,7 @@ src/NextMqtt.Server      host, listeners, REST API, static dashboard
 src/NextMqtt.Cli         publisher/subscriber/benchmark command line tool
 tests/                   unit and integration tests
 web/                     Vue 3 + TypeScript dashboard
-docs/                    documentation site (VitePress)
+docs/                    documentation site (VitePress) and ADRs
 deploy/                  Docker, Compose, Kubernetes and Helm assets
 ```
 
@@ -162,6 +178,7 @@ deploy/                  Docker, Compose, Kubernetes and Helm assets
 - [Configuration](docs/configuration.md) — every option and env variable
 - [Security](docs/security.md) — auth, ACLs, TLS, admin API
 - [Deployment](docs/deployment.md) — single node, cluster, Kubernetes
+- [Clustering](docs/clustering.md) — membership, routing, guarantees
 - [Development](docs/development.md) — build, test, conventions
 - [API reference](docs/api.md) — REST endpoints
 - [Roadmap](docs/roadmap.md) — what comes next

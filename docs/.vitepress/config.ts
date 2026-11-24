@@ -10,6 +10,7 @@ export default defineConfig({
   description: 'Cloud-native MQTT 3.1.1 and 5.0 broker built on .NET 10 and Vue 3.',
   cleanUrls: false,
   lastUpdated: true,
+  ignoreDeadLinks: [/^http:\/\/localhost/],
   head: [
     ['link', { rel: 'icon', type: 'image/svg+xml', href: `${base}logo.svg` }],
     ['meta', { name: 'theme-color', content: '#0891b2' }],
@@ -64,6 +65,7 @@ export default defineConfig({
           { text: 'REST API', link: '/api' },
           { text: 'Deployment', link: '/deployment' },
           { text: 'Development', link: '/development' },
+          { text: 'Architecture decisions', link: '/adr/' },
           { text: 'Roadmap', link: '/roadmap' },
           { text: 'FAQ', link: '/faq' },
         ],
