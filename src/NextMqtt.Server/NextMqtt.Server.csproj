@@ -10,4 +10,12 @@
     <ProjectReference Include="..\NextMqtt.Broker\NextMqtt.Broker.csproj" />
     <ProjectReference Include="..\NextMqtt.Core\NextMqtt.Core.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- Include a prebuilt dashboard bundle when present. CI and Docker build
+         the bundle before publishing the server. -->
+    <Content Include="..\..\web\dist\**\*"
+             Link="wwwroot\%(RecursiveDir)%(Filename)%(Extension)"
+             CopyToPublishDirectory="PreserveNewest"
+             Condition="Exists('..\..\web\dist')" />
+  </ItemGroup>
 </Project>

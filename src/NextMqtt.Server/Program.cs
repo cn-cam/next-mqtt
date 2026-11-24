@@ -158,6 +158,11 @@ var dashboardDist = Path.GetFullPath(Path.Combine(app.Environment.ContentRootPat
 
 if (Directory.Exists(dashboardDist))
 {
+    app.UseDefaultFiles(new DefaultFilesOptions
+    {
+        FileProvider = new PhysicalFileProvider(dashboardDist),
+    });
+
     app.UseStaticFiles(new StaticFileOptions
     {
         FileProvider = new PhysicalFileProvider(dashboardDist),
@@ -381,9 +386,14 @@ app.MapFallback(async context =>
     }
 
     var webRoot = app.Environment.WebRootPath ?? Path.Combine(app.Environment.ContentRootPath, "wwwroot");
-    var index = Path.Combine(webRoot, "index.html");
+    var index = new[]
+        {
+            Path.Combine(webRoot, "index.html"),
+            Path.Combine(dashboardDist, "index.html"),
+        }
+        .FirstOrDefault(File.Exists);
 
-    if (File.Exists(index))
+    if (index is not null)
     {
         context.Response.ContentType = "text/html; charset=utf-8";
         await context.Response.SendFileAsync(index);
