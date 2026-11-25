@@ -73,6 +73,8 @@ public sealed record ClusterPropertyDto(
 /// <param name="Retain">Retain flag from the original publish.</param>
 /// <param name="Duplicate">Duplicate flag from the original publish.</param>
 /// <param name="Properties">MQTT 5 properties to preserve.</param>
+/// <param name="SharedGroup">Shared group the message was addressed to, or null for a normal fan-out.</param>
+/// <param name="RetainedAtUnix">Retention timestamp, so peers keep the originator's clock for last-write-wins.</param>
 public sealed record ClusterPublishMessage(
     string MessageId,
     string OriginNodeId,

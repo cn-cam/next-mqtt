@@ -516,6 +516,7 @@ public sealed class MqttBroker : IAsyncDisposable
     /// <param name="topic">Topic name.</param>
     /// <param name="payload">Payload bytes.</param>
     /// <param name="qos">Delivery guarantee to use.</param>
+    /// <param name="retain">Stores the message as the retained value for the topic.</param>
     /// <param name="cancellationToken">Cancels routing.</param>
     public async ValueTask PublishAsync(
         string topic,

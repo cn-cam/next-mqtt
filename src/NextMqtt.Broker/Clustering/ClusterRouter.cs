@@ -157,6 +157,7 @@ public sealed class ClusterRouter : IClusterRouter
     /// <summary>Forwards a publish to peers that advertised a matching filter.</summary>
     /// <remarks>尽力而为：失败只记日志，不影响本地投递。</remarks>
     /// <param name="publish">Publish already accepted locally.</param>
+    /// <param name="messageId">Identifier shared by every copy of this message, used for duplicate suppression.</param>
     /// <param name="cancellationToken">Cancels the fan-out.</param>
     public async ValueTask RouteAsync(PublishPacket publish, string messageId, CancellationToken cancellationToken = default)
     {
@@ -254,7 +255,7 @@ public sealed class ClusterRouter : IClusterRouter
 
     /// <summary>Handles a peer heartbeat and returns the local membership view.</summary>
     /// <remarks>同时刷新 lastSeen，把 suspect 节点拉回 alive。</remarks>
-    /// <param name="heartbeat">Heartbeat received from the peer.</param>
+    /// <param name="request">Heartbeat received from the peer.</param>
     /// <param name="cancellationToken">Cancels the response.</param>
     public ValueTask<ClusterHeartbeatResponse> ProcessHeartbeatAsync(
         ClusterHeartbeatRequest request,
@@ -375,12 +376,10 @@ public sealed class ClusterRouter : IClusterRouter
         return true;
     }
 
-    /// <summary>Removes a node that announced its departure.</summary>
-    /// <remarks>主动离开立即摘除，不必等超时。</remarks>
-    /// <param name="nodeId">Node identifier.</param>
     /// <summary>Shared groups with at least one local subscriber for this topic.</summary>
     /// <remarks>本地没有的组也要从远端成员收集，否则源节点根本不知道要转发。</remarks>
     /// <param name="topic">Topic being published.</param>
+    /// <param name="peers">Peers whose advertised filters are scanned for the group.</param>
     private List<string> SharedGroups(string topic, List<Member> peers)
     {
         var groups = new HashSet<string>(StringComparer.Ordinal);

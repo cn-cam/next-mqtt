@@ -18,6 +18,11 @@ namespace NextMqtt.Broker.Connections;
 /// Owns one MQTT network connection: framing, protocol state machine,
 /// delivery pump, keep-alive enforcement and clean shutdown.
 /// </summary>
+/// <remarks>
+/// 读写各跑一个循环，中间用有界通道衔接：读循环只负责解析，慢客户端不会阻塞
+/// 路由；写循环独占套接字，保证同一时刻只有一个包在途。任何一侧出错都汇到
+/// 同一个清理入口，断开、发遗嘱、摘会话只做一次。
+/// </remarks>
 public sealed class ClientConnection : IClientConnection, IRateScalable
 {
     private readonly Stream _stream;
@@ -31,15 +36,19 @@ public sealed class ClientConnection : IClientConnection, IRateScalable
     private readonly TokenBucket? _publishBucket;
 
     /// <summary>Topics this client has been assigned an outbound alias for.</summary>
+    /// <remarks>别名只在当前连接有效，重连必须清空，规范不允许跨连接复用。</remarks>
     private readonly Dictionary<string, ushort> _outboundAliases = new(StringComparer.Ordinal);
 
     /// <summary>Authentication method negotiated by CONNECT, when enhanced auth was used.</summary>
+    /// <remarks>重认证时客户端可以省略方法名，这时沿用它继续。</remarks>
     private string? _authenticationMethod;
 
     /// <summary>Largest alias the client accepts, from its CONNECT properties.</summary>
+    /// <remarks>为 0 表示客户端不支持别名，所有 PUBLISH 都要带完整主题。</remarks>
     private ushort _clientTopicAliasMax;
 
     /// <summary>Next alias to hand out; aliases start at 1.</summary>
+    /// <remarks>从 1 递增，达到客户端上限后不再分配新别名，改为重发完整主题。</remarks>
     private ushort _nextOutboundAlias = 1;
     private readonly int _publishRate;
     private readonly int _publishBurst;
@@ -55,6 +64,7 @@ public sealed class ClientConnection : IClientConnection, IRateScalable
     private ushort _maxTopicAlias;
 
     /// <summary>Creates the per-connection state machine.</summary>
+    /// <remarks>限流桶与读取上限在这里定下来，连接期间不再变动。</remarks>
     /// <param name="stream">Transport stream (TCP, TLS or WebSocket).</param>
     /// <param name="remoteAddress">Peer address, port included.</param>
     /// <param name="broker">Broker that owns the session.</param>
@@ -116,12 +126,15 @@ public sealed class ClientConnection : IClientConnection, IRateScalable
     }
 
     /// <summary>Peer address reported by the transport.</summary>
+    /// <remarks>用于按 IP 限流和日志，格式由传输层决定，可能是 IPv6。</remarks>
     public string RemoteAddress => _remoteAddress;
 
     /// <summary>Protocol level negotiated by CONNECT.</summary>
+    /// <remarks>决定下发报文能否编码 MQTT 5 属性。</remarks>
     public MqttProtocolVersion ProtocolVersion => _version;
 
     /// <summary>Queues a packet without blocking; false when closing.</summary>
+    /// <remarks>返回 false 说明连接正在关闭，路由层应立即停止投递。</remarks>
     /// <param name="packet">Packet to enqueue.</param>
     public bool TrySend(MqttPacket packet)
     {
@@ -134,6 +147,7 @@ public sealed class ClientConnection : IClientConnection, IRateScalable
     }
 
     /// <summary>Reads CONNECT, then runs the read loop until the peer leaves.</summary>
+    /// <remarks>先启动写循环再读；任何异常都汇到同一个清理路径。</remarks>
     /// <param name="cancellationToken">Stops the connection on shutdown.</param>
     public async Task RunAsync(CancellationToken cancellationToken)
     {
@@ -179,6 +193,7 @@ public sealed class ClientConnection : IClientConnection, IRateScalable
     }
 
     /// <summary>Sends DISCONNECT on MQTT 5 and closes the transport.</summary>
+    /// <remarks>3.1.1 没有原因码，直接关套接字。</remarks>
     /// <param name="reasonCode">Reason code shown to the client.</param>
     /// <param name="reason">Explanation used in local logs.</param>
     /// <param name="cancellationToken">Cancels the close.</param>
@@ -845,6 +860,7 @@ public sealed class ClientConnection : IClientConnection, IRateScalable
     }
 
     /// <summary>Writes an AUTH packet directly, before the write loop starts.</summary>
+    /// <remarks>CONNACK 之前写循环还没起来，只能直接写流。</remarks>
     /// <param name="reasonCode">0x18 challenge or a final code.</param>
     /// <param name="method">Authentication method echoed to the client.</param>
     /// <param name="data">Challenge or result bytes.</param>
@@ -874,6 +890,7 @@ public sealed class ClientConnection : IClientConnection, IRateScalable
     }
 
     /// <summary>Handles a client AUTH packet for re-authentication on a live connection.</summary>
+    /// <remarks>认证成功回 0x00；失败先发错误原因码再断开，避免留下半开连接。</remarks>
     /// <param name="auth">AUTH packet from the client.</param>
     /// <param name="cancellationToken">Cancels the exchange.</param>
     private async Task HandleAuthAsync(AuthPacket auth, CancellationToken cancellationToken)
@@ -989,6 +1006,7 @@ public sealed class ClientConnection : IClientConnection, IRateScalable
     }
 
     /// <summary>Copies a PUBLISH, optionally blanking the topic and adding an alias.</summary>
+    /// <remarks>属性逐条复制，不能和原报文共用可变集合。</remarks>
     /// <param name="publish">Original packet.</param>
     /// <param name="topic">Topic to send (empty for alias-only).</param>
     /// <param name="alias">Alias to attach.</param>
