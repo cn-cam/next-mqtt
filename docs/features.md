@@ -25,7 +25,7 @@ Legend: ✅ implemented · ⚠️ partial or with documented limits · ❌ not i
 | Shared subscriptions | ✅ | `$share/{group}/{filter}`, round-robin per node |
 | Subscription options | ✅ | `noLocal`, `retainAsPublished`, retain handling |
 | Topic aliases | ⚠️ | Inbound aliases supported; outbound aliases planned |
-| Enhanced authentication (`AUTH`) | ❌ | Returns `0x8C`; external auth providers planned |
+| Enhanced authentication (`AUTH`) | ✅ | Challenge/response with pluggable providers; built-in `nextmqtt-jwt` |
 | Server-side receive-maximum enforcement | ⚠️ | Broker advertises and bounds its own inflight window |
 | Client maximum packet size on delivery | ⚠️ | Inbound limit enforced; outbound packet trimming is not |
 | MQTT over QUIC | ❌ | Research item |
@@ -142,7 +142,7 @@ roadmap and needs its own ADR first (see
 
 - Sessions, queues and subscriptions are in memory; retained messages can be journaled.
 - Cluster forwarding is best effort; shared subscriptions are coordinated across nodes.
-- Enhanced authentication, outbound topic aliases, durable sessions and bridges
+- Durable sessions and bridges
   are not in this release.
 - Extending behaviour means changing source; there is no plugin host yet.
 - The default configuration is development-friendly; harden it before exposing

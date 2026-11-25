@@ -33,6 +33,9 @@ public sealed class ClientConnection : IClientConnection, IRateScalable
     /// <summary>Topics this client has been assigned an outbound alias for.</summary>
     private readonly Dictionary<string, ushort> _outboundAliases = new(StringComparer.Ordinal);
 
+    /// <summary>Authentication method negotiated by CONNECT, when enhanced auth was used.</summary>
+    private string? _authenticationMethod;
+
     /// <summary>Largest alias the client accepts, from its CONNECT properties.</summary>
     private ushort _clientTopicAliasMax;
 
@@ -287,14 +290,37 @@ public sealed class ClientConnection : IClientConnection, IRateScalable
         }
 
         var effectiveConnect = WithClientId(connect, clientId);
-        var authContext = new ClientAuthenticationContext(
-            clientId,
-            connect.Username,
-            connect.Password ?? ReadOnlyMemory<byte>.Empty,
-            _remoteAddress,
-            connect.ProtocolVersion);
 
-        var auth = await _broker.AuthenticateAsync(authContext, cancellationToken).ConfigureAwait(false);
+        AuthenticationResult auth;
+
+        if (connect.Properties.GetString(MqttPropertyId.AuthenticationMethod) is { Length: > 0 } method)
+        {
+            _authenticationMethod = method;
+            var enhanced = await RunEnhancedAuthAsync(connect, method, cancellationToken).ConfigureAwait(false);
+
+            if (!enhanced.Succeeded)
+            {
+                _broker.Metrics.AuthenticationFailed();
+                _broker.Metrics.ConnectionRejected();
+                await WriteConnAckAsync(
+                    new ConnAckPacket { ReasonCode = enhanced.ReasonCode },
+                    cancellationToken).ConfigureAwait(false);
+                return false;
+            }
+
+            auth = AuthenticationResult.Success(enhanced.Principal!);
+        }
+        else
+        {
+            var authContext = new ClientAuthenticationContext(
+                clientId,
+                connect.Username,
+                connect.Password ?? ReadOnlyMemory<byte>.Empty,
+                _remoteAddress,
+                connect.ProtocolVersion);
+
+            auth = await _broker.AuthenticateAsync(authContext, cancellationToken).ConfigureAwait(false);
+        }
 
         if (!auth.Succeeded)
         {
@@ -387,6 +413,9 @@ public sealed class ClientConnection : IClientConnection, IRateScalable
                 case PublishPacket publish:
                     await HandlePublishAsync(publish, cancellationToken).ConfigureAwait(false);
                     break;
+                case AuthPacket authPacket:
+                    await HandleAuthAsync(authPacket, cancellationToken).ConfigureAwait(false);
+                    break;
                 case PubAckPacket pubAck:
                     _session!.OnPubAck(pubAck.PacketId);
                     break;
@@ -414,10 +443,6 @@ public sealed class ClientConnection : IClientConnection, IRateScalable
                     return;
                 case ConnectPacket:
                     throw MqttProtocolException.Protocol("CONNECT is not allowed after the session is established.");
-                case AuthPacket:
-                    throw new MqttProtocolException(
-                        MqttReasonCodes.BadAuthenticationMethod,
-                        "Enhanced authentication is not configured.");
                 default:
                     throw MqttProtocolException.Protocol("Unexpected packet type.");
             }
@@ -754,6 +779,158 @@ public sealed class ClientConnection : IClientConnection, IRateScalable
                 // Connection closed.
             }
         }, CancellationToken.None);
+    }
+
+    /// <summary>Runs the enhanced authentication exchange before CONNACK.</summary>
+    /// <remarks>服务端可以连续发送 AUTH 0x18 挑战，客户端必须用 AUTH 回应；最多 4 轮。</remarks>
+    /// <param name="connect">CONNECT packet carrying the method and first data block.</param>
+    /// <param name="method">Authentication method name.</param>
+    /// <param name="cancellationToken">Cancels the exchange.</param>
+    /// <returns>Final result; a challenge is never returned.</returns>
+    private async Task<EnhancedAuthResult> RunEnhancedAuthAsync(
+        ConnectPacket connect,
+        string method,
+        CancellationToken cancellationToken)
+    {
+        var provider = _broker.GetEnhancedAuthenticator(method);
+
+        if (provider is null)
+        {
+            return EnhancedAuthResult.Failure(MqttReasonCodes.BadAuthenticationMethod);
+        }
+
+        var context = new EnhancedAuthContext(
+            connect.ClientId,
+            connect.Username,
+            _remoteAddress,
+            connect.Properties.GetBinary(MqttPropertyId.AuthenticationData) ?? []);
+
+        var result = await provider.AuthenticateAsync(context, cancellationToken).ConfigureAwait(false);
+
+        for (var round = 0; !result.Succeeded && result.Challenge is not null && round < 4; round++)
+        {
+            await WriteAuthAsync(
+                MqttReasonCodes.ContinueAuthentication,
+                method,
+                result.Challenge,
+                cancellationToken).ConfigureAwait(false);
+
+            var packet = await _reader.ReadAsync(_version, cancellationToken).ConfigureAwait(false);
+
+            if (packet is not AuthPacket auth)
+            {
+                return EnhancedAuthResult.Failure(MqttReasonCodes.ProtocolError);
+            }
+
+            var roundMethod = auth.Properties.GetString(MqttPropertyId.AuthenticationMethod);
+
+            if (roundMethod is not null && !string.Equals(roundMethod, method, StringComparison.Ordinal))
+            {
+                return EnhancedAuthResult.Failure(MqttReasonCodes.BadAuthenticationMethod);
+            }
+
+            context = context with
+            {
+                Data = auth.Properties.GetBinary(MqttPropertyId.AuthenticationData) ?? [],
+            };
+
+            result = await provider.AuthenticateAsync(context, cancellationToken).ConfigureAwait(false);
+        }
+
+        return result.Challenge is not null && !result.Succeeded
+            ? EnhancedAuthResult.Failure(MqttReasonCodes.NotAuthorized)
+            : result;
+    }
+
+    /// <summary>Writes an AUTH packet directly, before the write loop starts.</summary>
+    /// <param name="reasonCode">0x18 challenge or a final code.</param>
+    /// <param name="method">Authentication method echoed to the client.</param>
+    /// <param name="data">Challenge or result bytes.</param>
+    /// <param name="cancellationToken">Cancels the write.</param>
+    private async Task WriteAuthAsync(
+        byte reasonCode,
+        string method,
+        byte[] data,
+        CancellationToken cancellationToken)
+    {
+        var properties = new MqttProperties().AddString(MqttPropertyId.AuthenticationMethod, method);
+
+        if (data.Length > 0)
+        {
+            properties.AddBinary(MqttPropertyId.AuthenticationData, data);
+        }
+
+        var buffer = new ArrayBufferWriter<byte>(64);
+        MqttPacketWriter.Write(
+            buffer,
+            new AuthPacket { ReasonCode = reasonCode, Properties = properties },
+            MqttProtocolVersion.V500);
+
+        await _stream.WriteAsync(buffer.WrittenMemory, cancellationToken).ConfigureAwait(false);
+        await _stream.FlushAsync(cancellationToken).ConfigureAwait(false);
+        _broker.Metrics.AddBytesSent(buffer.WrittenCount);
+    }
+
+    /// <summary>Handles a client AUTH packet for re-authentication on a live connection.</summary>
+    /// <param name="auth">AUTH packet from the client.</param>
+    /// <param name="cancellationToken">Cancels the exchange.</param>
+    private async Task HandleAuthAsync(AuthPacket auth, CancellationToken cancellationToken)
+    {
+        if (_version != MqttProtocolVersion.V500)
+        {
+            return;
+        }
+
+        var method = auth.Properties.GetString(MqttPropertyId.AuthenticationMethod) ?? _authenticationMethod;
+        var provider = method is null ? null : _broker.GetEnhancedAuthenticator(method);
+
+        if (provider is null || _session is null)
+        {
+            TrySend(new AuthPacket
+            {
+                ReasonCode = MqttReasonCodes.BadAuthenticationMethod,
+                Properties = new MqttProperties(),
+            });
+            return;
+        }
+
+        var result = await provider.AuthenticateAsync(
+            new EnhancedAuthContext(
+                _session.ClientId,
+                _session.Principal.Username,
+                _remoteAddress,
+                auth.Properties.GetBinary(MqttPropertyId.AuthenticationData) ?? []),
+            cancellationToken).ConfigureAwait(false);
+
+        if (result.Succeeded)
+        {
+            TrySend(new AuthPacket
+            {
+                ReasonCode = MqttReasonCodes.Success,
+                Properties = new MqttProperties().AddString(MqttPropertyId.AuthenticationMethod, method!),
+            });
+            return;
+        }
+
+        if (result.Challenge is not null)
+        {
+            TrySend(new AuthPacket
+            {
+                ReasonCode = MqttReasonCodes.ContinueAuthentication,
+                Properties = new MqttProperties()
+                    .AddString(MqttPropertyId.AuthenticationMethod, method!)
+                    .AddBinary(MqttPropertyId.AuthenticationData, result.Challenge),
+            });
+            return;
+        }
+
+        TrySend(new AuthPacket
+        {
+            ReasonCode = result.ReasonCode,
+            Properties = new MqttProperties().AddString(MqttPropertyId.AuthenticationMethod, method!),
+        });
+        await DisconnectAsync(result.ReasonCode, "Re-authentication failed", cancellationToken)
+            .ConfigureAwait(false);
     }
 
     private async Task WriteLoopAsync(CancellationToken cancellationToken)

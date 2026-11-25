@@ -47,7 +47,8 @@ public sealed class MqttBroker : IAsyncDisposable
         ILogger<MqttBroker> logger,
         IRetainedJournal? retainedJournal = null,
         ISessionSnapshotStore? sessionStore = null,
-        int sessionSnapshotSeconds = 30)
+        int sessionSnapshotSeconds = 30,
+        IEnumerable<IEnhancedAuthenticator>? enhancedAuthenticators = null)
     {
         Options = options;
         Authenticator = authenticator;
@@ -58,6 +59,14 @@ public sealed class MqttBroker : IAsyncDisposable
         Retained = new RetainedMessageStore(retainedJournal);
         _logger = logger;
         _sessionStore = sessionStore;
+
+        foreach (var provider in enhancedAuthenticators ?? [])
+        {
+            if (EnhancedAuthenticators is Dictionary<string, IEnhancedAuthenticator> registry)
+            {
+                registry[provider.Method] = provider;
+            }
+        }
         _sessionSnapshotInterval = TimeSpan.FromSeconds(Math.Max(1, sessionSnapshotSeconds));
 
         if (sessionStore is not null)
@@ -84,6 +93,10 @@ public sealed class MqttBroker : IAsyncDisposable
     /// <summary>Shared per-topic publish quotas, disabled unless configured.</summary>
     public TopicQuotaLimiter TopicQuotas { get; }
 
+    /// <summary>Enhanced authentication providers by method name.</summary>
+    public IReadOnlyDictionary<string, IEnhancedAuthenticator> EnhancedAuthenticators { get; }
+        = new Dictionary<string, IEnhancedAuthenticator>(StringComparer.Ordinal);
+
     /// <summary>
     /// Number of live cluster nodes used to split rate-limit budgets; 1 when the
     /// broker runs standalone.
@@ -108,6 +121,12 @@ public sealed class MqttBroker : IAsyncDisposable
 
     /// <summary>Outbound delivery rate for the last 60 seconds.</summary>
     public RateTracker DeliveryRate { get; } = new();
+
+    /// <summary>Returns the provider registered for an authentication method, if any.</summary>
+    /// <param name="method">Authentication Method from CONNECT.</param>
+    /// <returns>Provider or null when the method is not supported.</returns>
+    public IEnhancedAuthenticator? GetEnhancedAuthenticator(string method)
+        => EnhancedAuthenticators.TryGetValue(method, out var authenticator) ? authenticator : null;
 
     /// <summary>Validates credentials through the configured authenticator.</summary>
     /// <param name="context">Client identity and credentials from CONNECT.</param>

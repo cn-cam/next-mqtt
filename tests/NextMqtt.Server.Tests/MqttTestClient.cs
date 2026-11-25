@@ -38,6 +38,20 @@ internal sealed class MqttTestClient : IAsyncDisposable
         return client;
     }
 
+    /// <summary>Opens a socket without sending CONNECT, for custom handshakes.</summary>
+    /// <param name="port">Local test-server port.</param>
+    /// <param name="version">Protocol level used for decoding.</param>
+    /// <param name="cancellationToken">Cancels the connect.</param>
+    public static async Task<MqttTestClient> OpenAsync(
+        int port,
+        MqttProtocolVersion version,
+        CancellationToken cancellationToken = default)
+    {
+        var tcp = new TcpClient { NoDelay = true };
+        await tcp.ConnectAsync(IPAddress.Loopback, port, cancellationToken);
+        return new MqttTestClient(tcp, tcp.GetStream(), version);
+    }
+
     public ushort NextPacketId()
     {
         var id = _nextPacketId++;

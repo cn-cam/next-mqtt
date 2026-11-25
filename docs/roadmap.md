@@ -30,7 +30,7 @@ security needs.
 
 ## 0.3 — Protocol depth
 
-- [ ] Enhanced authentication (`AUTH`) with pluggable providers
+- [x] Enhanced authentication (`AUTH`) with pluggable providers (0.8.0)
 - [ ] Outbound topic aliases
 - [ ] Response-topic request/response helpers
 - [ ] MQTT over QUIC experiment

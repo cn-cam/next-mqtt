@@ -34,7 +34,8 @@ internal sealed class MqttTestServer : IAsyncDisposable
     public static MqttTestServer Start(
         AuthenticationOptions? authentication = null,
         AclOptions? acl = null,
-        Action<BrokerOptions>? configure = null)
+        Action<BrokerOptions>? configure = null,
+        IEnumerable<NextMqtt.Broker.Security.IEnhancedAuthenticator>? enhanced = null)
     {
         var options = new BrokerOptions
         {
@@ -49,7 +50,11 @@ internal sealed class MqttTestServer : IAsyncDisposable
             new ClientAuthenticator(authentication ?? new AuthenticationOptions { AllowAnonymous = true }),
             new TopicAuthorizer(acl ?? new AclOptions { DefaultPolicy = AclDefaultPolicy.Allow }),
             NullClusterRouter.Instance,
-            NullLogger<MqttBroker>.Instance);
+            NullLogger<MqttBroker>.Instance,
+            retainedJournal: null,
+            sessionStore: null,
+            sessionSnapshotSeconds: 30,
+            enhancedAuthenticators: enhanced);
 
         var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start(backlog: 64);
