@@ -133,6 +133,24 @@ dotnet NextMqtt.Server.dll
 逻辑备份：`GET /api/v1/backup` 导出保留消息与会话，`POST /api/v1/backup` 导入
 （替换保留集合，仅补入当前不在线的会话）。
 
+
+## 集成
+
+出站 webhook 把匹配的消息推送到 HTTP 端点，发布路径只做入队，不会阻塞 MQTT 投递。
+每条规则有独立的有界队列与后台任务，队列满时丢弃并计数。
+
+| 选项 | 默认 | 说明 |
+| --- | --- | --- |
+| `Filter` | `#` | 选择消息的主题过滤器 |
+| `Url` | – | 绝对 http/https 地址 |
+| `TimeoutMs` | 5000 | 单次请求超时 |
+| `MaxQueue` | 1000 | 缓冲上限，超出即丢弃 |
+| `Headers` | – | 附加请求头 |
+| `IncludePayload` | `true` | 是否发送 Base64 负载 |
+
+每条事件最多重试 3 次并退避；失败会记录日志并计数。请求体为 JSON：
+`{ name, topic, qos, retain, receivedAt, payload }`。集群中只有首次接收发布的
+节点会推送，避免重复。
 ## 认证与 ACL
 
 ```json

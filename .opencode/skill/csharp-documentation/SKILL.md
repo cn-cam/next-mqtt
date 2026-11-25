@@ -20,8 +20,20 @@ These rules are mandatory for every C# file in this repository.
 ## How to write them
 
 - Use XML documentation (`/// <summary>`), not `//` above the member.
-- English is the default. For public API, add a second line in Chinese inside
-  `<remarks>` so both languages are present:
+- English is the default for the summary. Public API adds one more language in
+  `<remarks>`: Chinese, Japanese or Korean. Do not paste all four translations
+  into every member; four lines of boilerplate make the code unreadable. Pick
+  the language the reviewer understands and keep it consistent per file.
+- The 0.6.x sweep that documented the whole codebase was a one-time catch-up:
+  those members carry English summaries with Chinese remarks on the public API.
+  New code follows the multilingual rule from the start.
+- Never transliterate. Write real English, Chinese, Japanese or Korean. No pinyin,
+  no machine-translated filler, no restating the signature.
+- If a comment reads like it came from a generator, rewrite it in the voice of
+  someone explaining the decision to a colleague: what it protects, what broke
+  last time, what trade-off was chosen.
+
+Example of a public member with a second language:
 
   ```csharp
   /// <summary>

@@ -110,6 +110,25 @@ QoS, 시각, MQTT 5 속성을 담습니다. 시작 시 순서대로 재생하고
 논리 백업은 `GET /api/v1/backup`으로 내려받고 `POST /api/v1/backup`으로
 복원합니다(retained 교체, 온라인이 아닌 세션만 추가).
 
+
+## 연동
+
+아웃바운드 webhook은 일치하는 메시지를 HTTP 엔드포인트로 보냅니다. 발행 경로는
+큐에 넣기만 하므로 MQTT 전달을 막지 않습니다. 규칙마다 유계 큐와 워커가 있으며,
+가득 차면 이벤트를 버리고 집계합니다.
+
+| 설정 | 기본 | 설명 |
+| --- | --- | --- |
+| `Filter` | `#` | 대상 메시지를 고르는 토픽 필터 |
+| `Url` | – | http/https 절대 URL |
+| `TimeoutMs` | 5000 | 시도당 타임아웃 |
+| `MaxQueue` | 1000 | 버리기 전 버퍼 상한 |
+| `Headers` | – | 추가 헤더 |
+| `IncludePayload` | `true` | Base64 페이로드 포함 |
+
+최대 3회 재시도하며 실패는 로그와 카운터에 남습니다. 본문은 JSON:
+`{ name, topic, qos, retain, receivedAt, payload }`. 클러스터에서는 처음 수락한
+노드만 전송합니다.
 ## 인증
 
 ```json

@@ -274,6 +274,44 @@ curl -s -X POST http://localhost:8080/api/v1/backup \
   --data @nextmqtt-backup.json
 ```
 
+
+## Integrations
+
+Outbound webhooks feed matching publishes to an HTTP endpoint without blocking
+MQTT delivery. Each rule has its own bounded queue and background worker; when a
+queue is full the event is dropped and counted.
+
+```json
+{
+  "Integrations": {
+    "Webhooks": [
+      {
+        "Name": "audit",
+        "Filter": "audit/#",
+        "Url": "https://ops.example.com/hooks/mqtt",
+        "TimeoutMs": 3000,
+        "MaxQueue": 1000,
+        "Headers": { "Authorization": "Bearer <token>" },
+        "IncludePayload": true
+      }
+    ]
+  }
+}
+```
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `Filter` | `#` | Topic filter that selects messages |
+| `Url` | – | Absolute http/https endpoint |
+| `TimeoutMs` | 5000 | Per-attempt timeout |
+| `MaxQueue` | 1000 | Buffered events before drops |
+| `Headers` | – | Extra request headers |
+| `IncludePayload` | `true` | Send the base64 payload |
+
+Delivery is at-least-once per event per rule, with up to three attempts and
+backoff; failures are logged and counted. The body is JSON:
+`{ name, topic, qos, retain, receivedAt, payload }`. Only the node that first
+accepted the publish posts the event, so a cluster does not duplicate webhooks.
 ## Authentication
 
 ```json

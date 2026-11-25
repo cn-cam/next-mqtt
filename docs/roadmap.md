@@ -40,7 +40,7 @@ security needs.
 
 ## 0.4 — Integrations
 
-- [ ] HTTP webhook bridge
+- [x] HTTP webhook bridge with filter rules (0.10.0)
 - [ ] Kafka and NATS bridge modules
 - [ ] Rule engine for topic routing, filtering and enrichment
 - [ ] Plugin SDK for .NET extensions

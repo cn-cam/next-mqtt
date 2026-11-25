@@ -7,6 +7,7 @@ using NextMqtt.Broker.Clustering;
 using NextMqtt.Broker.Connections;
 using NextMqtt.Broker.Options;
 using NextMqtt.Broker.Security;
+using NextMqtt.Broker.Integrations;
 using NextMqtt.Broker.Storage;
 using NextMqtt.Server.Api;
 using NextMqtt.Server.Hosting;
@@ -28,6 +29,15 @@ brokerOptions.RateLimits = builder.Configuration.GetSection(RateLimitOptions.Sec
     ?? brokerOptions.RateLimits;
 var storageOptions = builder.Configuration.GetSection(StorageOptions.SectionName).Get<StorageOptions>()
     ?? new StorageOptions();
+var integrationsOptions = builder.Configuration.GetSection(IntegrationsOptions.SectionName).Get<IntegrationsOptions>()
+    ?? new IntegrationsOptions();
+
+var enhancedAuthenticators = new List<IEnhancedAuthenticator>();
+
+if (authenticationOptions.Jwt.Enabled)
+{
+    enhancedAuthenticators.Add(new JwtEnhancedAuthenticator(authenticationOptions.Jwt));
+}
 
 if (bool.TryParse(Environment.GetEnvironmentVariable("NEXTMQTT_ALLOW_ANONYMOUS"), out var allowAnonymous))
 {
@@ -104,6 +114,22 @@ if (storageOptions.Retained.Mode == StorageMode.File)
     });
 }
 
+if (integrationsOptions.Webhooks.Count > 0)
+{
+    builder.Services.AddSingleton(sp =>
+    {
+        var dispatcher = new WebhookDispatcher(
+            integrationsOptions,
+            new HttpClient { Timeout = Timeout.InfiniteTimeSpan },
+            sp.GetRequiredService<ILogger<WebhookDispatcher>>());
+
+        sp.GetRequiredService<IHostApplicationLifetime>().ApplicationStopping.Register(() =>
+            dispatcher.DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(2)));
+
+        return dispatcher;
+    });
+}
+
 if (storageOptions.Session.Mode == StorageMode.File)
 {
     builder.Services.AddSingleton<ISessionSnapshotStore>(
@@ -121,7 +147,9 @@ builder.Services.AddSingleton(sp =>
         sp.GetRequiredService<ILogger<MqttBroker>>(),
         sp.GetService<IRetainedJournal>(),
         sp.GetService<ISessionSnapshotStore>(),
-        storageOptions.Session.SnapshotSeconds);
+        storageOptions.Session.SnapshotSeconds,
+        enhancedAuthenticators,
+        sp.GetService<WebhookDispatcher>());
 
     if (cluster is ClusterRouter clusterRouter)
     {

@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using NextMqtt.Broker.Clustering;
 using NextMqtt.Broker.Diagnostics;
+using NextMqtt.Broker.Integrations;
 using NextMqtt.Broker.Messaging;
 using NextMqtt.Broker.Options;
 using NextMqtt.Broker.RateLimiting;
@@ -48,7 +49,8 @@ public sealed class MqttBroker : IAsyncDisposable
         IRetainedJournal? retainedJournal = null,
         ISessionSnapshotStore? sessionStore = null,
         int sessionSnapshotSeconds = 30,
-        IEnumerable<IEnhancedAuthenticator>? enhancedAuthenticators = null)
+        IEnumerable<IEnhancedAuthenticator>? enhancedAuthenticators = null,
+        WebhookDispatcher? webhooks = null)
     {
         Options = options;
         Authenticator = authenticator;
@@ -59,6 +61,7 @@ public sealed class MqttBroker : IAsyncDisposable
         Retained = new RetainedMessageStore(retainedJournal);
         _logger = logger;
         _sessionStore = sessionStore;
+        Webhooks = webhooks;
 
         foreach (var provider in enhancedAuthenticators ?? [])
         {
@@ -92,6 +95,9 @@ public sealed class MqttBroker : IAsyncDisposable
 
     /// <summary>Shared per-topic publish quotas, disabled unless configured.</summary>
     public TopicQuotaLimiter TopicQuotas { get; }
+
+    /// <summary>Optional webhook fan-out for locally accepted messages.</summary>
+    public WebhookDispatcher? Webhooks { get; }
 
     /// <summary>Enhanced authentication providers by method name.</summary>
     public IReadOnlyDictionary<string, IEnhancedAuthenticator> EnhancedAuthenticators { get; }

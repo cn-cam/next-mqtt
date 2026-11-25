@@ -106,6 +106,25 @@ dotnet NextMqtt.Server.dll
 
 論理バックアップは GET /api/v1/backup で取得し、POST /api/v1/backup で復元します（retained は置換、オンラインでないセッションのみ追加）。
 
+
+## 連携
+
+送信 webhook は一致したメッセージを HTTP エンドポイントへ送ります。公開経路は
+キューへの追加だけを行うため、MQTT 配信をブロックしません。ルールごとに有界
+キューとワーカーを持ち、満杯になったイベントは破棄して計数します。
+
+| 設定 | 既定 | 説明 |
+| --- | --- | --- |
+| `Filter` | `#` | 対象を選ぶトピックフィルタ |
+| `Url` | – | http/https の絶対 URL |
+| `TimeoutMs` | 5000 | 1 回のタイムアウト |
+| `MaxQueue` | 1000 | 破棄までのバッファ上限 |
+| `Headers` | – | 追加ヘッダー |
+| `IncludePayload` | `true` | Base64 ペイロードを含める |
+
+最大 3 回まで再試行し、失敗はログと計数に残します。本文は JSON:
+`{ name, topic, qos, retain, receivedAt, payload }`。クラスタでは最初に受理した
+ノードだけが送信します。
 ## 認証
 
 ```json
