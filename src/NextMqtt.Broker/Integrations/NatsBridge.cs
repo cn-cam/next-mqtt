@@ -11,24 +11,29 @@ namespace NextMqtt.Broker.Integrations;
 public sealed class NatsOptions
 {
     /// <summary>Forward publishes to NATS.</summary>
+    /// <remarks>启用后，匹配消息会以 PUB 帧发往 NATS。</remarks>
     public bool Enabled { get; set; }
 
     /// <summary>Server address, for example <c>nats://127.0.0.1:4222</c>.</summary>
     public string Url { get; set; } = "nats://127.0.0.1:4222";
 
     /// <summary>Prefix added to every subject; the topic is appended with dots.</summary>
+    /// <remarks>用于多租户或环境隔离，例如 prod.。</remarks>
     public string SubjectPrefix { get; set; } = "mqtt.";
 
     /// <summary>Topic filter that selects messages to forward.</summary>
     public string Filter { get; set; } = "#";
 
     /// <summary>Buffered messages before new ones are dropped.</summary>
+    /// <remarks>队列满时丢弃新消息并计数，发布路径不阻塞。</remarks>
     public int MaxQueue { get; set; } = 5000;
 
     /// <summary>Optional user for CONNECT.</summary>
+    /// <remarks>为空表示不鉴权；NATS 只支持单用户。</remarks>
     public string? Username { get; set; }
 
     /// <summary>Optional password for CONNECT.</summary>
+    /// <remarks>与用户名一起发送，注意不要写进日志。</remarks>
     public string? Password { get; set; }
 }
 

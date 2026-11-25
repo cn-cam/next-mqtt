@@ -11,27 +11,34 @@ namespace NextMqtt.Broker.Integrations;
 public sealed class KafkaOptions
 {
     /// <summary>Forward publishes to Kafka.</summary>
+    /// <remarks>启用后使用 Confluent.Kafka producer 异步投递。</remarks>
     public bool Enabled { get; set; }
 
     /// <summary>Comma-separated bootstrap servers.</summary>
+    /// <remarks>只需一个可达节点，其余由元数据发现。</remarks>
     public string BootstrapServers { get; set; } = "127.0.0.1:9092";
 
     /// <summary>Prefix added to every Kafka topic.</summary>
+    /// <remarks>主题名会被拼接为 前缀 + 点分主题。</remarks>
     public string TopicPrefix { get; set; } = "mqtt.";
 
     /// <summary>Topic filter that selects messages to forward.</summary>
     public string Filter { get; set; } = "#";
 
     /// <summary>Buffered messages before new ones are dropped.</summary>
+    /// <remarks>队列满时丢弃新消息并计数，发布路径不阻塞。</remarks>
     public int MaxQueue { get; set; } = 5000;
 
     /// <summary>Producer client id shown in Kafka tooling.</summary>
+    /// <remarks>排障时用它区分是哪个 Broker 实例。</remarks>
     public string ClientId { get; set; } = "nextmqtt";
 
     /// <summary>Batching delay in milliseconds.</summary>
+    /// <remarks>越大吞吐越高、延迟越大；5ms 是折中值。</remarks>
     public double LingerMs { get; set; } = 5;
 
     /// <summary>Compression: none, gzip, snappy, lz4 or zstd.</summary>
+    /// <remarks>按 broker 支持选择；gzip 最通用。</remarks>
     public string Compression { get; set; } = "none";
 }
 

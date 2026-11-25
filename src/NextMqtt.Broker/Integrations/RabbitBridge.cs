@@ -11,33 +11,42 @@ namespace NextMqtt.Broker.Integrations;
 public sealed class RabbitOptions
 {
     /// <summary>Forward publishes to RabbitMQ.</summary>
+    /// <remarks>启用后使用 publisher confirm 投递到 topic exchange。</remarks>
     public bool Enabled { get; set; }
 
     /// <summary>Broker host name or IP.</summary>
+    /// <remarks>容器里可用 host.docker.internal 访问宿主机。</remarks>
     public string HostName { get; set; } = "127.0.0.1";
 
     /// <summary>AMQP port.</summary>
+    /// <remarks>明文 AMQP 默认 5672；TLS 请自行加 5671 并用 amqps。</remarks>
     public int Port { get; set; } = 5672;
 
     /// <summary>Login user.</summary>
+    /// <remarks>需要具备 configure/write 权限以声明交换机。</remarks>
     public string UserName { get; set; } = "guest";
 
     /// <summary>Login password.</summary>
+    /// <remarks>放在环境变量里，不要提交到仓库。</remarks>
     public string Password { get; set; } = "guest";
 
     /// <summary>Virtual host.</summary>
+    /// <remarks>默认 /；多租户时使用独立 vhost。</remarks>
     public string VirtualHost { get; set; } = "/";
 
     /// <summary>Durable topic exchange that receives the messages.</summary>
+    /// <remarks>启动时声明；已存在但类型不同的会让连接失败。</remarks>
     public string Exchange { get; set; } = "nextmqtt";
 
     /// <summary>Prefix added to every routing key.</summary>
+    /// <remarks>与 NATS/Kafka 保持一致的映射习惯。</remarks>
     public string RoutingKeyPrefix { get; set; } = "mqtt.";
 
     /// <summary>Topic filter that selects messages to forward.</summary>
     public string Filter { get; set; } = "#";
 
     /// <summary>Buffered messages before new ones are dropped.</summary>
+    /// <remarks>队列满时丢弃新消息并计数，发布路径不阻塞。</remarks>
     public int MaxQueue { get; set; } = 5000;
 }
 
