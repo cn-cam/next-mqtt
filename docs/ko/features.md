@@ -17,7 +17,9 @@
 | 구독 옵션 | ✅ | noLocal, RAP, retain handling |
 | 토픽 별칭 | ⚠️ | 인바운드만 |
 | 강화 인증 AUTH | ❌ | `0x8C` 반환 |
-| 영구 저장 | ⚠️ | retained 저널 + 세션 스냅샷 (inflight 제외) |`n| 백업/복구 | ✅ | `GET`/`POST /api/v1/backup` |`n| 우아한 종료 | ✅ | inflight 확인 응답 대기 (`Server:DrainTimeoutSeconds`) |
+| 영구 저장 | ⚠️ | retained 저널 + 세션 스냅샷 (inflight 제외) |
+| 백업/복구 | ✅ | `GET`/`POST /api/v1/backup` |
+| 우아한 종료 | ✅ | inflight 확인 응답 대기 (`Server:DrainTimeoutSeconds`) |
 
 ## 보안
 
@@ -29,7 +31,8 @@
 | TLS / WSS | ✅ |
 | 관리 토큰 / API 키 | ✅ |
 | 역할 기반 관리 권한 | ❌ |
-| 속도 제한 | ✅ |`n| 토픽 단위 발행 할당량 | ✅ | 필터 단위로 클라이언트 공유 |
+| 속도 제한 | ✅ |
+| 토픽 단위 발행 할당량 | ✅ | 필터 단위로 클라이언트 공유 |
 | 아웃바운드 토픽 별칭 | ✅ | 클라이언트 상한 내에서 연결별 할당 |
 | 구독 식별자 할당량 | ✅ | `MaxSubscriptionIdentifiersPerClient`로 제한 |
 

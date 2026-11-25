@@ -17,7 +17,9 @@
 | 購読オプション | ✅ | noLocal、RAP、retain handling |
 | トピックエイリアス | ⚠️ | 受信のみ |
 | 拡張認証 AUTH | ❌ | `0x8C` を返す |
-| 永続ストレージ | ⚠️ | retained ジャーナル + セッションスナップショット（inflight は対象外） |`n| バックアップ/リストア | ✅ | `GET`/`POST /api/v1/backup` |`n| 優雅な停止 | ✅ | inflight の確認応答を待つ（`Server:DrainTimeoutSeconds`） |
+| 永続ストレージ | ⚠️ | retained ジャーナル + セッションスナップショット（inflight は対象外） |
+| バックアップ/リストア | ✅ | `GET`/`POST /api/v1/backup` |
+| 優雅な停止 | ✅ | inflight の確認応答を待つ（`Server:DrainTimeoutSeconds`） |
 
 ## セキュリティ
 
@@ -29,7 +31,8 @@
 | TLS / WSS | ✅ |
 | 管理トークン / API キー | ✅ |
 | ロールベース管理権限 | ❌ |
-| レート制限 | ✅ |`n| トピック単位の公開クォータ | ✅ | フィルタ単位、クライアント横断で共有 |
+| レート制限 | ✅ |
+| トピック単位の公開クォータ | ✅ | フィルタ単位、クライアント横断で共有 |
 | 送信トピックエイリアス | ✅ | クライアントの上限内で接続ごとに割り当て |
 | 購読識別子クォータ | ✅ | `MaxSubscriptionIdentifiersPerClient` で制限 |
 

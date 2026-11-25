@@ -9,7 +9,10 @@ public static class MqttTopic
     /// <summary>
     /// Validates a topic name (no wildcards) and reports why it is rejected.
     /// </summary>
-    /// <remarks>主题名不得包含通配符或 U+0000，且不超过 65535 个 UTF-8 字节。</remarks>
+    /// <remarks>
+    /// 主题名不能含通配符或 U+0000，UTF-8 长度不得超过 65535 字节——这是协议规定的
+    /// 字段上限，不是我们的策略选择。返回 false 时 error 给运维看，可以直接写日志。
+    /// </remarks>
     /// <param name="topic">Topic name as published by the client.</param>
     /// <param name="error">Human-readable reason when validation fails.</param>
     /// <returns><c>true</c> when the name is a legal MQTT topic name.</returns>

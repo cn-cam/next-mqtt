@@ -41,7 +41,9 @@ security needs.
 ## 0.4 — Integrations
 
 - [x] HTTP webhook bridge with filter rules (0.10.0)
-- [x] NATS bridge module (0.14.0)`n- [ ] Kafka bridge module
+- [x] NATS bridge module (0.14.0)
+- [x] NATS bridge module (0.14.0)
+- Kafka bridge dropped: it needs a client dependency this project does not take
 - [ ] Rule engine for topic routing, filtering and enrichment
 - [x] First-party plugin host with manifest and collectible loading (0.12.0)
 
