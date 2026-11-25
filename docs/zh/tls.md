@@ -3,12 +3,16 @@
 ## 证书格式
 
 - **PFX/PKCS#12**：设置 `CertificatePath` 与 `CertificatePassword`
-- **PEM**：`CertificatePath` 指向证书；同目录同名 `.key` 会自动加载
+- **PEM**：`CertificatePath` 指向证书，`CertificateKeyPath` 指向私钥；私钥路径留空时自动加载同目录同名 `.key`
+
+PEM 可以包含完整证书链（叶子 + 中间证书），中间证书会自动下发给客户端，公网 CA（如 Let's Encrypt）通常要求如此。
+
+`Domain` 可选：设置后启动时校验证书是否覆盖该域名，不覆盖只告警，不会拒绝连接。
 
 ```text
 /certs/server.pfx
-/certs/server.pem
-/certs/server.key
+/certs/server.pem        叶子 + 中间证书
+/certs/server.key        私钥
 ```
 
 ## MQTT over TLS
@@ -20,14 +24,15 @@
       "Enabled": true,
       "Host": "0.0.0.0",
       "Port": 8883,
-      "CertificatePath": "/certs/server.pfx",
-      "CertificatePassword": "change-me"
+      "CertificatePath": "/certs/server.pem",
+      "CertificateKeyPath": "/certs/server.key",
+      "Domain": "mqtt.example.com"
     }
   }
 }
 ```
 
-客户端连接 `mqtts://host:8883`。支持 TLS 1.2 / 1.3。
+客户端连接 `mqtts://mqtt.example.com:8883`。支持 TLS 1.2 / 1.3。
 
 ## 控制台 HTTPS 与 WSS
 
@@ -38,8 +43,9 @@
       "Port": 8080,
       "WebSocketPort": 8083,
       "TlsPort": 8084,
-      "CertificatePath": "/certs/server.pfx",
-      "CertificatePassword": "change-me"
+      "CertificatePath": "/certs/server.pem",
+      "CertificateKeyPath": "/certs/server.key",
+      "Domain": "mqtt.example.com"
     }
   }
 }
