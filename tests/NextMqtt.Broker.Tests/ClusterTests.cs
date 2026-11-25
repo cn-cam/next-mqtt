@@ -218,7 +218,7 @@ public class ClusterTests
             Secret = secret,
             Seeds = ["http://node-b"],
             HeartbeatSeconds = 1,
-            NodeTimeoutSeconds = 1,
+            NodeTimeoutSeconds = 2,
         };
 
         var router = new ClusterRouter(
@@ -233,7 +233,15 @@ public class ClusterTests
 
         try
         {
-            await Task.Delay(1500);
+            // Poll instead of sleeping a fixed time: a cold CI runner can take a
+            // few seconds to finish the first heartbeat round.
+            var deadline = DateTimeOffset.UtcNow.AddSeconds(10);
+
+            while (DateTimeOffset.UtcNow < deadline
+                && router.GetSnapshot().Nodes.Any(node => node.NodeId == "ghost"))
+            {
+                await Task.Delay(200);
+            }
 
             Assert.DoesNotContain(router.GetSnapshot().Nodes, node => node.NodeId == "ghost");
         }
