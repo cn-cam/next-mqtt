@@ -49,16 +49,20 @@ public sealed class ClusterRouter : IClusterRouter
     }
 
     /// <summary>True when a cluster secret and node id are configured.</summary>
+    /// <remarks>关闭时路由退化为空操作，也不会启动心跳。</remarks>
     public bool Enabled => _options.Enabled;
 
     /// <summary>Shared secret used to sign requests to peers.</summary>
+    /// <remarks>只在本机参与 HMAC；泄露等于整个集群失守。</remarks>
     public string Secret => _options.Secret;
 
     /// <summary>Gives the router the broker used for routing inbound forwards.</summary>
+    /// <remarks>必须在 StartAsync 之前调用，否则收到的转发会被丢掉。</remarks>
     /// <param name="broker">Broker that owns the router.</param>
     public void AttachBroker(MqttBroker broker) => _broker = broker;
 
     /// <summary>Starts the heartbeat loop when clustering is enabled.</summary>
+    /// <remarks>集群关闭时立即返回，不占用后台线程。</remarks>
     /// <param name="cancellationToken">Cancels startup.</param>
     public ValueTask StartAsync(CancellationToken cancellationToken = default)
     {
@@ -101,6 +105,7 @@ public sealed class ClusterRouter : IClusterRouter
     }
 
     /// <summary>Stops the heartbeat loop and tries to announce the departure.</summary>
+    /// <remarks>尽力而为；对端不可达只记日志，不阻塞关闭。</remarks>
     public async ValueTask StopAsync()
     {
         if (Interlocked.Exchange(ref _stopped, 1) != 0)
@@ -126,6 +131,7 @@ public sealed class ClusterRouter : IClusterRouter
     }
 
     /// <summary>Projects the membership table for the cluster API.</summary>
+    /// <remarks>每次请求现算，不缓存状态，避免把死节点显示成活的。</remarks>
     public ClusterSnapshot GetSnapshot()
     {
         if (!Enabled || _self is null)
@@ -225,6 +231,7 @@ public sealed class ClusterRouter : IClusterRouter
     }
 
     /// <summary>Copies the membership table for gossip responses.</summary>
+    /// <remarks>心跳响应携带本地视图，供对端合并与发现。</remarks>
     public MemberSnapshot[] SnapshotMembers()
     {
         if (_self is null)
@@ -246,6 +253,7 @@ public sealed class ClusterRouter : IClusterRouter
     }
 
     /// <summary>Handles a peer heartbeat and returns the local membership view.</summary>
+    /// <remarks>同时刷新 lastSeen，把 suspect 节点拉回 alive。</remarks>
     /// <param name="heartbeat">Heartbeat received from the peer.</param>
     /// <param name="cancellationToken">Cancels the response.</param>
     public ValueTask<ClusterHeartbeatResponse> ProcessHeartbeatAsync(
@@ -277,6 +285,7 @@ public sealed class ClusterRouter : IClusterRouter
     }
 
     /// <summary>Routes a publish received from a peer, rejecting duplicates.</summary>
+    /// <remarks>按 messageId 去重；共享专用消息不去重，因为它与普通扇出共用同一个 id。</remarks>
     /// <param name="message">Forwarded message.</param>
     /// <param name="cancellationToken">Cancels routing.</param>
     /// <returns><c>true</c> when accepted; <c>false</c> for duplicates.</returns>
@@ -367,8 +376,10 @@ public sealed class ClusterRouter : IClusterRouter
     }
 
     /// <summary>Removes a node that announced its departure.</summary>
+    /// <remarks>主动离开立即摘除，不必等超时。</remarks>
     /// <param name="nodeId">Node identifier.</param>
     /// <summary>Shared groups with at least one local subscriber for this topic.</summary>
+    /// <remarks>本地没有的组也要从远端成员收集，否则源节点根本不知道要转发。</remarks>
     /// <param name="topic">Topic being published.</param>
     private List<string> SharedGroups(string topic, List<Member> peers)
     {
@@ -397,6 +408,7 @@ public sealed class ClusterRouter : IClusterRouter
     }
 
     /// <summary>Live nodes that host the group for this topic, self included.</summary>
+    /// <remarks>先按 nodeId 排序再取模，保证所有节点算出同一个顺序。</remarks>
     /// <param name="topic">Topic being published.</param>
     /// <param name="group">Shared group name.</param>
     /// <param name="peers">Alive peers.</param>
@@ -427,6 +439,7 @@ public sealed class ClusterRouter : IClusterRouter
     }
 
     /// <summary>Deterministic index so every node picks the same owner.</summary>
+    /// <remarks>FNV-1a，输入是 messageId 与组名。</remarks>
     /// <param name="messageId">Stable message id.</param>
     /// <param name="group">Shared group name.</param>
     /// <param name="count">Candidate count.</param>
@@ -443,6 +456,7 @@ public sealed class ClusterRouter : IClusterRouter
     }
 
     /// <summary>True when this node should deliver the shared group.</summary>
+    /// <remarks>只有被选中的节点投递，其余节点跳过，避免重复。</remarks>
     /// <param name="topic">Topic being published.</param>
     /// <param name="group">Shared group name.</param>
     /// <param name="messageId">Stable message id.</param>
@@ -473,6 +487,7 @@ public sealed class ClusterRouter : IClusterRouter
     }
 
     /// <summary>Removes a node that announced its departure.</summary>
+    /// <remarks>主动离开立即摘除，不必等超时。</remarks>
     /// <param name="nodeId">Node identifier.</param>
     public void Leave(string nodeId)
     {
@@ -484,9 +499,11 @@ public sealed class ClusterRouter : IClusterRouter
     }
 
     /// <summary>Messages forwarded to peers since start.</summary>
+    /// <remarks>只统计本节点发出去的。</remarks>
     public long PublishesSent => Interlocked.Read(ref _publishesSent);
 
     /// <summary>Messages accepted from peers since start.</summary>
+    /// <remarks>包含普通消息与共享专用消息。</remarks>
     public long PublishesReceived => Interlocked.Read(ref _publishesReceived);
 
     private async Task HeartbeatLoopAsync(CancellationToken cancellationToken)
@@ -804,6 +821,7 @@ public sealed class ClusterRouter : IClusterRouter
     }
 
     /// <summary>Membership row exchanged in heartbeats and returned by the API.</summary>
+    /// <remarks>JSON 契约，改字段名会影响滚动升级的兼容性。</remarks>
     /// <param name="NodeId">Member identifier.</param>
     /// <param name="AdvertiseUrl">Base URL for heartbeats and forwarding.</param>
     /// <param name="Status">alive, suspect or dead.</param>
@@ -825,17 +843,20 @@ public sealed class ClusterRouter : IClusterRouter
         private TopicFilter[]? _parsed;
 
         /// <summary>Parsed filters, computed once per member.</summary>
+    /// <remarks>每个成员只解析一次，心跳很频繁。</remarks>
         private TopicFilter[] Parsed => _parsed ??= RawFilters
             .Select(filter => TopicFilter.TryParse(filter, out var parsed, out _) ? parsed : null)
             .Where(filter => filter is not null)
             .ToArray()!;
 
         /// <summary>True when a non-shared filter matches the topic.</summary>
+    /// <remarks>共享过滤器不参与普通扇出，否则同一组被多个节点投递。</remarks>
         /// <param name="topic">Concrete topic name.</param>
         public bool MatchesNormal(string topic)
             => Parsed.Any(filter => !filter.IsShared && filter.Matches(topic));
 
         /// <summary>Shared groups this member hosts for the topic.</summary>
+    /// <remarks>源节点据此计算候选节点。</remarks>
         /// <param name="topic">Concrete topic name.</param>
         public IEnumerable<string> SharedGroups(string topic)
             => Parsed
@@ -844,6 +865,7 @@ public sealed class ClusterRouter : IClusterRouter
                 .Distinct(StringComparer.Ordinal);
 
         /// <summary>True when this node hosts the shared group for the topic.</summary>
+    /// <remarks>有一个匹配的共享过滤器即可。</remarks>
         /// <param name="topic">Concrete topic name.</param>
         /// <param name="group">Shared group name.</param>
         public bool HasShared(string topic, string group)
