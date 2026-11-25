@@ -12,6 +12,7 @@ namespace NextMqtt.Server.Security;
 /// Dashboard authentication: PBKDF2 password login issues a short-lived
 /// HS256 token; API keys are accepted through the X-API-Key header.
 /// </summary>
+/// <summary>Dashboard authentication: PBKDF2 login, HS256 tokens and API keys.</summary>
 public sealed class AdminAuthService
 {
     private readonly string _username;
@@ -44,6 +45,9 @@ public sealed class AdminAuthService
         });
     }
 
+    /// <summary>Builds the service from configuration and environment overrides.</summary>
+    /// <param name="options">Admin username, hash, token secret and API key digests.</param>
+    /// <param name="logger">Logger used for bootstrap warnings.</param>
     public static AdminAuthService Create(AdminOptions options, ILogger logger)
     {
         var username = Environment.GetEnvironmentVariable("NEXTMQTT_ADMIN_USERNAME") ?? options.Username;
@@ -83,10 +87,16 @@ public sealed class AdminAuthService
             logger);
     }
 
+    /// <summary>Verifies a username/password pair in constant time.</summary>
+    /// <param name="username">Submitted username.</param>
+    /// <param name="password">Submitted plaintext password.</param>
     public bool ValidateCredentials(string username, string password)
         => string.Equals(username, _username, StringComparison.Ordinal)
            && PasswordHasher.Verify(password, _passwordHash);
 
+    /// <summary>Issues a bearer token for the configured admin user.</summary>
+    /// <param name="expiresAt">Expiry written into the token.</param>
+    /// <returns>The encoded JWT.</returns>
     public string IssueToken(out DateTimeOffset expiresAt)
     {
         var now = DateTimeOffset.UtcNow;
@@ -110,6 +120,9 @@ public sealed class AdminAuthService
         return $"{header}.{body}.{signature}";
     }
 
+    /// <summary>Authenticates a request by bearer token or API key.</summary>
+    /// <param name="request">Incoming HTTP request.</param>
+    /// <returns>Principal on success, null otherwise.</returns>
     public ClientPrincipal? Authenticate(HttpRequest request)
     {
         if (request.Headers.TryGetValue("X-API-Key", out var apiKey))
@@ -137,11 +150,15 @@ public sealed class AdminAuthService
         return null;
     }
 
+    /// <summary>Validates an HS256 token and rebuilds the principal.</summary>
+    /// <param name="token">JWT without the <c>Bearer</c> prefix.</param>
     public ClientPrincipal? ValidateToken(string token)
         => _validator.TryValidate(token, out var principal, out _)
             ? principal with { ClientId = string.Empty, IsSuperuser = true }
             : null;
 
+    /// <summary>Hashes an API key for comparison with configured digests.</summary>
+    /// <param name="apiKey">Plaintext key.</param>
     public static string HashApiKey(string apiKey)
         => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(apiKey)));
 

@@ -5,10 +5,15 @@ using NextMqtt.Broker.Clustering;
 namespace NextMqtt.Server.Api;
 
 /// <summary>Signed node-to-node endpoints. Not exposed to MQTT clients.</summary>
+/// <summary>Internal endpoints used by peer nodes for heartbeats and forwarding.</summary>
 public static class ClusterEndpoints
 {
     private const int MaxBodyBytes = 4 * 1024 * 1024;
 
+    /// <summary>Maps <c>/internal/cluster/*</c> without dashboard authentication.</summary>
+    /// <remarks>这些端点由 HMAC 签名保护，不参与管理 API 的 Bearer 认证。</remarks>
+    /// <param name="app">Application to extend.</param>
+    /// <param name="router">Router that implements the handlers.</param>
     public static void Map(WebApplication app, ClusterRouter router)
     {
         app.MapPost("/internal/cluster/heartbeat", async context =>

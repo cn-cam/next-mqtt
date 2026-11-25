@@ -11,8 +11,12 @@ using Microsoft.Extensions.Logging;
 namespace NextMqtt.Server.Networking;
 
 /// <summary>Loads PFX/PKCS#12 or PEM certificates for MQTT/TLS listeners.</summary>
+/// <summary>Loads the TLS certificate for the MQTT listener.</summary>
 public static class MqttCertificateLoader
 {
+    /// <summary>Loads a PFX/PEM certificate from disk.</summary>
+    /// <param name="path">Certificate file path.</param>
+    /// <param name="password">PFX password, when required.</param>
     public static X509Certificate2 Load(string path, string? password)
     {
         if (!File.Exists(path))
@@ -34,6 +38,7 @@ public static class MqttCertificateLoader
 }
 
 /// <summary>Accepts MQTT connections on raw TCP and TLS sockets.</summary>
+/// <summary>Accepts TCP/TLS MQTT connections and hands them to <c>ClientConnection</c>.</summary>
 public sealed class MqttTcpListenerService : BackgroundService
 {
     private readonly MqttBroker _broker;
@@ -45,6 +50,11 @@ public sealed class MqttTcpListenerService : BackgroundService
     private readonly List<Task> _connections = [];
     private readonly object _connectionGate = new();
 
+    /// <summary>Creates the listener service.</summary>
+    /// <param name="broker">Broker that owns the connections.</param>
+    /// <param name="options">Listener and drain settings.</param>
+    /// <param name="logger">Listener logger.</param>
+    /// <param name="loggerFactory">Factory for per-connection loggers.</param>
     public MqttTcpListenerService(
         MqttBroker broker,
         ServerOptions options,
@@ -57,6 +67,8 @@ public sealed class MqttTcpListenerService : BackgroundService
         _loggerFactory = loggerFactory;
     }
 
+    /// <summary>Runs one accept loop per enabled listener until shutdown.</summary>
+    /// <param name="stoppingToken">Cancels the accept loops.</param>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var loops = new List<Task>();
@@ -87,6 +99,8 @@ public sealed class MqttTcpListenerService : BackgroundService
         await Task.WhenAll(loops).ConfigureAwait(false);
     }
 
+    /// <summary>Stops accepting, drains inflight traffic, then closes connections.</summary>
+    /// <param name="cancellationToken">Cancels the shutdown wait.</param>
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
         // Stop accepting first so the drain window cannot be extended by new

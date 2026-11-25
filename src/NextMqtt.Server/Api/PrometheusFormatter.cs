@@ -4,8 +4,13 @@ using NextMqtt.Broker.Diagnostics;
 namespace NextMqtt.Server.Api;
 
 /// <summary>Renders Prometheus text exposition format (version 0.0.4).</summary>
+/// <summary>Renders Prometheus text exposition format (version 0.0.4).</summary>
 public static class PrometheusFormatter
 {
+    /// <summary>Formats counters and gauges for <c>/metrics</c>.</summary>
+    /// <param name="stats">Snapshot taken from the broker.</param>
+    /// <param name="clusterNodes">Live cluster member count.</param>
+    /// <param name="version">Build version exposed as a label.</param>
     public static string Format(BrokerStats stats, int clusterNodes, string version)
     {
         var builder = new StringBuilder(2048);
