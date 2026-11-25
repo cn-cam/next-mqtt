@@ -22,4 +22,4 @@ labels:
 
 images:
   - name: ghcr.io/cn-cam/next-mqtt
-    newTag: 0.16.2
+    newTag: 0.17.0
