@@ -6,6 +6,7 @@ namespace NextMqtt.Core.Protocol;
 /// <remarks>定长头已由 Reader 剥掉；这里只管变长头与负载，越界按 0x81 拒绝。</remarks>
 internal static class MqttPacketDecoder
 {
+    /// <summary>Dispatches on the packet type nibble and rejects unknown types.</summary>
     public static MqttPacket Decode(ReadOnlySpan<byte> body, byte header, MqttProtocolVersion version)
     {
         var packetType = (MqttPacketType)(header >> 4);
@@ -33,6 +34,7 @@ internal static class MqttPacketDecoder
         };
     }
 
+    /// <summary>Reads CONNECT in wire order, validating the protocol name and reserved flags.</summary>
     private static ConnectPacket DecodeConnect(ref MqttSpanReader reader, byte flags)
     {
         if (flags != 0)
@@ -145,6 +147,7 @@ internal static class MqttPacketDecoder
         };
     }
 
+    /// <summary>Reads CONNACK and maps 3.1.1 return codes onto 5.0 reason codes.</summary>
     private static ConnAckPacket DecodeConnAck(ref MqttSpanReader reader, byte flags, MqttProtocolVersion version)
     {
         if (flags != 0)
@@ -179,6 +182,7 @@ internal static class MqttPacketDecoder
         };
     }
 
+    /// <summary>Reads PUBLISH; the topic may be empty when the client sends only an alias.</summary>
     private static PublishPacket DecodePublish(ref MqttSpanReader reader, byte flags, MqttProtocolVersion version)
     {
         var duplicate = (flags & 0x08) != 0;
@@ -277,6 +281,7 @@ internal static class MqttPacketDecoder
         };
     }
 
+    /// <summary>Reads SUBSCRIBE and the subscription options of every filter.</summary>
     private static SubscribePacket DecodeSubscribe(ref MqttSpanReader reader, byte flags, MqttProtocolVersion version)
     {
         if (flags != 0x02)
@@ -319,6 +324,7 @@ internal static class MqttPacketDecoder
         };
     }
 
+    /// <summary>Reads one reason code per requested filter.</summary>
     private static SubAckPacket DecodeSubAck(ref MqttSpanReader reader, byte flags, MqttProtocolVersion version)
     {
         if (flags != 0)
@@ -358,6 +364,7 @@ internal static class MqttPacketDecoder
         };
     }
 
+    /// <summary>Reads UNSUBSCRIBE filters until the body is exhausted.</summary>
     private static UnsubscribePacket DecodeUnsubscribe(ref MqttSpanReader reader, byte flags, MqttProtocolVersion version)
     {
         if (flags != 0x02)
@@ -397,6 +404,7 @@ internal static class MqttPacketDecoder
         };
     }
 
+    /// <summary>Reads UNSUBACK; 3.1.1 carries only the packet identifier.</summary>
     private static UnsubAckPacket DecodeUnsubAck(ref MqttSpanReader reader, byte flags, MqttProtocolVersion version)
     {
         if (flags != 0)
@@ -442,6 +450,7 @@ internal static class MqttPacketDecoder
         };
     }
 
+    /// <summary>Handles packets whose body is just a reason code and optional properties.</summary>
     private static TPacket DecodeEmpty<TPacket>(ref MqttSpanReader reader, byte flags)
         where TPacket : MqttPacket, new()
     {
@@ -458,6 +467,7 @@ internal static class MqttPacketDecoder
         return new TPacket();
     }
 
+    /// <summary>Reads DISCONNECT, including the 5.0 reason code and properties.</summary>
     private static DisconnectPacket DecodeDisconnect(ref MqttSpanReader reader, byte flags, MqttProtocolVersion version)
     {
         if (flags != 0)
@@ -493,6 +503,7 @@ internal static class MqttPacketDecoder
         return new DisconnectPacket { ReasonCode = reasonCode, Properties = properties };
     }
 
+    /// <summary>Reads AUTH, which only exists in MQTT 5.</summary>
     private static AuthPacket DecodeAuth(ref MqttSpanReader reader, byte flags, MqttProtocolVersion version)
     {
         if (version != MqttProtocolVersion.V500)

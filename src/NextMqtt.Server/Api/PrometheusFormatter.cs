@@ -40,6 +40,7 @@ public static class PrometheusFormatter
         return builder.ToString();
     }
 
+    /// <summary>Writes a counter with its HELP and TYPE lines.</summary>
     private static void Counter(StringBuilder builder, string name, string help, long value)
     {
         builder.Append("# HELP ").Append(name).Append(' ').Append(help).Append('\n');
@@ -47,6 +48,7 @@ public static class PrometheusFormatter
         builder.Append(name).Append(' ').Append(value).Append('\n');
     }
 
+    /// <summary>Writes a gauge, optionally with label pairs.</summary>
     private static void Gauge(StringBuilder builder, string name, string help, long value, params (string Key, string Value)[] labels)
     {
         builder.Append("# HELP ").Append(name).Append(' ').Append(help).Append('\n');
@@ -72,6 +74,7 @@ public static class PrometheusFormatter
         builder.Append(' ').Append(value).Append('\n');
     }
 
+    /// <summary>Escapes a label value the way the exposition format requires.</summary>
     private static string Escape(string value)
         => value.Replace("\\", "\\\\", StringComparison.Ordinal)
             .Replace("\"", "\\\"", StringComparison.Ordinal)

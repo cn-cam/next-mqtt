@@ -6,6 +6,7 @@ namespace NextMqtt.Server.Hosting;
 /// <remarks>只把宿主生命周期转给 Broker；连接排空由 TCP 监听器在停止阶段完成。</remarks>
 public sealed class BrokerLifecycleService : IHostedService
 {
+    /// <summary>Broker whose background loops follow the host lifetime.</summary>
     private readonly MqttBroker _broker;
 
     /// <summary>Creates the lifecycle bridge.</summary>

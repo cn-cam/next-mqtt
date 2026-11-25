@@ -15,12 +15,19 @@ namespace NextMqtt.Server.Security;
 /// <remarks>令牌与 API Key 各自独立校验，任一通过即视为超管；没有配置密钥时会生成临时密钥并在日志里告警。</remarks>
 public sealed class AdminAuthService
 {
+    /// <summary>Account name accepted by the login endpoint.</summary>
     private readonly string _username;
+    /// <summary>PBKDF2 hash of the admin password.</summary>
     private readonly string _passwordHash;
+    /// <summary>Validator shared by tokens issued and tokens presented.</summary>
     private readonly JwtValidator _validator;
+    /// <summary>HMAC secret used to sign dashboard tokens.</summary>
     private readonly string _tokenSecret;
+    /// <summary>Token lifetime after clamping to the allowed range.</summary>
     private readonly int _tokenLifetimeMinutes;
+    /// <summary>Accepted API key digests, compared case-insensitively.</summary>
     private readonly HashSet<string> _apiKeyHashes;
+    /// <summary>Logger for bootstrap warnings.</summary>
     private readonly ILogger _logger;
 
     private AdminAuthService(
@@ -168,12 +175,14 @@ public sealed class AdminAuthService
     public static string HashApiKey(string apiKey)
         => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(apiKey)));
 
+    /// <summary>Creates a URL-safe random secret for the bootstrap password.</summary>
     private static string GenerateSecret(int bytes)
     {
         var value = Convert.ToBase64String(RandomNumberGenerator.GetBytes(bytes));
         return value.TrimEnd('=').Replace('+', '-').Replace('/', '_');
     }
 
+    /// <summary>Encodes without padding and with the URL-safe alphabet.</summary>
     private static string Base64Url(byte[] bytes)
         => Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
 }

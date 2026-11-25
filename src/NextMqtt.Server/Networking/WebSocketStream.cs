@@ -6,8 +6,11 @@ namespace NextMqtt.Server.Networking;
 /// <remarks>Broker 只认 Stream，这里把帧收发映射成读写。</remarks>
 public sealed class WebSocketStream : Stream
 {
+    /// <summary>Accepted socket; disposed by this wrapper.</summary>
     private readonly WebSocket _webSocket;
+    /// <summary>Serialises sends, because frames must not interleave.</summary>
     private readonly SemaphoreSlim _writeLock = new(1, 1);
+    /// <summary>Set once so disposal runs a single time.</summary>
     private bool _disposed;
 
     /// <summary>Wraps an accepted WebSocket.</summary>

@@ -120,6 +120,7 @@ public static class MqttTopic
 /// <remarks>解析一次就缓存；共享前缀在这里剥离，Original 保留原文用于回显与删除订阅。</remarks>
 public sealed class TopicFilter
 {
+    /// <summary>Prefix that marks a shared subscription filter.</summary>
     private const string SharedPrefix = "$share/";
 
     /// <summary>Creates a filter from already-validated parts.</summary>

@@ -42,13 +42,21 @@ public static class MqttCertificateLoader
 /// <remarks>每个启用的监听器一条 accept 循环；关闭时先停止接收，再等待 inflight 确认。</remarks>
 public sealed class MqttTcpListenerService : BackgroundService
 {
+    /// <summary>Broker that owns the accepted connections.</summary>
     private readonly MqttBroker _broker;
+    /// <summary>Listener, TLS and drain settings.</summary>
     private readonly ServerOptions _options;
+    /// <summary>Logger for listener and connection errors.</summary>
     private readonly ILogger<MqttTcpListenerService> _logger;
+    /// <summary>Factory used to give each connection its own logger.</summary>
     private readonly ILoggerFactory _loggerFactory;
+    /// <summary>Started listeners, stopped first during shutdown.</summary>
     private readonly List<TcpListener> _listeners = [];
+    /// <summary>Loaded certificates, disposed after the listeners stop.</summary>
     private readonly List<X509Certificate2> _certificates = [];
+    /// <summary>Running connection tasks, awaited during shutdown.</summary>
     private readonly List<Task> _connections = [];
+    /// <summary>Guards the listener and connection lists.</summary>
     private readonly object _connectionGate = new();
 
     /// <summary>Creates the listener service.</summary>

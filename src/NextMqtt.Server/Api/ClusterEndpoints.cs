@@ -8,6 +8,7 @@ namespace NextMqtt.Server.Api;
 /// <remarks>走 HMAC 签名而不是管理令牌；请求体上限 4 MiB，超过直接回 413。</remarks>
 public static class ClusterEndpoints
 {
+    /// <summary>Upper bound on a cluster request body; larger requests get 413.</summary>
     private const int MaxBodyBytes = 4 * 1024 * 1024;
 
     /// <summary>Maps <c>/internal/cluster/*</c> without dashboard authentication.</summary>
@@ -115,6 +116,7 @@ public static class ClusterEndpoints
         });
     }
 
+    /// <summary>Reads the body as UTF-8, returning null after answering 413 for an oversized request.</summary>
     private static async Task<string?> ReadBodyAsync(HttpContext context)
     {
         if (context.Request.ContentLength is > MaxBodyBytes)
@@ -135,6 +137,7 @@ public static class ClusterEndpoints
         return body;
     }
 
+    /// <summary>Checks the signature headers and answers 401 when they do not match.</summary>
     private static bool Verify(HttpContext context, string secret, string body)
     {
         var timestamp = context.Request.Headers[ClusterSignature.TimestampHeader].ToString();

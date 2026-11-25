@@ -159,6 +159,7 @@ public readonly record struct MqttProperty(MqttPropertyId Id, object Value);
 /// <remarks>顺序保留，因为用户属性可能有业务含义；其余属性重复出现按协议错误处理。</remarks>
 public sealed class MqttProperties
 {
+    /// <summary>Properties in insertion order; user properties may repeat.</summary>
     private readonly List<MqttProperty> _items = [];
 
     /// <summary>Properties in insertion order; user properties may repeat.</summary>
@@ -357,6 +358,7 @@ public sealed class MqttProperties
         }
     }
 
+    /// <summary>Reads the property length prefix, then every property in it.</summary>
     internal static MqttProperties Read(ref MqttSpanReader reader)
     {
         var properties = new MqttProperties();
@@ -391,6 +393,7 @@ public sealed class MqttProperties
         return properties;
     }
 
+    /// <summary>Writes the length prefix followed by each property.</summary>
     internal static void Write(IBufferWriter<byte> writer, MqttProperties properties)
     {
         var scratch = new ArrayBufferWriter<byte>(64);
@@ -559,6 +562,7 @@ public static class MqttPropertyValidation
         MqttPropertyId.UserProperty,
     ];
 
+    /// <summary>Checks a value against the range the property allows.</summary>
     internal static void ValidateValue(MqttPropertyId id, object value)
     {
         switch (id)

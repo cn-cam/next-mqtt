@@ -7,8 +7,10 @@ namespace NextMqtt.Core.Protocol;
 /// <remarks>拒绝非法 UTF-8 与内嵌 U+0000，协议要求而不能放宽。</remarks>
 internal static class MqttUtf8
 {
+    /// <summary>Rejects invalid UTF-8 and never emits a byte order mark.</summary>
     private static readonly UTF8Encoding StrictEncoding = new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
 
+    /// <summary>Decodes UTF-8 and turns an invalid sequence into a protocol error.</summary>
     public static string Decode(ReadOnlySpan<byte> bytes)
     {
         foreach (var b in bytes)
@@ -29,6 +31,7 @@ internal static class MqttUtf8
         }
     }
 
+    /// <summary>Encodes a string, rejecting characters the protocol forbids.</summary>
     public static byte[] Encode(string value)
     {
         if (value.Contains('\0'))
@@ -59,19 +62,25 @@ internal static class MqttUtf8
 /// <remarks>只前进不回退；越界读取立即抛异常，避免带病解析。</remarks>
 internal ref struct MqttSpanReader
 {
+    /// <summary>Packet body being read; owned by the caller's frame buffer.</summary>
     private readonly ReadOnlySpan<byte> _buffer;
+    /// <summary>Position of the next unread byte.</summary>
     private int _offset;
 
+    /// <summary>Wraps a fully framed body; no length prefix is consumed.</summary>
     public MqttSpanReader(ReadOnlySpan<byte> buffer)
     {
         _buffer = buffer;
         _offset = 0;
     }
 
+    /// <summary>Bytes left before the end of the body.</summary>
     public int Remaining => _buffer.Length - _offset;
 
+    /// <summary>True once every byte has been consumed.</summary>
     public bool IsEmpty => _offset >= _buffer.Length;
 
+    /// <summary>Returns the next slice and advances, throwing when the body is short.</summary>
     public ReadOnlySpan<byte> ReadBytes(int count)
     {
         if (count < 0 || count > Remaining)
@@ -84,6 +93,7 @@ internal ref struct MqttSpanReader
         return slice;
     }
 
+    /// <summary>Returns everything left and moves to the end.</summary>
     public ReadOnlySpan<byte> ReadRemaining()
     {
         var slice = _buffer[_offset..];
@@ -91,6 +101,7 @@ internal ref struct MqttSpanReader
         return slice;
     }
 
+    /// <summary>Reads one byte.</summary>
     public byte ReadByte()
     {
         if (_offset >= _buffer.Length)
@@ -101,10 +112,13 @@ internal ref struct MqttSpanReader
         return _buffer[_offset++];
     }
 
+    /// <summary>Reads a big-endian two-byte field.</summary>
     public ushort ReadUInt16() => System.Buffers.Binary.BinaryPrimitives.ReadUInt16BigEndian(ReadBytes(2));
 
+    /// <summary>Reads a big-endian four-byte field.</summary>
     public uint ReadUInt32() => System.Buffers.Binary.BinaryPrimitives.ReadUInt32BigEndian(ReadBytes(4));
 
+    /// <summary>Decodes the one-to-four byte length prefix.</summary>
     public int ReadVariableByteInteger()
     {
         var value = 0;
@@ -131,12 +145,14 @@ internal ref struct MqttSpanReader
         throw MqttProtocolException.Malformed("Variable byte integer exceeds four bytes.");
     }
 
+    /// <summary>Reads a length-prefixed UTF-8 string.</summary>
     public string ReadString()
     {
         var length = ReadUInt16();
         return MqttUtf8.Decode(ReadBytes(length));
     }
 
+    /// <summary>Reads a length-prefixed byte field.</summary>
     public byte[] ReadBinary()
     {
         var length = ReadUInt16();
@@ -148,6 +164,7 @@ internal ref struct MqttSpanReader
 /// <remarks>所有整数按网络字节序写出，变长整数最多 4 字节。</remarks>
 internal static class MqttWire
 {
+    /// <summary>Writes a single byte.</summary>
     public static void WriteByte(IBufferWriter<byte> writer, byte value)
     {
         var span = writer.GetSpan(1);
@@ -155,6 +172,7 @@ internal static class MqttWire
         writer.Advance(1);
     }
 
+    /// <summary>Writes a big-endian two-byte field.</summary>
     public static void WriteUInt16(IBufferWriter<byte> writer, ushort value)
     {
         var span = writer.GetSpan(2);
@@ -162,6 +180,7 @@ internal static class MqttWire
         writer.Advance(2);
     }
 
+    /// <summary>Writes a big-endian four-byte field.</summary>
     public static void WriteUInt32(IBufferWriter<byte> writer, uint value)
     {
         var span = writer.GetSpan(4);
@@ -169,6 +188,7 @@ internal static class MqttWire
         writer.Advance(4);
     }
 
+    /// <summary>Encodes the one-to-four byte length prefix.</summary>
     public static void WriteVariableByteInteger(IBufferWriter<byte> writer, int value)
     {
         if (value is < 0 or > MqttLimits.MaxRemainingLength)
@@ -195,6 +215,7 @@ internal static class MqttWire
         writer.Advance(offset);
     }
 
+    /// <summary>Writes a length-prefixed byte field.</summary>
     public static void WriteBytes(IBufferWriter<byte> writer, ReadOnlySpan<byte> value)
     {
         if (value.IsEmpty)
@@ -205,6 +226,7 @@ internal static class MqttWire
         writer.Write(value);
     }
 
+    /// <summary>Writes a length-prefixed UTF-8 string.</summary>
     public static void WriteString(IBufferWriter<byte> writer, string value)
     {
         var bytes = MqttUtf8.Encode(value);
@@ -212,6 +234,7 @@ internal static class MqttWire
         WriteBytes(writer, bytes);
     }
 
+    /// <summary>Writes a length-prefixed binary field.</summary>
     public static void WriteBinary(IBufferWriter<byte> writer, ReadOnlySpan<byte> value)
     {
         if (value.Length > MqttLimits.MaxFieldLength)

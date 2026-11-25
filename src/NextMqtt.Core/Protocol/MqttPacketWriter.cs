@@ -88,6 +88,7 @@ public static class MqttPacketWriter
         MqttWire.WriteBytes(writer, body.WrittenSpan);
     }
 
+    /// <summary>Writes the protocol name, connect flags and CONNECT properties.</summary>
     private static void WriteConnect(IBufferWriter<byte> body, ConnectPacket packet)
     {
         MqttWire.WriteString(body, "MQTT");
@@ -160,6 +161,7 @@ public static class MqttPacketWriter
         }
     }
 
+    /// <summary>Writes CONNACK, omitting the 5.0 fields for 3.1.1 peers.</summary>
     private static void WriteConnAck(IBufferWriter<byte> body, ConnAckPacket packet, MqttProtocolVersion version)
     {
         MqttWire.WriteByte(body, packet.SessionPresent ? (byte)0x01 : (byte)0x00);
@@ -176,6 +178,7 @@ public static class MqttPacketWriter
         }
     }
 
+    /// <summary>Writes PUBLISH, including the packet identifier only above QoS 0.</summary>
     private static void WritePublish(IBufferWriter<byte> body, PublishPacket packet, MqttProtocolVersion version)
     {
         if (packet.QoS != MqttQoS.AtMostOnce && packet.PacketId == 0)
@@ -208,6 +211,7 @@ public static class MqttPacketWriter
         MqttWire.WriteBytes(body, packet.Payload);
     }
 
+    /// <summary>Writes PUBACK, PUBREC, PUBREL or PUBCOMP with an optional reason code.</summary>
     private static void WriteAck(IBufferWriter<byte> body, MqttAcknowledgementPacket packet, MqttProtocolVersion version)
     {
         if (packet.PacketId == 0)
@@ -238,6 +242,7 @@ public static class MqttPacketWriter
         MqttProperties.Write(body, packet.Properties);
     }
 
+    /// <summary>Writes SUBSCRIBE with one options byte per filter.</summary>
     private static void WriteSubscribe(IBufferWriter<byte> body, SubscribePacket packet, MqttProtocolVersion version)
     {
         if (packet.PacketId == 0)
@@ -269,6 +274,7 @@ public static class MqttPacketWriter
         }
     }
 
+    /// <summary>Writes SUBACK with one reason code per filter.</summary>
     private static void WriteSubAck(IBufferWriter<byte> body, SubAckPacket packet, MqttProtocolVersion version)
     {
         if (packet.PacketId == 0 || packet.ReasonCodes.Count == 0)
@@ -290,6 +296,7 @@ public static class MqttPacketWriter
         }
     }
 
+    /// <summary>Writes UNSUBSCRIBE filters.</summary>
     private static void WriteUnsubscribe(IBufferWriter<byte> body, UnsubscribePacket packet, MqttProtocolVersion version)
     {
         if (packet.PacketId == 0 || packet.Filters.Count == 0)
@@ -315,6 +322,7 @@ public static class MqttPacketWriter
         }
     }
 
+    /// <summary>Writes UNSUBACK, collapsing to a bare packet for 3.1.1.</summary>
     private static void WriteUnsubAck(IBufferWriter<byte> body, UnsubAckPacket packet, MqttProtocolVersion version)
     {
         if (packet.PacketId == 0)
@@ -342,6 +350,7 @@ public static class MqttPacketWriter
         }
     }
 
+    /// <summary>Writes DISCONNECT, adding a reason code only for 5.0 peers.</summary>
     private static void WriteDisconnect(IBufferWriter<byte> body, DisconnectPacket packet, MqttProtocolVersion version)
     {
         if (version == MqttProtocolVersion.V311)

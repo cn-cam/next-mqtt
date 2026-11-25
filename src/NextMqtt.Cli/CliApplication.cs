@@ -62,12 +62,19 @@ internal sealed record CliClientOptions
 /// <remarks>同步用法、单连接、够用即可；不做重连、会话恢复与集群发现。</remarks>
 internal sealed class MqttCliClient : IAsyncDisposable
 {
+    /// <summary>Socket kept so disposal can close it after the stream.</summary>
     private readonly TcpClient _tcp;
+    /// <summary>Network or TLS stream carrying MQTT frames.</summary>
     private readonly Stream _stream;
+    /// <summary>Frame reader over the stream.</summary>
     private readonly MqttPacketReader _reader;
+    /// <summary>Serialises writes so two packets never interleave.</summary>
     private readonly SemaphoreSlim _writeGate = new(1, 1);
+    /// <summary>Packets read while waiting for a specific type.</summary>
     private readonly Queue<MqttPacket> _pending = new();
+    /// <summary>Protocol level chosen at connect time.</summary>
     private readonly MqttProtocolVersion _version;
+    /// <summary>Last packet identifier used; the next one wraps from 65535 to 1.</summary>
     private ushort _nextPacketId;
 
     /// <summary>Creates a client around an established stream.</summary>

@@ -8,7 +8,9 @@ namespace NextMqtt.Core.Topics;
 /// <remarks>Instances are not thread-safe; callers provide synchronization.</remarks>
 public sealed class TopicTrie<TValue>
 {
+    /// <summary>Root of the level tree; never null, even when empty.</summary>
     private readonly Node _root = new();
+    /// <summary>Equality used when removing one specific value.</summary>
     private readonly EqualityComparer<TValue> _comparer = EqualityComparer<TValue>.Default;
 
     /// <summary>Number of values currently stored in the tree.</summary>
@@ -88,8 +90,7 @@ public sealed class TopicTrie<TValue>
     }
 
     /// <summary>Drops every stored value and the nodes that held them.</summary>
-    /// <remarks>保留根节点，计数归零；用于关闭或测试。</remarks>
-    /// <remarks>根节点保留，计数归零。</remarks>
+    /// <remarks>根节点保留，计数归零；用于关闭或测试。</remarks>
     public void Clear()
     {
         _root.Children = null;
@@ -97,9 +98,8 @@ public sealed class TopicTrie<TValue>
         Count = 0;
     }
 
-    /// <summary>Walks topic levels, collecting exact, '+' and '#' matches.</summary>
-    /// <remarks>根层跳过 `$` 系统主题，这是协议要求而不是优化。</remarks>
-    // 根层不匹配 $ 开头的系统主题，符合 MQTT 5 规范 4.7.2。
+    /// <summary>Walks topic levels, collecting exact, plus and hash matches.</summary>
+    /// <remarks>根层跳过 `$` 系统主题，这是规范 4.7.2 的要求而不是优化。</remarks>
     private static void MatchNode(Node node, string[] levels, int index, List<TValue> results, bool isRoot, bool topicIsDollar)
     {
         if (index == levels.Length)
@@ -130,9 +130,8 @@ public sealed class TopicTrie<TValue>
         }
     }
 
-    /// <summary>Walks filter levels, expanding '+' and '#' across the tree.</summary>
+    /// <summary>Walks a filter's levels, expanding wildcards across the tree.</summary>
     /// <remarks>保留消息反查用：过滤器含通配符时展开所有候选节点。</remarks>
-    // 用于保留消息的反向查找：过滤器含通配符时展开所有候选节点。
     private static void SearchNode(Node node, string[] levels, int index, List<TValue> results, bool isRoot)
     {
         if (index == levels.Length)
@@ -192,6 +191,7 @@ public sealed class TopicTrie<TValue>
         }
     }
 
+    /// <summary>Adds this node's values and everything below it.</summary>
     private static void CollectIncludingSelf(Node node, List<TValue> results)
     {
         AddValues(node, results);
@@ -207,6 +207,7 @@ public sealed class TopicTrie<TValue>
         }
     }
 
+    /// <summary>Adds this node's values and everything below it, used for snapshots.</summary>
     private static void Collect(Node node, List<TValue> results)
     {
         AddValues(node, results);
@@ -222,6 +223,7 @@ public sealed class TopicTrie<TValue>
         }
     }
 
+    /// <summary>Copies the node's own values into the result list.</summary>
     private static void AddValues(Node node, List<TValue> results)
     {
         if (node.Values is { Count: > 0 })
@@ -230,6 +232,7 @@ public sealed class TopicTrie<TValue>
         }
     }
 
+    /// <summary>Removes one value along the level path and prunes empty branches.</summary>
     private bool Remove(Node node, string[] levels, int index, TValue value)
     {
         if (index == levels.Length)

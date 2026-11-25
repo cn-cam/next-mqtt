@@ -10,7 +10,9 @@ namespace NextMqtt.Core.Protocol;
 /// <remarks>每次只取一个报文，剩余数据留在管道里；超过长度上限直接抛协议异常，不做截断。</remarks>
 public sealed class MqttPacketReader
 {
+    /// <summary>Source of the frames; the connection owns its lifetime.</summary>
     private readonly PipeReader _reader;
+    /// <summary>A frame above this size is rejected before any buffer is allocated.</summary>
     private readonly int _maxPacketSize;
 
     /// <summary>Wraps a pipe and enforces the maximum frame size.</summary>
@@ -136,6 +138,7 @@ public sealed class MqttPacketReader
         }
     }
 
+    /// <summary>Marks everything consumed and asks the pipe for more data.</summary>
     private void AdvanceForMoreData(ReadOnlySequence<byte> buffer)
         => _reader.AdvanceTo(buffer.Start, buffer.End);
 }
