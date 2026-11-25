@@ -93,3 +93,25 @@ exclusions for prose, comments or tests.
   security.
 - No force-push to `main`; use pull requests.
 - Keep the commit history readable; squash fixup commits before merge.
+
+## C# documentation backlog
+
+GenerateDocumentationFile is enabled for the shipping projects, so the
+compiler reports every public member that has no XML documentation (CS1591).
+Test projects opt out. Comments are required for private members too, but that
+is reviewed by hand; see .opencode/skill/csharp-documentation/SKILL.md.
+
+Current backlog (2026-11-25, `dotnet build -t:Rebuild` and count CS1591):
+
+| Project | Undocumented public members |
+| --- | --- |
+| `NextMqtt.Broker` | 802 |
+| `NextMqtt.Core` | 388 |
+| `NextMqtt.Server` | 176 |
+| `NextMqtt.Cli` | 22 |
+
+Work through them one namespace at a time, from the inside out: `Core` first,
+then `Broker`, then `Server`, then `Cli`. Do not paste signature
+restatements; say what the member guarantees, its units, its locking and its
+failure modes. When the count reaches zero, add `CS1591` to
+`WarningsAsErrors` so the backlog cannot grow again.

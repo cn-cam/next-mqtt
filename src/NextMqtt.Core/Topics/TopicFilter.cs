@@ -6,6 +6,13 @@ namespace NextMqtt.Core.Topics;
 /// <summary>Validation helpers for MQTT topic names and filters.</summary>
 public static class MqttTopic
 {
+    /// <summary>
+    /// Validates a topic name (no wildcards) and reports why it is rejected.
+    /// </summary>
+    /// <remarks>主题名不得包含通配符或 U+0000，且不超过 65535 个 UTF-8 字节。</remarks>
+    /// <param name="topic">Topic name as published by the client.</param>
+    /// <param name="error">Human-readable reason when validation fails.</param>
+    /// <returns><c>true</c> when the name is a legal MQTT topic name.</returns>
     public static bool IsValidTopicName(string topic, [NotNullWhen(false)] out string? error)
     {
         if (string.IsNullOrEmpty(topic))
@@ -36,6 +43,13 @@ public static class MqttTopic
         return true;
     }
 
+    /// <summary>
+    /// Validates a topic filter, including wildcard placement rules.
+    /// </summary>
+    /// <remarks>通配符必须独占整层：<c>#</c> 只能是最后一层。</remarks>
+    /// <param name="filter">Filter as supplied by the client.</param>
+    /// <param name="error">Human-readable reason when validation fails.</param>
+    /// <returns><c>true</c> when the filter is legal.</returns>
     public static bool IsValidFilter(string filter, [NotNullWhen(false)] out string? error)
     {
         if (string.IsNullOrEmpty(filter))
@@ -88,6 +102,10 @@ public static class MqttTopic
         return true;
     }
 
+    /// <summary>Splits a topic or filter into levels on '/'.</summary>
+    /// <remarks>保留空层，<c>a//b</c> 合法且与订阅匹配语义一致。</remarks>
+    /// <param name="value">Topic name or filter.</param>
+    /// <returns>Levels in order; empty entries represent empty levels.</returns>
     public static string[] SplitLevels(string value) => value.Split('/');
 }
 
@@ -98,6 +116,11 @@ public sealed class TopicFilter
 {
     private const string SharedPrefix = "$share/";
 
+    /// <summary>Creates a filter from already-validated parts.</summary>
+    /// <param name="original">Text supplied by the client.</param>
+    /// <param name="filter">Effective filter without the shared prefix.</param>
+    /// <param name="sharedGroup">Group name for shared subscriptions.</param>
+    /// <param name="levels">Split levels of the effective filter.</param>
     private TopicFilter(string original, string filter, string? sharedGroup, string[] levels)
     {
         Original = original;
@@ -115,10 +138,17 @@ public sealed class TopicFilter
     /// <summary>Shared subscription group, or null for a normal subscription.</summary>
     public string? SharedGroup { get; }
 
+    /// <summary>True when the filter belongs to a shared subscription group.</summary>
+    /// <remarks>共享订阅按组内轮询投递，组信息由 <see cref="SharedGroup"/> 提供。</remarks>
     public bool IsShared => SharedGroup is not null;
 
+    /// <summary>Levels of the effective filter, without the shared prefix.</summary>
     public string[] Levels { get; }
 
+    /// <summary>Parses a filter, throwing when it is invalid.</summary>
+    /// <remarks>解析失败时抛出 <see cref="ArgumentException"/>，消息包含具体原因。</remarks>
+    /// <param name="value">Filter text, optionally starting with <c>$share/{group}/</c>.</param>
+    /// <returns>The parsed filter.</returns>
     public static TopicFilter Parse(string value)
     {
         if (!TryParse(value, out var filter, out var error))
@@ -129,6 +159,14 @@ public sealed class TopicFilter
         return filter;
     }
 
+    /// <summary>
+    /// Parses a filter and strips an optional shared-subscription prefix.
+    /// </summary>
+    /// <remarks><c>$share/group/topic/#</c> 会被拆成 SharedGroup 与真实过滤器。</remarks>
+    /// <param name="value">Filter text.</param>
+    /// <param name="filter">Parsed filter when valid.</param>
+    /// <param name="error">Reason when the filter is invalid.</param>
+    /// <returns><c>true</c> when parsing succeeded.</returns>
     public static bool TryParse(string value, [NotNullWhen(true)] out TopicFilter? filter, [NotNullWhen(false)] out string? error)
     {
         filter = null;
@@ -218,5 +256,6 @@ public sealed class TopicFilter
         return index == topicLevels.Length;
     }
 
+    /// <summary>Returns the original filter text supplied by the client.</summary>
     public override string ToString() => Original;
 }
