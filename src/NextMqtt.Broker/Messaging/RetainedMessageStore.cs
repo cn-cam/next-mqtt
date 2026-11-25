@@ -64,6 +64,15 @@ public sealed class RetainedMessageStore
     /// <summary>Optional durable journal; null keeps the store in memory.</summary>
     private readonly IRetainedJournal? _journal;
 
+    /// <summary>
+    /// Deletion timestamps used to reject late replicas that would resurrect a
+    /// removed message. Bounded by <see cref="TombstoneTtl"/>.
+    /// </summary>
+    private readonly Dictionary<string, DateTimeOffset> _tombstones = new(StringComparer.Ordinal);
+
+    /// <summary>How long a deletion blocks older writes for the same topic.</summary>
+    private static readonly TimeSpan TombstoneTtl = TimeSpan.FromHours(24);
+
     /// <summary>Creates the store and replays the journal when one is supplied.</summary>
     /// <param name="journal">Durable journal, or null for a memory-only store.</param>
     public RetainedMessageStore(IRetainedJournal? journal = null)
@@ -100,7 +109,7 @@ public sealed class RetainedMessageStore
     {
         if (publish.Payload.Length == 0)
         {
-            Remove(publish.Topic);
+            Remove(publish.Topic, now);
             return;
         }
 
@@ -113,24 +122,50 @@ public sealed class RetainedMessageStore
     {
         lock (_gate)
         {
+            if (_tombstones.TryGetValue(message.Topic, out var deletedAt) && deletedAt >= message.StoredAt)
+            {
+                return;
+            }
+
+            var existing = FindExact(message.Topic);
+            if (existing is not null && existing.StoredAt > message.StoredAt)
+            {
+                return;
+            }
+
             RemoveCore(message.Topic);
             _trie.Add(message.Topic, message);
             _journal?.AppendSet(message);
+            _tombstones.Remove(message.Topic);
         }
     }
 
     /// <summary>Removes the retained message for one topic.</summary>
     /// <param name="topic">Exact topic name.</param>
     /// <returns><c>true</c> when a message was removed.</returns>
-    public bool Remove(string topic)
+    public bool Remove(string topic) => Remove(topic, DateTimeOffset.UtcNow);
+
+    /// <summary>Removes a retained message stamped with the writer's clock.</summary>
+    /// <remarks>比删除更旧的副本会被拒绝，避免离线节点把已删除的消息带回来。</remarks>
+    /// <param name="topic">Exact topic name.</param>
+    /// <param name="at">When the delete happened.</param>
+    public bool Remove(string topic, DateTimeOffset at)
     {
         lock (_gate)
         {
+            var existing = FindExact(topic);
+
+            if (existing is not null && existing.StoredAt > at)
+            {
+                return false;
+            }
+
             var removed = RemoveCore(topic);
+            _tombstones[topic] = at;
 
             if (removed)
             {
-                _journal?.AppendRemove(topic);
+                _journal?.AppendRemove(topic, at);
             }
 
             return removed;
@@ -173,6 +208,12 @@ public sealed class RetainedMessageStore
                 RemoveCore(message.Topic);
             }
 
+            var cutoff = now - TombstoneTtl;
+            foreach (var topic in _tombstones.Where(pair => pair.Value <= cutoff).Select(pair => pair.Key).ToList())
+            {
+                _tombstones.Remove(topic);
+            }
+
             return expired.Count;
         }
     }
@@ -197,6 +238,14 @@ public sealed class RetainedMessageStore
     /// <summary>Deletes the trie entry for a topic; caller holds the lock.</summary>
     /// <param name="topic">Exact topic name.</param>
     /// <returns><c>true</c> when an entry was deleted.</returns>
+    /// <summary>Finds the entry stored exactly under a topic.</summary>
+    /// <param name="topic">Exact topic name.</param>
+    private RetainedMessage? FindExact(string topic)
+        => _trie.Search(topic).FirstOrDefault(message =>
+            string.Equals(message.Topic, topic, StringComparison.Ordinal));
+
+    /// <summary>Deletes the trie entry for a topic; caller holds the lock.</summary>
+    /// <param name="topic">Exact topic name.</param>
     private bool RemoveCore(string topic)
     {
         var removed = false;

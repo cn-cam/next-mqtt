@@ -261,7 +261,8 @@ public sealed class MqttBroker : IAsyncDisposable
         PublishPacket publish,
         string? sourceClientId,
         CancellationToken cancellationToken = default,
-        bool forwardToCluster = true)
+        bool forwardToCluster = true,
+        bool applyRetained = true)
     {
         if (!MqttTopic.IsValidTopicName(publish.Topic, out _))
         {
@@ -283,7 +284,7 @@ public sealed class MqttBroker : IAsyncDisposable
             return;
         }
 
-        if (publish.Retain)
+        if (publish.Retain && applyRetained)
         {
             Retained.Publish(publish, DateTimeOffset.UtcNow);
         }
@@ -307,6 +308,25 @@ public sealed class MqttBroker : IAsyncDisposable
     /// <summary>Entry point used by the cluster transport for remote publishes.</summary>
     public ValueTask RouteFromClusterAsync(PublishPacket publish, CancellationToken cancellationToken = default)
         => RouteAsync(publish, sourceClientId: null, cancellationToken, forwardToCluster: false);
+
+    /// <summary>Applies a retained write forwarded by a peer using the origin timestamp.</summary>
+    /// <remarks>用发起节点的时间做 last-write-wins，避免各节点本地时钟导致的顺序不一致。</remarks>
+    /// <param name="publish">Retained publish forwarded by a peer.</param>
+    /// <param name="retainedAt">When the origin node accepted the message.</param>
+    /// <param name="cancellationToken">Cancels routing.</param>
+    public ValueTask RouteFromClusterRetainedAsync(
+        PublishPacket publish,
+        DateTimeOffset retainedAt,
+        CancellationToken cancellationToken = default)
+    {
+        Retained.Publish(publish, retainedAt);
+        return RouteAsync(
+            publish,
+            sourceClientId: null,
+            cancellationToken,
+            forwardToCluster: false,
+            applyRetained: false);
+    }
 
     /// <summary>Delivers a message forwarded specifically for one shared group.</summary>
     /// <remarks>只有被选中的节点会收到这条消息，因此这里不再做所有权判断，也不再转发。</remarks>

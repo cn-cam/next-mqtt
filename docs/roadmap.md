@@ -35,7 +35,7 @@ security needs.
 - [ ] Response-topic request/response helpers
 - [ ] MQTT over QUIC experiment
 - [ ] Global shared-subscription coordination across nodes
-- [ ] Cluster-aware retained tombstones and conflict resolution
+- [x] Cluster-aware retained tombstones and last-write-wins conflict resolution (0.7.0)
 - [ ] Subscription identifier limits per client
 
 ## 0.4 — Integrations

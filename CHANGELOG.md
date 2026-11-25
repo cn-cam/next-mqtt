@@ -17,6 +17,8 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 - Cluster-wide shared subscriptions: shared groups are advertised in heartbeats and
   each message is assigned to exactly one node that hosts the group, so members on
   different nodes no longer receive duplicate copies.
+- Retained messages use the origin timestamp for last-write-wins merging, and
+  deletions leave a tombstone so an older replica cannot resurrect a removed value.
 
 ## [0.6.2] - 2026-11-25
 

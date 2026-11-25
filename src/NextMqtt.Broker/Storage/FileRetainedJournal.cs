@@ -23,6 +23,11 @@ public interface IRetainedJournal
     /// <param name="topic">Topic whose entry was removed.</param>
     void AppendRemove(string topic);
 
+    /// <summary>Journals a deletion stamped with the writer's clock.</summary>
+    /// <param name="topic">Topic that was deleted.</param>
+    /// <param name="at">When the delete happened.</param>
+    void AppendRemove(string topic, DateTimeOffset at);
+
     /// <summary>Rewrites the journal so it only contains <paramref name="messages"/>.</summary>
     void Compact(IReadOnlyList<RetainedMessage> messages);
 }
@@ -138,9 +143,13 @@ public sealed class FileRetainedJournal : IRetainedJournal, IDisposable
     /// <summary>Appends a remove operation.</summary>
     /// <param name="topic">Topic to delete on replay.</param>
     public void AppendRemove(string topic)
-    {
-        Append(new RetainedRecord { Op = RetainedRecord.RemoveOperation, Topic = topic });
-    }
+        => AppendRemove(topic, DateTimeOffset.UtcNow);
+
+    /// <summary>Appends a remove operation carrying its timestamp.</summary>
+    /// <param name="topic">Topic to delete on replay.</param>
+    /// <param name="at">When the delete happened.</param>
+    public void AppendRemove(string topic, DateTimeOffset at)
+        => Append(new RetainedRecord { Op = RetainedRecord.RemoveOperation, Topic = topic, At = at });
 
     /// <summary>Rewrites the journal so it only contains the given messages.</summary>
     /// <param name="messages">Live set to persist.</param>
@@ -288,6 +297,8 @@ public sealed class FileRetainedJournal : IRetainedJournal, IDisposable
         public int QoS { get; set; }
 
         public DateTimeOffset StoredAt { get; set; }
+
+        public DateTimeOffset? At { get; set; }
 
         public DateTimeOffset? ExpiresAt { get; set; }
 

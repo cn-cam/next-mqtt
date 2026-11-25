@@ -73,7 +73,7 @@ Legend: ✅ implemented · ⚠️ partial or with documented limits · ❌ not i
 | Gossip membership | ✅ | Heartbeats, seed discovery, suspect/dead states |
 | Signed node transport | ✅ | HMAC-SHA256, five-minute timestamp window |
 | Cross-node routing | ✅ | Forward only to nodes advertising a matching filter |
-| Retained replication | ✅ | Best effort to live peers |
+| Retained replication | ✅ | Origin timestamp, last-write-wins, deletion tombstones |
 | Message deduplication | ✅ | Bounded seen-message cache |
 | Loop prevention | ✅ | Remote publishes are not re-forwarded |
 | Global shared subscriptions | ✅ | One node per shared group is chosen per message |
@@ -140,7 +140,7 @@ roadmap and needs its own ADR first (see
 
 ## Known limitations
 
-- State is in memory; restarts drop sessions, queues and retained messages.
+- Sessions, queues and subscriptions are in memory; retained messages can be journaled.
 - Cluster forwarding is best effort; shared subscriptions are coordinated across nodes.
 - Enhanced authentication, outbound topic aliases, durable sessions and bridges
   are not in this release.

@@ -209,7 +209,9 @@ public sealed class ClusterRouter : IClusterRouter
             (int)publish.QoS,
             publish.Retain,
             publish.Duplicate,
-            publish.Properties.Items.Select(EncodeProperty).ToArray());
+            publish.Properties.Items.Select(EncodeProperty).ToArray(),
+            null,
+            publish.Retain ? DateTimeOffset.UtcNow.ToUnixTimeSeconds() : null);
 
         var sends = normalTargets
             .Select(member => SendPublishAsync(member, message, cancellationToken))
@@ -348,6 +350,13 @@ public sealed class ClusterRouter : IClusterRouter
         {
             await _broker.RouteSharedFromClusterAsync(publish, message.SharedGroup!, cancellationToken)
                 .ConfigureAwait(false);
+        }
+        else if (message.RetainedAtUnix is { } retainedUnix && publish.Retain)
+        {
+            await _broker.RouteFromClusterRetainedAsync(
+                publish,
+                DateTimeOffset.FromUnixTimeSeconds(retainedUnix),
+                cancellationToken).ConfigureAwait(false);
         }
         else
         {
