@@ -76,7 +76,7 @@ Legend: ✅ implemented · ⚠️ partial or with documented limits · ❌ not i
 | Retained replication | ✅ | Best effort to live peers |
 | Message deduplication | ✅ | Bounded seen-message cache |
 | Loop prevention | ✅ | Remote publishes are not re-forwarded |
-| Global shared subscriptions | ❌ | Groups are evaluated per node |
+| Global shared subscriptions | ✅ | One node per shared group is chosen per message |
 | Cross-node QoS guarantee | ❌ | Forwarding is best-effort HTTP |
 | Cluster secret rotation without restart | ❌ | Single shared secret per deployment |
 | Large filter-set routing | ⚠️ | Full filter snapshot per heartbeat, capped at 10,000 |
@@ -141,7 +141,7 @@ roadmap and needs its own ADR first (see
 ## Known limitations
 
 - State is in memory; restarts drop sessions, queues and retained messages.
-- Cluster forwarding is best effort and shared subscriptions are node-local.
+- Cluster forwarding is best effort; shared subscriptions are coordinated across nodes.
 - Enhanced authentication, outbound topic aliases, durable sessions and bridges
   are not in this release.
 - Extending behaviour means changing source; there is no plugin host yet.
