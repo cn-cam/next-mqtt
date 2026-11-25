@@ -5,22 +5,36 @@ using NextMqtt.Core.Topics;
 namespace NextMqtt.Broker.Messaging;
 
 /// <summary>A message retained for future subscribers.</summary>
+/// <remarks>保留消息不随订阅者存在；空负载表示删除该主题的保留值。</remarks>
 public sealed class RetainedMessage
 {
+    /// <summary>Topic the message is stored under.</summary>
     public required string Topic { get; init; }
 
+    /// <summary>Payload bytes; never empty for a stored message.</summary>
     public required byte[] Payload { get; init; }
 
+    /// <summary>QoS stored with the message and used for delivery.</summary>
     public MqttQoS QoS { get; init; }
 
+    /// <summary>MQTT 5 properties that survive storage (expiry is tracked separately).</summary>
     public MqttProperties Properties { get; init; } = new();
 
+    /// <summary>When the message was retained.</summary>
     public DateTimeOffset StoredAt { get; init; } = DateTimeOffset.UtcNow;
 
+    /// <summary>Absolute expiry derived from the publish, or null when it never expires.</summary>
     public DateTimeOffset? ExpiresAt { get; init; }
 
+    /// <summary>True when the stored message is past its expiry.</summary>
+    /// <param name="now">Reference time.</param>
     public bool IsExpired(DateTimeOffset now) => ExpiresAt is { } expiry && expiry <= now;
 
+    /// <summary>Builds the retained form of an incoming PUBLISH.</summary>
+    /// <remarks>把相对的消息过期间隔换算为绝对时间，便于重启后判断。</remarks>
+    /// <param name="publish">Retained publish received from a client.</param>
+    /// <param name="now">Time the publish was accepted.</param>
+    /// <returns>Message ready for the store.</returns>
     public static RetainedMessage FromPublish(PublishPacket publish, DateTimeOffset now)
     {
         var expirySeconds = publish.Properties.GetUInt32(MqttPropertyId.MessageExpiryInterval);
@@ -38,12 +52,20 @@ public sealed class RetainedMessage
 }
 
 /// <summary>Thread-safe retained message index with wildcard retrieval.</summary>
+/// <remarks>可选挂载 <see cref="IRetainedJournal"/>，写操作同时落盘；读路径只锁内存。</remarks>
 public sealed class RetainedMessageStore
 {
+    /// <summary>Prefix tree keyed by topic levels; guarded by <see cref="_gate"/>.</summary>
     private readonly TopicTrie<RetainedMessage> _trie = new();
+
+    /// <summary>Serializes mutations and snapshot reads.</summary>
     private readonly object _gate = new();
+
+    /// <summary>Optional durable journal; null keeps the store in memory.</summary>
     private readonly IRetainedJournal? _journal;
 
+    /// <summary>Creates the store and replays the journal when one is supplied.</summary>
+    /// <param name="journal">Durable journal, or null for a memory-only store.</param>
     public RetainedMessageStore(IRetainedJournal? journal = null)
     {
         _journal = journal;
@@ -59,6 +81,7 @@ public sealed class RetainedMessageStore
         }
     }
 
+    /// <summary>Number of stored messages, including expired ones not yet pruned.</summary>
     public int Count
     {
         get
@@ -71,6 +94,8 @@ public sealed class RetainedMessageStore
     }
 
     /// <summary>Stores a retained message. An empty payload removes the entry.</summary>
+    /// <param name="publish">Publish received with the retain flag set.</param>
+    /// <param name="now">Time used for expiry calculation.</param>
     public void Publish(PublishPacket publish, DateTimeOffset now)
     {
         if (publish.Payload.Length == 0)
@@ -82,6 +107,8 @@ public sealed class RetainedMessageStore
         Set(RetainedMessage.FromPublish(publish, now));
     }
 
+    /// <summary>Stores or replaces a retained message.</summary>
+    /// <param name="message">Message to store; same-topic entries are replaced.</param>
     public void Set(RetainedMessage message)
     {
         lock (_gate)
@@ -92,6 +119,9 @@ public sealed class RetainedMessageStore
         }
     }
 
+    /// <summary>Removes the retained message for one topic.</summary>
+    /// <param name="topic">Exact topic name.</param>
+    /// <returns><c>true</c> when a message was removed.</returns>
     public bool Remove(string topic)
     {
         lock (_gate)
@@ -107,6 +137,9 @@ public sealed class RetainedMessageStore
         }
     }
 
+    /// <summary>Returns non-expired messages whose topic matches a filter.</summary>
+    /// <param name="filter">Subscription filter, wildcards allowed.</param>
+    /// <param name="now">Time used to skip expired entries.</param>
     public List<RetainedMessage> Match(string filter, DateTimeOffset now)
     {
         lock (_gate)
@@ -117,6 +150,7 @@ public sealed class RetainedMessageStore
         }
     }
 
+    /// <summary>Copies every stored message, including expired ones.</summary>
     public List<RetainedMessage> Snapshot()
     {
         lock (_gate)
@@ -125,6 +159,9 @@ public sealed class RetainedMessageStore
         }
     }
 
+    /// <summary>Removes expired messages during the maintenance sweep.</summary>
+    /// <param name="now">Reference time.</param>
+    /// <returns>Number of messages removed.</returns>
     public int PruneExpired(DateTimeOffset now)
     {
         lock (_gate)
@@ -140,6 +177,7 @@ public sealed class RetainedMessageStore
         }
     }
 
+    /// <summary>Removes every retained message and journals the removals.</summary>
     public void Clear()
     {
         lock (_gate)
@@ -156,6 +194,9 @@ public sealed class RetainedMessageStore
         }
     }
 
+    /// <summary>Deletes the trie entry for a topic; caller holds the lock.</summary>
+    /// <param name="topic">Exact topic name.</param>
+    /// <returns><c>true</c> when an entry was deleted.</returns>
     private bool RemoveCore(string topic)
     {
         var removed = false;
