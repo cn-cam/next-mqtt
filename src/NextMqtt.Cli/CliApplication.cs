@@ -2,24 +2,59 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net.Security;
 using System.Net.Sockets;
+using System.Reflection;
 using System.Security.Authentication;
 using System.Text;
 using NextMqtt.Core.Protocol;
 
 namespace NextMqtt.Cli;
 
+/// <summary>Connection settings shared by every CLI command.</summary>
+/// <remarks>只保存命令行解析后的结果；真正的连接、超时与 TLS 握手在 <see cref="MqttCliClient"/> 里完成。</remarks>
 internal sealed record CliClientOptions
 {
+    /// <summary>Broker host name or address.</summary>
+    /// <remarks>容器或远端场景要显式给值；不写就是 localhost。</remarks>
     public string Host { get; init; } = "localhost";
+
+    /// <summary>Broker port; 1883 plain, 8883 with TLS unless overridden.</summary>
+    /// <remarks>显式 --port 优先于 TLS 的默认端口。</remarks>
     public int Port { get; init; } = 1883;
+
+    /// <summary>True to wrap the connection in TLS.</summary>
+    /// <remarks>只改传输层，MQTT 报文内容不变。</remarks>
     public bool UseTls { get; init; }
+
+    /// <summary>True to skip certificate validation; testing only.</summary>
+    /// <remarks>为自签证书准备的开关，生产环境不要用。</remarks>
     public bool Insecure { get; init; }
+
+    /// <summary>Client identifier, or null to generate one per run.</summary>
+    /// <remarks>留空时每次运行都是新客户端，不会续上之前的会话。</remarks>
     public string? ClientId { get; init; }
+
+    /// <summary>Username sent in CONNECT.</summary>
+    /// <remarks>为空时不发用户名，是否允许匿名由服务端决定。</remarks>
     public string? Username { get; init; }
+
+    /// <summary>Password sent in CONNECT; UTF-8 encoded.</summary>
+    /// <remarks>空字符串等同于不发送密码。</remarks>
     public string? Password { get; init; }
+
+    /// <summary>Protocol level requested in CONNECT.</summary>
+    /// <remarks>3.1.1 不会写 MQTT 5 属性；request 命令要求 5.0。</remarks>
     public MqttProtocolVersion Version { get; init; } = MqttProtocolVersion.V500;
+
+    /// <summary>Clean start flag; false resumes an existing session.</summary>
+    /// <remarks>--resume 会把它置为 false，前提是服务端还留着同名会话。</remarks>
     public bool CleanStart { get; init; } = true;
+
+    /// <summary>MQTT 5 session expiry in seconds; 0 ends the session with the connection.</summary>
+    /// <remarks>只有 5.0 才会写进 CONNECT 属性。</remarks>
     public uint SessionExpirySeconds { get; init; }
+
+    /// <summary>Keep-alive interval advertised in CONNECT.</summary>
+    /// <remarks>固定 60 秒；长跑订阅脚本可按服务端超时调整。</remarks>
     public ushort KeepAliveSeconds { get; init; } = 60;
 }
 
@@ -35,6 +70,11 @@ internal sealed class MqttCliClient : IAsyncDisposable
     private readonly MqttProtocolVersion _version;
     private ushort _nextPacketId;
 
+    /// <summary>Creates a client around an established stream.</summary>
+    /// <remarks>读路径直接复用流，写路径串行化；构造时不发送任何报文。</remarks>
+    /// <param name="tcp">Connected socket, kept for disposal and logging.</param>
+    /// <param name="stream">Network or TLS stream carrying MQTT.</param>
+    /// <param name="version">Protocol level used for encoding.</param>
     private MqttCliClient(TcpClient tcp, Stream stream, MqttProtocolVersion version)
     {
         _tcp = tcp;
@@ -43,8 +83,15 @@ internal sealed class MqttCliClient : IAsyncDisposable
         _reader = new MqttPacketReader(System.IO.Pipelines.PipeReader.Create(stream));
     }
 
+    /// <summary>CONNACK received during the handshake.</summary>
+    /// <remarks>只在连接成功后可用；reason code 非零的连接会直接抛出，不会返回实例。</remarks>
     public ConnAckPacket ConnAck { get; private set; } = new();
 
+    /// <summary>Opens a TCP or TLS connection and completes the MQTT handshake.</summary>
+    /// <remarks>15 秒总超时；生成客户端 ID，发送 CONNECT 并等待 CONNACK，非 0x00 视为失败。</remarks>
+    /// <param name="options">Host, credentials and session settings.</param>
+    /// <param name="cancellationToken">Cancels the handshake.</param>
+    /// <returns>A connected client that the caller must dispose.</returns>
     public static async Task<MqttCliClient> ConnectAsync(CliClientOptions options, CancellationToken cancellationToken)
     {
         var tcp = new TcpClient { NoDelay = true };
@@ -110,6 +157,10 @@ internal sealed class MqttCliClient : IAsyncDisposable
         return client;
     }
 
+    /// <summary>Encodes and writes one packet under the write lock.</summary>
+    /// <remarks>先完整编码到缓冲区再一次性写出，避免并发写入把两个报文交织在一起。</remarks>
+    /// <param name="packet">Packet to send.</param>
+    /// <param name="cancellationToken">Cancels the write.</param>
     public async Task SendAsync(MqttPacket packet, CancellationToken cancellationToken)
     {
         var buffer = new System.Buffers.ArrayBufferWriter<byte>(256);
@@ -128,6 +179,9 @@ internal sealed class MqttCliClient : IAsyncDisposable
         }
     }
 
+    /// <summary>Reads the next packet, taking buffered ones first.</summary>
+    /// <remarks>返回 null 表示 Broker 已关闭连接。</remarks>
+    /// <param name="cancellationToken">Cancels the read.</param>
     public async Task<MqttPacket?> ReadPacketAsync(CancellationToken cancellationToken)
     {
         if (_pending.Count > 0)
@@ -138,6 +192,11 @@ internal sealed class MqttCliClient : IAsyncDisposable
         return await _reader.ReadAsync(_version, cancellationToken);
     }
 
+    /// <summary>Reads until a packet of the requested type arrives.</summary>
+    /// <remarks>其他类型的报文放进待处理队列而不是丢弃，恢复会话时 PUBLISH 可能早于 SUBACK 到达。</remarks>
+    /// <typeparam name="T">Packet type to wait for.</typeparam>
+    /// <param name="cancellationToken">Cancels the wait.</param>
+    /// <returns>The first packet of type <typeparamref name="T"/>.</returns>
     public async Task<T> ReadUntilAsync<T>(CancellationToken cancellationToken)
         where T : MqttPacket
     {
@@ -158,6 +217,11 @@ internal sealed class MqttCliClient : IAsyncDisposable
         }
     }
 
+    /// <summary>Subscribes to every filter with one SUBSCRIBE and waits for SUBACK.</summary>
+    /// <remarks>任何一个过滤器被拒（原因码 ≥ 0x80）都按失败处理，便于脚本立刻发现权限问题。</remarks>
+    /// <param name="filters">Topic filters to subscribe to.</param>
+    /// <param name="qos">Requested QoS for all filters.</param>
+    /// <param name="cancellationToken">Cancels the exchange.</param>
     public async Task SubscribeAsync(IEnumerable<string> filters, MqttQoS qos, CancellationToken cancellationToken)
     {
         var packetId = NextPacketId();
@@ -179,6 +243,14 @@ internal sealed class MqttCliClient : IAsyncDisposable
         }
     }
 
+    /// <summary>Publishes and completes the QoS handshake for the requested level.</summary>
+    /// <remarks>QoS 0 不分配包标识；QoS 1 等 PUBACK，QoS 2 走完 PUBREC/PUBREL/PUBCOMP 才返回。</remarks>
+    /// <param name="topic">Destination topic.</param>
+    /// <param name="payload">Payload bytes.</param>
+    /// <param name="qos">Delivery guarantee.</param>
+    /// <param name="retain">Store the message as retained.</param>
+    /// <param name="cancellationToken">Cancels the exchange.</param>
+    /// <returns>The packet identifier used, or zero for QoS 0.</returns>
     public async Task<ushort> PublishAsync(
         string topic,
         ReadOnlyMemory<byte> payload,
@@ -222,6 +294,10 @@ internal sealed class MqttCliClient : IAsyncDisposable
         return packetId;
     }
 
+    /// <summary>Acknowledges an inbound PUBLISH according to its QoS.</summary>
+    /// <remarks>QoS 2 会等待 PUBREL 后再回 PUBCOMP；QoS 0 不需要任何回应。</remarks>
+    /// <param name="publish">Inbound message to acknowledge.</param>
+    /// <param name="cancellationToken">Cancels the handshake.</param>
     public async Task AcknowledgeAsync(PublishPacket publish, CancellationToken cancellationToken)
     {
         switch (publish.QoS)
@@ -237,6 +313,9 @@ internal sealed class MqttCliClient : IAsyncDisposable
         }
     }
 
+    /// <summary>Sends DISCONNECT on a best-effort basis.</summary>
+    /// <remarks>套接字已断开时静默忽略：这和正常退出没有区别。</remarks>
+    /// <param name="cancellationToken">Cancels the send.</param>
     public async Task DisconnectAsync(CancellationToken cancellationToken)
     {
         try
@@ -249,12 +328,16 @@ internal sealed class MqttCliClient : IAsyncDisposable
         }
     }
 
+    /// <summary>Returns the next packet identifier, skipping zero.</summary>
+    /// <remarks>到达 65535 后回到 1；单连接内不会复用仍在飞行中的标识。</remarks>
     private ushort NextPacketId()
     {
         _nextPacketId = _nextPacketId == ushort.MaxValue ? (ushort)1 : (ushort)(_nextPacketId + 1);
         return _nextPacketId;
     }
 
+    /// <summary>Waits for any in-flight write, then closes the stream and socket.</summary>
+    /// <remarks>先获取写锁再释放信号量，保证最后一条报文写完；重复释放安全。</remarks>
     public async ValueTask DisposeAsync()
     {
         await _writeGate.WaitAsync();
@@ -264,8 +347,14 @@ internal sealed class MqttCliClient : IAsyncDisposable
     }
 }
 
+/// <summary>Command dispatch and the per-command implementations.</summary>
+/// <remarks>参数用 <c>--name value</c> 或 <c>--name=value</c>；不认识的选项会被忽略而不是报错。</remarks>
 internal static class CliApplication
 {
+    /// <summary>Parses the command and runs it, mapping failures to exit codes.</summary>
+    /// <remarks>0 成功、1 运行失败、2 参数错误、130 被 Ctrl+C 中断，便于脚本判断。</remarks>
+    /// <param name="args">Raw command line arguments.</param>
+    /// <returns>Process exit code.</returns>
     public static async Task<int> RunAsync(string[] args)
     {
         if (args.Length == 0 || args[0] is "-h" or "--help" or "help")
@@ -299,12 +388,30 @@ internal static class CliApplication
         }
     }
 
+    /// <summary>Prints the version baked into the assembly.</summary>
+    /// <remarks>版本号由构建属性写入，不在源码里写死，避免和发布版本脱节。</remarks>
     private static int PrintVersion()
     {
-        Console.WriteLine("nextmqtt 0.1.2");
+        var assembly = typeof(CliApplication).Assembly;
+        var version = assembly
+            .GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>()?
+            .InformationalVersion
+            ?? assembly.GetName().Version?.ToString()
+            ?? "unknown";
+
+        var revision = version.IndexOf('+');
+        if (revision >= 0)
+        {
+            version = version[..revision];
+        }
+
+        Console.WriteLine($"nextmqtt {version}");
         return 0;
     }
 
+    /// <summary>Reports an unknown command and prints the help text.</summary>
+    /// <remarks>返回 2，和缺少参数保持一致。</remarks>
+    /// <param name="command">Command that was not recognised.</param>
     private static int Unknown(string command)
     {
         Console.Error.WriteLine($"error: unknown command '{command}'");
@@ -312,6 +419,10 @@ internal static class CliApplication
         return 2;
     }
 
+    /// <summary>Hashes a password with the broker's PBKDF2 format.</summary>
+    /// <remarks>密码可以来自 <c>--password</c> 或标准输入；输出一行，可直接写进配置或环境变量。</remarks>
+    /// <param name="args">Command arguments.</param>
+    /// <returns>Exit code.</returns>
     private static int HashPassword(string[] args)
     {
         var options = ParseOptions(args);
@@ -333,6 +444,10 @@ internal static class CliApplication
         return 0;
     }
 
+    /// <summary>Publishes one message from a literal, a file or standard input.</summary>
+    /// <remarks>三种载荷来源按 file、message、stdin 的优先级取第一个；都没有则发送空载荷。</remarks>
+    /// <param name="args">Command arguments.</param>
+    /// <returns>Exit code.</returns>
     private static async Task<int> PublishAsync(string[] args)
     {
         var options = ParseOptions(args);
@@ -455,6 +570,10 @@ internal static class CliApplication
         }
     }
 
+    /// <summary>Subscribes and prints messages until the count is reached or Ctrl+C.</summary>
+    /// <remarks>每次收到 PUBLISH 都按 QoS 回执；<c>--count</c> 为 0 表示一直运行。</remarks>
+    /// <param name="args">Command arguments.</param>
+    /// <returns>Exit code.</returns>
     private static async Task<int> SubscribeAsync(string[] args)
     {
         var options = ParseOptions(args);
@@ -516,6 +635,10 @@ internal static class CliApplication
         return 0;
     }
 
+    /// <summary>Opens many connections at once to measure handshake throughput.</summary>
+    /// <remarks>并发建连，统计成功数与每秒连接数，可再保持一段时间观察服务端连接数。</remarks>
+    /// <param name="args">Command arguments.</param>
+    /// <returns>0 全部成功，1 有失败。</returns>
     private static async Task<int> BenchmarkConnectionsAsync(string[] args)
     {
         var options = ParseOptions(args);
@@ -571,6 +694,10 @@ internal static class CliApplication
         return failures > 0 ? 1 : 0;
     }
 
+    /// <summary>Publishes a fixed payload many times from several clients.</summary>
+    /// <remarks>每个客户端发布到自己的一级子主题，避免订阅端成为瓶颈；吞吐按总消息数计算。</remarks>
+    /// <param name="args">Command arguments.</param>
+    /// <returns>0 全部完成，1 有客户端失败。</returns>
     private static async Task<int> BenchmarkAsync(string[] args)
     {
         var options = ParseOptions(args);
@@ -628,6 +755,9 @@ internal static class CliApplication
         return failures > 0 ? 1 : 0;
     }
 
+    /// <summary>Turns parsed options into connection settings.</summary>
+    /// <remarks><c>--tls</c> 时端口默认 8883；<c>--resume</c> 关闭 clean start。</remarks>
+    /// <param name="options">Parsed command-line options.</param>
     private static CliClientOptions BuildClientOptions(Dictionary<string, string?> options)
     {
         var tls = options.ContainsKey("tls");
@@ -652,6 +782,9 @@ internal static class CliApplication
         };
     }
 
+    /// <summary>Parses the protocol version, defaulting to MQTT 5.</summary>
+    /// <remarks>接受 5、5.0、v5 与 3、3.1.1、v3、v311；其他取值直接报错而不是回退。</remarks>
+    /// <param name="value">Raw option value.</param>
     private static MqttProtocolVersion ParseProtocol(string? value) => value switch
     {
         null or "" or "5" or "5.0" or "v5" => MqttProtocolVersion.V500,
@@ -659,6 +792,9 @@ internal static class CliApplication
         _ => throw new ArgumentException($"Unsupported protocol '{value}'. Use 5 or 3.1.1."),
     };
 
+    /// <summary>Parses the QoS level, defaulting to 0.</summary>
+    /// <remarks>只接受 0、1、2；其他取值报错，避免把笔误当成 QoS 0 静默发布。</remarks>
+    /// <param name="value">Raw option value.</param>
     private static MqttQoS ParseQos(string? value) => value switch
     {
         null or "" or "0" => MqttQoS.AtMostOnce,
@@ -667,6 +803,12 @@ internal static class CliApplication
         _ => throw new ArgumentException($"Invalid QoS '{value}'."),
     };
 
+    /// <summary>Parses an integer option and clamps it into the allowed range.</summary>
+    /// <remarks>缺省时返回 fallback；非数字直接报错，越界则静默夹到边界。</remarks>
+    /// <param name="value">Raw option value.</param>
+    /// <param name="fallback">Value to use when the option is absent.</param>
+    /// <param name="min">Inclusive lower bound.</param>
+    /// <param name="max">Inclusive upper bound.</param>
     private static int ParseInt(string? value, int fallback, int min, int max)
     {
         if (string.IsNullOrEmpty(value))
@@ -682,6 +824,9 @@ internal static class CliApplication
         return Math.Clamp(parsed, min, max);
     }
 
+    /// <summary>Splits arguments into a case-insensitive option map.</summary>
+    /// <remarks>支持 <c>--k v</c>、<c>--k=v</c> 与裸开关；没有值的开关记为 "true"。位置参数被忽略。</remarks>
+    /// <param name="args">Command arguments without the command name.</param>
     private static Dictionary<string, string?> ParseOptions(string[] args)
     {
         var options = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
@@ -717,6 +862,9 @@ internal static class CliApplication
         return options;
     }
 
+    /// <summary>Renders a payload for the console, falling back to Base64.</summary>
+    /// <remarks>不是有效 UTF-8 或含有控制字符时输出 Base64；文本超过 512 字符会被截断。</remarks>
+    /// <param name="payload">Received payload bytes.</param>
     private static string FormatPayload(byte[] payload)
     {
         if (payload.Length == 0)
@@ -741,6 +889,8 @@ internal static class CliApplication
         }
     }
 
+    /// <summary>Prints usage, connection options and a few examples.</summary>
+    /// <remarks>帮助文本是用户唯一的离线文档，改命令行参数时要同步更新这里。</remarks>
     private static void PrintHelp()
     {
         Console.WriteLine(
