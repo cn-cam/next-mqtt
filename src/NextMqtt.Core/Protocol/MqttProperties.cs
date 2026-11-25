@@ -6,84 +6,111 @@ namespace NextMqtt.Core.Protocol;
 public enum MqttPropertyId
 {
     /// <summary>0x01 — payload is UTF-8 text (0) or unspecified binary (1).</summary>
+    /// <remarks>负载格式提示：1 表示 UTF-8 文本，0 表示未指定；不影响存储，只影响接收端解析。</remarks>
     PayloadFormatIndicator = 1,
 
     /// <summary>0x02 — seconds until the message expires.</summary>
+    /// <remarks>消息过期秒数；服务端会换算成绝对时间，过期后不再投递。</remarks>
     MessageExpiryInterval = 2,
 
     /// <summary>0x03 — MIME type of the payload.</summary>
+    /// <remarks>负载的 MIME 类型，纯提示信息。</remarks>
     ContentType = 3,
 
     /// <summary>0x08 — topic the receiver should reply to.</summary>
+    /// <remarks>请求/响应模式里的回复主题，接收端据此回消息。</remarks>
     ResponseTopic = 8,
 
     /// <summary>0x09 — opaque data correlating a reply with its request.</summary>
+    /// <remarks>不透明关联数据，回复时原样带回，用来匹配请求。</remarks>
     CorrelationData = 9,
 
     /// <summary>0x0B — identifier echoed back with matching deliveries.</summary>
+    /// <remarks>订阅标识；匹配的消息下发时会带上它，便于客户端区分来源。</remarks>
     SubscriptionIdentifier = 11,
 
     /// <summary>0x11 — how long the session outlives the connection.</summary>
+    /// <remarks>会话过期秒数；0 表示断开即结束，非 0 才保留订阅与队列。</remarks>
     SessionExpiryInterval = 17,
 
     /// <summary>0x12 — client identifier chosen by the server.</summary>
+    /// <remarks>服务端分配的客户端 ID，返回给用了空 ID 的客户端。</remarks>
     AssignedClientIdentifier = 18,
 
     /// <summary>0x13 — keep-alive the server wants the client to use.</summary>
+    /// <remarks>服务端要求的保活秒数，客户端应改用这个值。</remarks>
     ServerKeepAlive = 19,
 
     /// <summary>0x15 — name of the enhanced authentication method.</summary>
+    /// <remarks>增强认证方法名；必须与服务端注册的 provider 一致。</remarks>
     AuthenticationMethod = 21,
 
     /// <summary>0x16 — method-specific authentication bytes.</summary>
+    /// <remarks>认证方法的负载，内容由 provider 自行解释。</remarks>
     AuthenticationData = 22,
 
     /// <summary>0x17 — whether the client wants reason strings and user properties.</summary>
+    /// <remarks>为 0 时服务端应省略原因字符串和用户属性，节省带宽。</remarks>
     RequestProblemInformation = 23,
 
     /// <summary>0x18 — seconds to wait before publishing the will.</summary>
+    /// <remarks>遗嘱延迟秒数；会话提前恢复则取消发布。</remarks>
     WillDelayInterval = 24,
 
     /// <summary>0x19 — whether the client wants response information.</summary>
+    /// <remarks>是否请求响应信息，1 表示需要。</remarks>
     RequestResponseInformation = 25,
 
     /// <summary>0x1A — response information from the server.</summary>
+    /// <remarks>服务端返回的响应信息，通常是一个可用的回复主题前缀。</remarks>
     ResponseInformation = 26,
 
     /// <summary>0x1C — another server the client may use.</summary>
+    /// <remarks>引导客户端改用另一个节点，配合 0x9C/0x9D 使用。</remarks>
     ServerReference = 28,
 
     /// <summary>0x1F — human-readable reason for a failure.</summary>
+    /// <remarks>面向人的失败原因，排障时看这里。</remarks>
     ReasonString = 31,
 
     /// <summary>0x21 — receive maximum (inflight window) the sender allows.</summary>
+    /// <remarks>发送方允许的未确认消息数，即 inflight 窗口。</remarks>
     ReceiveMaximum = 33,
 
     /// <summary>0x22 — largest topic alias the sender accepts.</summary>
+    /// <remarks>发送方接受的最大主题别名数量，0 表示不支持别名。</remarks>
     TopicAliasMaximum = 34,
 
     /// <summary>0x23 — numeric alias replacing the topic name on later publishes.</summary>
+    /// <remarks>主题别名；首次出现必须带主题名，之后可只带别名。</remarks>
     TopicAlias = 35,
 
     /// <summary>0x24 — highest QoS the server supports.</summary>
+    /// <remarks>服务端支持的最高 QoS，客户端不应超过。</remarks>
     MaximumQoS = 36,
 
     /// <summary>0x25 — whether retained messages are available.</summary>
+    /// <remarks>是否支持保留消息，1 表示支持。</remarks>
     RetainAvailable = 37,
 
     /// <summary>0x26 — application-defined key/value pair; may repeat.</summary>
+    /// <remarks>应用自定义键值对，可以重复，顺序保留。</remarks>
     UserProperty = 38,
 
     /// <summary>0x27 — largest packet the sender will accept.</summary>
+    /// <remarks>发送方接受的最大报文长度，超过会被拒绝。</remarks>
     MaximumPacketSize = 39,
 
     /// <summary>0x28 — whether wildcard subscriptions are available.</summary>
+    /// <remarks>是否支持通配符订阅。</remarks>
     WildcardSubscriptionAvailable = 40,
 
     /// <summary>0x29 — whether subscription identifiers are available.</summary>
+    /// <remarks>是否支持订阅标识。</remarks>
     SubscriptionIdentifierAvailable = 41,
 
     /// <summary>0x2A — whether shared subscriptions are available.</summary>
+    /// <remarks>是否支持共享订阅。</remarks>
     SharedSubscriptionAvailable = 42,
 }
 
@@ -91,24 +118,31 @@ public enum MqttPropertyId
 public enum MqttPropertyDataType
 {
     /// <summary>Single byte.</summary>
+    /// <remarks>单字节，用于布尔式提示。</remarks>
     Byte,
 
     /// <summary>Two-byte unsigned integer, big endian.</summary>
+    /// <remarks>两字节无符号整数，网络字节序。</remarks>
     UInt16,
 
     /// <summary>Four-byte unsigned integer, big endian.</summary>
+    /// <remarks>四字节无符号整数，网络字节序。</remarks>
     UInt32,
 
     /// <summary>1-4 byte variable byte integer.</summary>
+    /// <remarks>1–4 字节变长整数，MQTT 专用编码。</remarks>
     VariableByteInteger,
 
     /// <summary>Length-prefixed UTF-8 string.</summary>
+    /// <remarks>长度前缀的 UTF-8 字符串，上限 65535 字节。</remarks>
     String,
 
     /// <summary>Length-prefixed binary data.</summary>
+    /// <remarks>长度前缀的二进制数据。</remarks>
     Binary,
 
     /// <summary>Two length-prefixed strings (user property).</summary>
+    /// <remarks>两个长度前缀字符串组成一个用户属性。</remarks>
     StringPair,
 }
 
@@ -124,12 +158,15 @@ public sealed class MqttProperties
     private readonly List<MqttProperty> _items = [];
 
     /// <summary>Properties in insertion order; user properties may repeat.</summary>
+    /// <remarks>按插入顺序保存；用户属性允许重复，其余属性唯一。</remarks>
     public IReadOnlyList<MqttProperty> Items => _items;
 
     /// <summary>Number of individual property entries.</summary>
+    /// <remarks>属性条目数，重复的用户属性各算一条。</remarks>
     public int Count => _items.Count;
 
     /// <summary>True when the bag holds no properties.</summary>
+    /// <remarks>空属性包，编码时直接写长度 0。</remarks>
     public bool IsEmpty => _items.Count == 0;
 
     /// <summary>Adds a property after validating its type and uniqueness.</summary>
@@ -200,6 +237,7 @@ public sealed class MqttProperties
         => Add(MqttPropertyId.UserProperty, new KeyValuePair<string, string>(name, value));
 
     /// <summary>Reads a byte property, or null when it is absent.</summary>
+    /// <remarks>缺失返回 null，而不是默认值，避免把“没设置”当成 0。</remarks>
     /// <param name="id">Property identifier.</param>
     public byte? GetByte(MqttPropertyId id)
     {
@@ -215,6 +253,7 @@ public sealed class MqttProperties
     }
 
     /// <summary>Reads a two-byte unsigned property, or null when absent.</summary>
+    /// <remarks>缺失返回 null；类型不匹配会抛异常，属于编码 bug。</remarks>
     /// <param name="id">Property identifier.</param>
     public ushort? GetUInt16(MqttPropertyId id)
     {
@@ -230,6 +269,7 @@ public sealed class MqttProperties
     }
 
     /// <summary>Reads a four-byte unsigned property, or null when absent.</summary>
+    /// <remarks>缺失返回 null，调用方需自行决定默认值。</remarks>
     /// <param name="id">Property identifier.</param>
     public uint? GetUInt32(MqttPropertyId id)
     {
@@ -245,6 +285,7 @@ public sealed class MqttProperties
     }
 
     /// <summary>Reads a variable byte integer property, or null when absent.</summary>
+    /// <remarks>缺失返回 null；值域 0–268435455。</remarks>
     /// <param name="id">Property identifier.</param>
     public int? GetVariableByteInteger(MqttPropertyId id)
     {
@@ -260,6 +301,7 @@ public sealed class MqttProperties
     }
 
     /// <summary>Reads a string property, or null when absent.</summary>
+    /// <remarks>缺失返回 null；空字符串与缺失是两种情况。</remarks>
     /// <param name="id">Property identifier.</param>
     public string? GetString(MqttPropertyId id)
     {
@@ -275,6 +317,7 @@ public sealed class MqttProperties
     }
 
     /// <summary>Reads a binary property, or null when absent.</summary>
+    /// <remarks>返回内部数组，不要原地修改。</remarks>
     /// <remarks>返回内部数组，不要修改；需要写入时请复制。</remarks>
     /// <param name="id">Property identifier.</param>
     public byte[]? GetBinary(MqttPropertyId id)
@@ -291,6 +334,7 @@ public sealed class MqttProperties
     }
 
     /// <summary>Enumerates every user property in insertion order.</summary>
+    /// <remarks>用户属性可重复，这里按写入顺序全部返回。</remarks>
     public IEnumerable<KeyValuePair<string, string>> GetUserProperties()
     {
         foreach (var property in _items)
@@ -554,6 +598,7 @@ public static class MqttPropertyValidation
     }
 
     /// <summary>Rejects properties that are illegal for the packet type.</summary>
+    /// <remarks>3.1.1 带属性、或属性用错报文，都会按 0x82 拒绝。</remarks>
     /// <remarks>MQTT 3.1.1 报文携带属性、或属性不属于该报文时抛出 0x82。</remarks>
     /// <param name="packetType">Packet whose property set is being checked.</param>
     /// <param name="properties">Properties decoded from the wire.</param>

@@ -42,7 +42,7 @@ security needs.
 
 - [x] HTTP webhook bridge with filter rules (0.10.0)
 - [x] NATS bridge module (0.14.0)
-- Kafka bridge dropped: it needs a client dependency this project does not take
+- [ ] Kafka bridge (ADR 0007: one reviewed client dependency approved)
 - [ ] Rule engine for topic routing, filtering and enrichment
 - [x] First-party plugin host with manifest and collectible loading (0.12.0)
 
