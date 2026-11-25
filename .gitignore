@@ -28,6 +28,8 @@ dist/
 .npm/
 
 # Docs
+docs/changelog.md
+docs/development-log.md
 docs/.vitepress/cache/
 docs/.vitepress/dist/
 

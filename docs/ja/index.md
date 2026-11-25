@@ -23,23 +23,35 @@ hero:
 features:
   - icon: 📡
     title: MQTT 3.1.1 / 5.0
-    details: TCP、TLS、WebSocket、WSS。QoS 0/1/2、retained、will、共有サブスクリプション、セッション期限。
+    details: TCP、TLS、WebSocket、WSS。QoS 0/1/2、retained、will、共有サブスクリプション、トピックエイリアス、セッション期限。
+  - icon: 🧩
+    title: 統合とプラグイン
+    details: Webhook、NATS、Kafka、RabbitMQ ブリッジ（有界キュー）と、認証・認可を差し替えるファーストパーティのプラグインホスト。
+  - icon: 🔐
+    title: 強化できるセキュリティ
+    details: PBKDF2、HS256 JWT、MQTT 5 拡張認証、トピック ACL、管理トークン、API キー、鍵パスを明示できる TLS。
+  - icon: 🔁
+    title: 自己修復クラスタ
+    details: 署名付き gossip、ノード間ルーティング、クラスタ全体の共有サブスクリプション、参加時の retained 同期、停止ノードの自動排除。
   - icon: 🧭
     title: 運用ファースト
-    details: クライアント、サブスクリプション、retained、publish コンソール、クラスタトポロジー、Prometheus メトリクス。
-  - icon: 🧩
-    title: コーディネータ不要のクラスタ
-    details: 署名付き gossip とノード間ルーティング。1 ノードから開始し、クライアント設定を変えずに拡張。
+    details: クライアント、サブスクリプション、retained、publish コンソール、プラグインとログの画面、クラスタトポロジー、Prometheus メトリクス。
   - icon: 📦
     title: 単純なデプロイ
     details: マルチアーキテクチャイメージ、Compose、Kustomize、Helm。プローブとオートスケール対応。
-  - icon: 🔐
-    title: 強化できるセキュリティ
-    details: PBKDF2、HS256 JWT、トピック ACL、管理トークン、API キー、TLS。
   - icon: 🧼
     title: 独立実装
     details: クリーンルーム、Apache-2.0。他社 Broker のソース、設定形式、ロゴ、商標を含みません。
 ---
+
+## 最近の追加
+
+- **TLS を明確に**: 証明書、秘密鍵のパス、想定ドメインを個別に設定。中間証明書を配信し、ドメインをカバーしない証明書は起動時に警告します。
+- **クラスタの自己修復**: 参加ノードは retained をピアから取得し、メンバー変化で制限を即再計算し、無応答のノードは実際に削除されます。
+- **統合はルーティング規則の後**: `drop` で捨てられたメッセージは Webhook やブリッジに届かず、`rewrite` 後のトピックが下流に渡ります。
+- **ダッシュボードにプラグインとログ**: プラグインホストと有界ログバッファを画面から確認できます。
+- **ドキュメントゲート**: `scripts/docs-coverage.ps1` がコメントのないメンバーでビルドを失敗させます。
+
 
 ## MQTT の新しい基盤
 

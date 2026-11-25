@@ -118,3 +118,22 @@ The backlog is at zero. Keep it there: write the comment in the same commit as
 the code, and do not paste signature restatements. Say what the member
 guarantees, its units, its locking and its failure modes. The bilingual style
 is described in `.opencode/skill/csharp-documentation/SKILL.md`.
+
+## Documentation site
+
+The VitePress site is built from `docs/`. Two pages are generated at build time
+and must not be edited by hand:
+
+- `docs/changelog.md` comes from `CHANGELOG.md`, so a release note reaches the
+  site with the next build;
+- `docs/development-log.md` comes from `git log`.
+
+Both are produced by `scripts/docs-site.mjs`, which the docs `build` and `dev`
+scripts run automatically, and both are ignored by git.
+
+Translations live in `docs/zh`, `docs/ja` and `docs/ko`. Every English page needs
+all three, and `scripts/docs-i18n-check.ps1` fails when a translation falls more
+than three points below its recorded coverage. When you translate a page and
+raise its coverage, refresh the baseline with `-Update`; when you add English
+content without translating it yet, lower the baseline deliberately and say so
+in the pull request.

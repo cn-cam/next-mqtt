@@ -23,23 +23,35 @@ hero:
 features:
   - icon: 📡
     title: MQTT 3.1.1 与 5.0
-    details: TCP、TLS、WebSocket、WSS 监听器，支持 QoS 0/1/2、保留消息、遗嘱、共享订阅与会话过期。
+    details: TCP、TLS、WebSocket、WSS 监听器，支持 QoS 0/1/2、保留消息、遗嘱、共享订阅、主题别名与会话过期。
+  - icon: 🧩
+    title: 集成与插件
+    details: Webhook、NATS、Kafka、RabbitMQ 桥接（有界队列），以及可替换认证与授权的第一方插件宿主。
+  - icon: 🔐
+    title: 可加固的安全默认值
+    details: PBKDF2 密码、HS256 JWT、MQTT 5 增强认证、主题 ACL、管理令牌、API Key，以及可显式指定私钥路径的 TLS。
+  - icon: 🔁
+    title: 自愈集群
+    details: 签名 gossip 成员管理、跨节点路由、集群级共享订阅、新节点补齐保留消息、故障节点自动摘除。
   - icon: 🧭
     title: 运维优先
-    details: 客户端、订阅、保留消息、发布控制台、集群拓扑与 Prometheus 指标集中呈现。
-  - icon: 🧩
-    title: 无中心集群
-    details: 签名 gossip 成员管理与跨节点路由。从单机开始，随时扩容，无需改动客户端。
+    details: 客户端、订阅、保留消息、发布控制台、插件与日志页面、集群拓扑与 Prometheus 指标集中呈现。
   - icon: 📦
     title: 部署省心
     details: 多架构镜像、Docker Compose、Kustomize 清单与 Helm Chart，内置探针与自动扩缩容。
-  - icon: 🔐
-    title: 可加固的安全默认值
-    details: PBKDF2 密码、HS256 JWT、主题 ACL、管理令牌、API Key 与 TLS。
   - icon: 🧼
     title: 独立实现
     details: 净室代码，Apache-2.0 许可，不包含任何第三方 Broker 的源码、配置格式、Logo 或商标。
 ---
+
+## 最近更新
+
+- **TLS 不再含糊**：证书、私钥路径与期望域名分开配置，自动下发中间证书；域名不被证书覆盖时启动即告警。
+- **集群自愈**：新节点从对端补齐保留消息，成员变化即刻重算限流，长时间无心跳的节点会被真正摘除。
+- **集成在规则之后**：被 `drop` 规则丢弃的消息不再进入 Webhook 或消息桥，改写后的主题对下游可见。
+- **面板新增插件与日志**：插件宿主与有界日志缓冲区可以在面板查看，与客户端、主题、集群视图并列。
+- **文档门禁**：`scripts/docs-coverage.ps1` 会在成员缺少注释时让构建失败，API 参考不会再退化。
+
 
 ## 为什么选择 NextMQTT？
 

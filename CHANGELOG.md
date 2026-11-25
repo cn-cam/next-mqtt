@@ -25,6 +25,13 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Dashboard views for the plugin host and recent logs, backed by
+  `GET /api/v1/plugins` and `GET /api/v1/logs`. The log view filters by level
+  and text and keeps the last 2,000 entries in memory.
+- Generated documentation pages: `docs/changelog.md` from `CHANGELOG.md` and a
+  development log from the commit history, both rebuilt with the docs site.
+- `scripts/docs-i18n-check.ps1` records the coverage of every translated page
+  and fails when a translation drifts further behind English.
 - `CertificateKeyPath` and `Domain` for MQTT/TLS and HTTPS. A PEM file may hold
   the full chain, the intermediates are served to clients, and a `Domain` that
   the certificate does not cover is reported at startup instead of failing

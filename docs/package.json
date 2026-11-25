@@ -4,8 +4,8 @@
   "version": "0.16.2",
   "type": "module",
   "scripts": {
-    "dev": "vitepress dev .",
-    "build": "vitepress build .",
+    "dev": "node ../scripts/docs-site.mjs && vitepress dev .",
+    "build": "node ../scripts/docs-site.mjs && vitepress build .",
     "preview": "vitepress preview ."
   },
   "devDependencies": {

@@ -14,6 +14,8 @@ interface Labels {
   development: string
   roadmap: string
   faq: string
+  changelog: string
+  developmentLog: string
   licences: string
   gettingStarted: string
   configuration: string
@@ -44,6 +46,8 @@ const en: Labels = {
   development: 'Development',
   roadmap: 'Roadmap',
   faq: 'FAQ',
+  changelog: 'Changelog',
+  developmentLog: 'Development log',
   licences: 'Third-party licences',
   gettingStarted: 'Getting started',
   configuration: 'Configuration',
@@ -74,6 +78,8 @@ const zh: Labels = {
   development: '开发',
   roadmap: '路线图',
   faq: '常见问题',
+  changelog: '更新日志',
+  developmentLog: '开发日志',
   licences: '第三方许可',
   gettingStarted: '快速开始',
   configuration: '配置',
@@ -104,6 +110,8 @@ const ja: Labels = {
   development: '開発',
   roadmap: 'ロードマップ',
   faq: 'FAQ',
+  changelog: '変更履歴',
+  developmentLog: '開発ログ',
   licences: 'サードパーティライセンス',
   gettingStarted: 'はじめに',
   configuration: '設定',
@@ -134,6 +142,8 @@ const ko: Labels = {
   development: '개발',
   roadmap: '로드맵',
   faq: 'FAQ',
+  changelog: '변경 기록',
+  developmentLog: '개발 로그',
   licences: '서드파티 라이선스',
   gettingStarted: '시작하기',
   configuration: '설정',
@@ -208,6 +218,8 @@ function sidebar(prefix: string, t: Labels) {
         { text: t.adr, link: `${prefix}/adr/` },
         { text: t.roadmap, link: `${prefix}/roadmap` },
         { text: t.faq, link: `${prefix}/faq` },
+        { text: t.changelog, link: '/changelog' },
+        { text: t.developmentLog, link: '/development-log' },
       ],
     },
   ]

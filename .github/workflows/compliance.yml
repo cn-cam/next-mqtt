@@ -25,6 +25,9 @@ jobs:
       - name: Check C# documentation coverage
         run: pwsh -NoProfile -File scripts/docs-coverage.ps1
 
+      - name: Check documentation translations
+        run: pwsh -NoProfile -File scripts/docs-i18n-check.ps1
+
       - name: Verify licence and notice files exist
         run: |
           test -s LICENSE
