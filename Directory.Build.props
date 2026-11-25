@@ -7,7 +7,7 @@
     <EnableNETAnalyzers>true</EnableNETAnalyzers>
     <AnalysisLevel>latest-recommended</AnalysisLevel>
     <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
-    <GenerateDocumentationFile Condition="!$(MSBuildProjectDirectory.Contains('\tests\'))">true</GenerateDocumentationFile>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
     <!-- CS1591: every public type and member must carry XML documentation. -->
     <WarningsAsErrors>$(WarningsAsErrors);CS1591</WarningsAsErrors>
@@ -16,7 +16,7 @@
     <Company>NextMQTT contributors</Company>
     <Authors>NextMQTT contributors</Authors>
     <Copyright>Copyright (c) 2026 NextMQTT contributors</Copyright>
-    <VersionPrefix>0.6.1</VersionPrefix>
+    <VersionPrefix>0.6.2</VersionPrefix>
     <RepositoryType>git</RepositoryType>
     <RepositoryUrl>https://github.com/cn-cam/next-mqtt</RepositoryUrl>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>

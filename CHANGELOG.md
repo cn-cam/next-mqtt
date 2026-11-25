@@ -5,6 +5,14 @@ All notable changes to NextMQTT are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.6.2] - 2026-11-25
+
+### Fixed
+
+- Test projects no longer generate XML documentation on any platform. The
+  exclusion used a Windows path separator, so Linux CI tried to document test
+  types, hit CS1591 (now an error) and failed the release build.
+
 ## [0.6.1] - 2026-11-25
 
 ### Changed
@@ -185,7 +193,8 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 - GitHub Actions for CI, CodeQL, releases and GitHub Pages.
 - Mechanical brand/trademark compliance scanner and repository policy.
 
-[Unreleased]: https://github.com/cn-cam/next-mqtt/compare/v0.6.1...HEAD
+[Unreleased]: https://github.com/cn-cam/next-mqtt/compare/v0.6.2...HEAD
+[0.6.2]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.6.2
 [0.6.1]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.6.1
 [0.6.0]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.6.0
 [0.5.2]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.5.2
