@@ -465,9 +465,11 @@ public sealed class ClientConnection : IClientConnection, IRateScalable
         if ((_publishBucket is not null && !_publishBucket.TryTake())
             || !_broker.TopicQuotas.TryAcquire(publish.Topic))
         {
+            // Count the message as received before marking it dropped, so an
+            // observer that sees the drop counter also sees the receipt.
+            _broker.Metrics.PublishReceived();
             _broker.Metrics.PublishRateLimited();
             _broker.Metrics.MessageDropped();
-            _broker.Metrics.PublishReceived();
 
             // Acknowledge the packet so the client does not retransmit, but do
             // not route it: the quota consumed the message.

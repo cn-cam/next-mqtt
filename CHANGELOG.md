@@ -20,6 +20,14 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 - Retained messages use the origin timestamp for last-write-wins merging, and
   deletions leave a tombstone so an older replica cannot resurrect a removed value.
 
+## [0.16.1] - 2026-11-25
+
+### Fixed
+
+- The rate-limit drop path now counts the message as received before marking it
+  dropped. A monitoring loop could previously observe the drop counter before the
+  receipt counter, which made the topic-quota test flaky on CI.
+
 ## [0.16.0] - 2026-11-25
 
 ### Added
@@ -294,7 +302,8 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 - GitHub Actions for CI, CodeQL, releases and GitHub Pages.
 - Mechanical brand/trademark compliance scanner and repository policy.
 
-[Unreleased]: https://github.com/cn-cam/next-mqtt/compare/v0.16.0...HEAD
+[Unreleased]: https://github.com/cn-cam/next-mqtt/compare/v0.16.1...HEAD
+[0.16.1]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.16.1
 [0.16.0]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.16.0
 [0.15.0]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.15.0
 [0.14.0]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.14.0
