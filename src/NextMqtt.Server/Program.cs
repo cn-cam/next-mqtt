@@ -138,6 +138,21 @@ if (integrationsOptions.Webhooks.Count > 0)
     });
 }
 
+if (integrationsOptions.Nats.Enabled)
+{
+    builder.Services.AddSingleton(sp =>
+    {
+        var bridge = new NatsBridge(
+            integrationsOptions.Nats,
+            sp.GetRequiredService<ILogger<NatsBridge>>());
+
+        sp.GetRequiredService<IHostApplicationLifetime>().ApplicationStopping.Register(() =>
+            bridge.DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(2)));
+
+        return bridge;
+    });
+}
+
 if (integrationsOptions.Rules.Count > 0)
 {
     builder.Services.AddSingleton(sp => new RuleEngine(
@@ -165,7 +180,8 @@ builder.Services.AddSingleton(sp =>
         storageOptions.Session.SnapshotSeconds,
         enhancedAuthenticators,
         sp.GetService<WebhookDispatcher>(),
-        sp.GetService<RuleEngine>());
+        sp.GetService<RuleEngine>(),
+        sp.GetService<NatsBridge>());
 
     if (cluster is ClusterRouter clusterRouter)
     {

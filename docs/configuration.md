@@ -362,6 +362,26 @@ plugins/audit/
 A plugin is loaded only if its manifest names an existing assembly and the
 contract version matches; otherwise it is logged and skipped. Plugins run with
 broker privileges — this is an extension mechanism, not a sandbox.
+### NATS bridge
+
+```json
+{
+  "Integrations": {
+    "Nats": {
+      "Enabled": true,
+      "Url": "nats://127.0.0.1:4222",
+      "SubjectPrefix": "mqtt.",
+      "Filter": "telemetry/#",
+      "MaxQueue": 5000
+    }
+  }
+}
+```
+
+Publishes matching the filter are forwarded as `PUB` frames over the NATS text
+protocol; `/` becomes `.` and unsafe characters become `_`. A bounded queue
+absorbs bursts, the worker reconnects every two seconds, and only the node that
+first accepted the message forwards, so clusters do not duplicate.
 ## Authentication
 
 ```json

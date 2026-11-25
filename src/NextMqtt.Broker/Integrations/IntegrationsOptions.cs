@@ -11,6 +11,9 @@ public sealed class IntegrationsOptions
 
     /// <summary>Routing rules evaluated before storage and delivery.</summary>
     public List<RuleOptions> Rules { get; set; } = [];
+
+    /// <summary>Optional NATS forwarding.</summary>
+    public NatsOptions Nats { get; set; } = new();
 }
 
 /// <summary>One routing rule, evaluated on every inbound publish.</summary>

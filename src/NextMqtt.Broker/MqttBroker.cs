@@ -51,7 +51,8 @@ public sealed class MqttBroker : IAsyncDisposable
         int sessionSnapshotSeconds = 30,
         IEnumerable<IEnhancedAuthenticator>? enhancedAuthenticators = null,
         WebhookDispatcher? webhooks = null,
-        RuleEngine? rules = null)
+        RuleEngine? rules = null,
+        NatsBridge? nats = null)
     {
         Options = options;
         Authenticator = authenticator;
@@ -64,6 +65,7 @@ public sealed class MqttBroker : IAsyncDisposable
         _sessionStore = sessionStore;
         Webhooks = webhooks;
         Rules = rules;
+        Nats = nats;
 
         foreach (var provider in enhancedAuthenticators ?? [])
         {
@@ -97,6 +99,9 @@ public sealed class MqttBroker : IAsyncDisposable
 
     /// <summary>Shared per-topic publish quotas, disabled unless configured.</summary>
     public TopicQuotaLimiter TopicQuotas { get; }
+
+    /// <summary>Optional NATS forwarding for locally accepted messages.</summary>
+    public NatsBridge? Nats { get; }
 
     /// <summary>Optional routing rules that can discard messages before storage.</summary>
     public RuleEngine? Rules { get; }

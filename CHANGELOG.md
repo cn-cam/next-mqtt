@@ -20,6 +20,13 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 - Retained messages use the origin timestamp for last-write-wins merging, and
   deletions leave a tombstone so an older replica cannot resurrect a removed value.
 
+## [0.14.0] - 2026-11-25
+
+### Added
+
+- NATS bridge: filtered publishes are forwarded over the NATS text protocol with
+  a bounded queue and automatic reconnect, without adding a client dependency.
+
 ## [0.13.0] - 2026-11-25
 
 ### Added
@@ -271,7 +278,8 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 - GitHub Actions for CI, CodeQL, releases and GitHub Pages.
 - Mechanical brand/trademark compliance scanner and repository policy.
 
-[Unreleased]: https://github.com/cn-cam/next-mqtt/compare/v0.13.0...HEAD
+[Unreleased]: https://github.com/cn-cam/next-mqtt/compare/v0.14.0...HEAD
+[0.14.0]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.14.0
 [0.13.0]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.13.0
 [0.12.0]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.12.0
 [0.11.0]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.11.0
