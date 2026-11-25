@@ -33,36 +33,47 @@ public sealed class BrokerSession : IDisposable
     }
 
     /// <summary>Client identifier this session belongs to.</summary>
+    /// <remarks>会话的归属键；同一 ID 重连就是恢复这个会话。</remarks>
     public string ClientId { get; }
 
     /// <summary>Protocol level negotiated by the last CONNECT.</summary>
+    /// <remarks>决定下发报文是否带 MQTT 5 属性。</remarks>
     public MqttProtocolVersion ProtocolVersion { get; private set; } = MqttProtocolVersion.V311;
 
     /// <summary>Authenticated identity, or the anonymous placeholder.</summary>
+    /// <remarks>ACL 判断与占位符展开都用它；匿名时只有客户端 ID。</remarks>
     public ClientPrincipal Principal { get; private set; } = ClientPrincipal.Anonymous(string.Empty);
 
     /// <summary>Username of the current principal, when there is one.</summary>
+    /// <remarks>便于日志与后台检索，匿名会话为 null。</remarks>
     public string? Username => Principal.Username;
 
     /// <summary>True when the session outlives the connection.</summary>
+    /// <remarks>由会话过期时间决定，不是 cleanStart。</remarks>
     public bool Persistent { get; private set; }
 
     /// <summary>Session expiry in seconds; zero means the session ends with the connection.</summary>
+    /// <remarks>0 表示断开即删；非 0 才保留订阅与离线队列。</remarks>
     public uint SessionExpiryInterval { get; private set; }
 
     /// <summary>Absolute expiry while offline; null while connected or non-persistent.</summary>
+    /// <remarks>在线时为空，断开时按下发值计算，巡检据此清理。</remarks>
     public DateTimeOffset? ExpiresAt { get; set; }
 
     /// <summary>When the current connection was established.</summary>
+    /// <remarks>用于后台展示“已连接时长”，重连会刷新。</remarks>
     public DateTimeOffset ConnectedAt { get; private set; } = DateTimeOffset.UtcNow;
 
     /// <summary>Timestamp of the last packet or disconnect.</summary>
+    /// <remarks>保活与集群对账都看这个时间。</remarks>
     public DateTimeOffset LastSeen { get; private set; } = DateTimeOffset.UtcNow;
 
     /// <summary>Will message registered by the current connection.</summary>
+    /// <remarks>只对当前连接生效；正常断开时清掉，避免误发。</remarks>
     public MqttWill? Will { get; private set; }
 
     /// <summary>Attached connection, or null when the session is offline.</summary>
+    /// <remarks>加锁读取；离线时消息走队列而不是直接发送。</remarks>
     public IClientConnection? Connection
     {
         get
@@ -75,9 +86,11 @@ public sealed class BrokerSession : IDisposable
     }
 
     /// <summary>True while a connection is attached.</summary>
+    /// <remarks>等价于 Connection 非空，后台列表用它区分在线状态。</remarks>
     public bool IsOnline => Connection is not null;
 
     /// <summary>Number of unacknowledged outbound QoS 1/2 messages.</summary>
+    /// <remarks>受 MaxInflightMessages 限制，满了就转队列。</remarks>
     public int InflightCount
     {
         get
@@ -90,6 +103,7 @@ public sealed class BrokerSession : IDisposable
     }
 
     /// <summary>Number of messages waiting in the offline queue.</summary>
+    /// <remarks>受 MaxQueuedMessages 限制，溢出时丢最旧的。</remarks>
     public int QueuedCount
     {
         get
@@ -102,6 +116,7 @@ public sealed class BrokerSession : IDisposable
     }
 
     /// <summary>Inbound QoS 2 publishes received but not yet released by PUBREL.</summary>
+    /// <remarks>等待 PUBREL 的消息；连接断开后清空。</remarks>
     public int PendingQos2Count
     {
         get
@@ -114,6 +129,7 @@ public sealed class BrokerSession : IDisposable
     }
 
     /// <summary>Peer address of the current connection, when online.</summary>
+    /// <remarks>离线会话没有地址，返回 null。</remarks>
     public string? RemoteAddress => Connection?.RemoteAddress;
 
     /// <summary>Attaches a connection and applies the CONNECT state.</summary>
@@ -140,6 +156,7 @@ public sealed class BrokerSession : IDisposable
     }
 
     /// <summary>Detaches the connection if it is still the active one.</summary>
+    /// <remarks>只处理当前连接，避免旧连接的清理覆盖新连接。</remarks>
     public bool Detach(IClientConnection connection)
     {
         lock (_gate)
@@ -156,6 +173,7 @@ public sealed class BrokerSession : IDisposable
     }
 
     /// <summary>Applies an expiry requested by an MQTT 5 DISCONNECT.</summary>
+    /// <remarks>5.0 允许断开时改过期时间；改 0 即立即失效。</remarks>
     /// <param name="seconds">New session expiry in seconds; 0 makes it non-persistent.</param>
     public void UpdateSessionExpiry(uint seconds)
     {
@@ -167,6 +185,7 @@ public sealed class BrokerSession : IDisposable
     }
 
     /// <summary>Drops the will, for example after a clean DISCONNECT.</summary>
+    /// <remarks>正常断开或已发布遗嘱后调用。</remarks>
     public void ClearWill()
     {
         lock (_gate)
@@ -176,6 +195,7 @@ public sealed class BrokerSession : IDisposable
     }
 
     /// <summary>Clears queued and inflight state when a session is reset.</summary>
+    /// <remarks>cleanStart 或管理员清理时使用。</remarks>
     public void ClearQueues()
     {
         lock (_gate)
@@ -187,6 +207,7 @@ public sealed class BrokerSession : IDisposable
     }
 
     /// <summary>Copies the offline queue for persistence.</summary>
+    /// <remarks>快照是浅拷贝，消息对象本身不可变。</remarks>
     public List<OutboundMessage> SnapshotQueue()
     {
         lock (_gate)
@@ -196,6 +217,7 @@ public sealed class BrokerSession : IDisposable
     }
 
     /// <summary>Rebuilds a restored session from disk (always offline).</summary>
+    /// <remarks>恢复后没有连接，重连时再由 Bind 接管。</remarks>
     public void Restore(
         ClientPrincipal principal,
         MqttProtocolVersion protocolVersion,
@@ -289,6 +311,7 @@ public sealed class BrokerSession : IDisposable
     }
 
     /// <summary>Resends inflight messages and drains the offline queue.</summary>
+    /// <remarks>重连后先补发未确认的，再按顺序清队列。</remarks>
     public void Resume()
     {
         IClientConnection? connection;
@@ -346,6 +369,7 @@ public sealed class BrokerSession : IDisposable
     }
 
     /// <summary>Completes an outbound QoS 1 message.</summary>
+    /// <remarks>释放 inflight 槽位并触发队列发送。</remarks>
     /// <param name="packetId">Identifier acknowledged by the client.</param>
     public void OnPubAck(ushort packetId)
     {
@@ -359,6 +383,7 @@ public sealed class BrokerSession : IDisposable
     }
 
     /// <summary>Starts the QoS 2 release when the client answers PUBREC.</summary>
+    /// <remarks>把消息状态推进到等待 PUBCOMP。</remarks>
     /// <param name="packetId">Identifier acknowledged by the client.</param>
     public void OnPubRec(ushort packetId)
     {
@@ -393,6 +418,7 @@ public sealed class BrokerSession : IDisposable
     }
 
     /// <summary>Completes an outbound QoS 2 message.</summary>
+    /// <remarks>握手结束，释放槽位。</remarks>
     /// <param name="packetId">Identifier acknowledged by the client.</param>
     public void OnPubComp(ushort packetId)
     {
@@ -406,6 +432,7 @@ public sealed class BrokerSession : IDisposable
     }
 
     /// <summary>Registers an inbound QoS 2 PUBLISH. Returns false for a duplicate id.</summary>
+    /// <remarks>重复 ID 说明客户端在重传，服务端只需回 PUBREC。</remarks>
     public bool RegisterInboundQos2(ushort packetId, PublishPacket publish)
     {
         lock (_gate)
@@ -426,6 +453,7 @@ public sealed class BrokerSession : IDisposable
     }
 
     /// <summary>Completes an inbound QoS 2 publish on PUBREL.</summary>
+    /// <remarks>返回已存消息，由调用方负责路由。</remarks>
     /// <param name="packetId">Identifier from PUBREL.</param>
     /// <param name="publish">Stored publish when the handshake completes.</param>
     /// <returns><c>true</c> when a stored publish existed.</returns>
@@ -438,6 +466,7 @@ public sealed class BrokerSession : IDisposable
     }
 
     /// <summary>True when an inbound QoS 2 publish is awaiting PUBREL.</summary>
+    /// <remarks>用于判断 PUBREL 是否合法。</remarks>
     /// <param name="packetId">Identifier to test.</param>
     public bool HasInboundQos2(ushort packetId)
     {
@@ -448,6 +477,7 @@ public sealed class BrokerSession : IDisposable
     }
 
     /// <summary>Retransmits unacknowledged messages whose timer elapsed.</summary>
+    /// <remarks>只重发超时的，避免把整个窗口一次性打爆。</remarks>
     /// <param name="now">Current time, used against RetransmitInterval.</param>
     public void RetransmitDue(DateTimeOffset now)
     {
@@ -486,6 +516,7 @@ public sealed class BrokerSession : IDisposable
     }
 
     /// <summary>Projects this session into the clients table.</summary>
+    /// <remarks>只做只读投影，不改会话状态。</remarks>
     /// <param name="subscriptionCount">Subscriptions indexed for this client.</param>
     public ClientSnapshot Snapshot(int subscriptionCount)
     {
@@ -508,6 +539,7 @@ public sealed class BrokerSession : IDisposable
     }
 
     /// <summary>Releases the connection and pending timers.</summary>
+    /// <remarks>幂等；关闭过程中可能被调用多次。</remarks>
     public void Dispose()
     {
         lock (_gate)

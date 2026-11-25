@@ -147,6 +147,7 @@ public enum MqttPropertyDataType
 }
 
 /// <summary>A single decoded MQTT 5 property.</summary>
+/// <remarks>解码后的属性条目；重复用户属性各自一条。</remarks>
 public readonly record struct MqttProperty(MqttPropertyId Id, object Value);
 
 /// <summary>
@@ -194,42 +195,49 @@ public sealed class MqttProperties
     }
 
     /// <summary>Adds a byte-valued property.</summary>
+/// <remarks>单字节属性，例如 Payload Format Indicator；值域 0–255。</remarks>
     /// <param name="id">Property identifier.</param>
     /// <param name="value">Value in the range 0-255.</param>
     /// <returns>The same bag, for chaining.</returns>
     public MqttProperties AddByte(MqttPropertyId id, byte value) => Add(id, value);
 
     /// <summary>Adds a two-byte unsigned property.</summary>
+/// <remarks>两字节属性，例如 Receive Maximum 与 Topic Alias。</remarks>
     /// <param name="id">Property identifier.</param>
     /// <param name="value">Value in the range 0-65535.</param>
     /// <returns>The same bag, for chaining.</returns>
     public MqttProperties AddUInt16(MqttPropertyId id, ushort value) => Add(id, value);
 
     /// <summary>Adds a four-byte unsigned property.</summary>
+/// <remarks>四字节属性，例如消息过期与会话过期秒数。</remarks>
     /// <param name="id">Property identifier.</param>
     /// <param name="value">Value in the range 0-4294967295.</param>
     /// <returns>The same bag, for chaining.</returns>
     public MqttProperties AddUInt32(MqttPropertyId id, uint value) => Add(id, value);
 
     /// <summary>Adds a variable byte integer property.</summary>
+/// <remarks>变长整数属性，目前只用于订阅标识。</remarks>
     /// <param name="id">Property identifier.</param>
     /// <param name="value">Value in the range 0-268435455.</param>
     /// <returns>The same bag, for chaining.</returns>
     public MqttProperties AddVariableByteInteger(MqttPropertyId id, int value) => Add(id, value);
 
     /// <summary>Adds a UTF-8 string property.</summary>
+/// <remarks>字符串属性；超过 65535 字节会在编码前被拒绝。</remarks>
     /// <param name="id">Property identifier.</param>
     /// <param name="value">String value; must fit the 65535-byte field limit.</param>
     /// <returns>The same bag, for chaining.</returns>
     public MqttProperties AddString(MqttPropertyId id, string value) => Add(id, value);
 
     /// <summary>Adds a binary property, copying the span.</summary>
+/// <remarks>二进制属性；复制一份，调用方可以复用缓冲区。</remarks>
     /// <param name="id">Property identifier.</param>
     /// <param name="value">Bytes; must fit the 65535-byte field limit.</param>
     /// <returns>The same bag, for chaining.</returns>
     public MqttProperties AddBinary(MqttPropertyId id, ReadOnlySpan<byte> value) => Add(id, value.ToArray());
 
     /// <summary>Adds one application-defined user property.</summary>
+/// <remarks>用户属性可重复，键值都原样透传，顺序保留。</remarks>
     /// <param name="name">Key; may repeat with different values.</param>
     /// <param name="value">Value paired with the key.</param>
     /// <returns>The same bag, for chaining.</returns>
