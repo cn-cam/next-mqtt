@@ -28,6 +28,18 @@ public sealed class RetainedConflictTests
     }
 
     [Fact]
+    public async Task Administrative_clear_removes_every_retained_message()
+    {
+        await using var broker = TestBroker.Create();
+
+        await broker.PublishAsync("state/a", "one"u8.ToArray(), MqttQoS.AtMostOnce, retain: true);
+        await broker.PublishAsync("state/b", "two"u8.ToArray(), MqttQoS.AtMostOnce, retain: true);
+
+        Assert.Equal(2, broker.ClearRetained());
+        Assert.Empty(broker.GetRetained());
+    }
+
+    [Fact]
     public void Delete_blocks_resurrection_by_an_older_replica()
     {
         var store = new RetainedMessageStore();

@@ -15,6 +15,7 @@ using NextMqtt.Core.Topics;
 namespace NextMqtt.Broker;
 
 /// <summary>Result of binding a connection to a session.</summary>
+/// <remarks>带上旧连接，调用方先关掉它再开始读写，避免两个连接同时往同一会话写。</remarks>
 public sealed record SessionAttachResult(
     BrokerSession Session,
     bool SessionPresent,
@@ -24,6 +25,11 @@ public sealed record SessionAttachResult(
 /// The broker facade: authentication, session lifecycle, routing, retained
 /// messages and administration.
 /// </summary>
+/// <remarks>
+/// 这一层不碰 socket：连接层把解析好的报文交进来，状态机之外的所有决定都在这里，
+/// 因此可以脱网做单元测试。并发上只有会话接管与遗嘱调度用了锁，其余路径依赖
+/// 各自组件内部同步。
+/// </remarks>
 public sealed class MqttBroker : IAsyncDisposable
 {
     private readonly ILogger<MqttBroker> _logger;
@@ -87,39 +93,51 @@ public sealed class MqttBroker : IAsyncDisposable
     }
 
     /// <summary>Limits and timings this broker was created with.</summary>
+    /// <remarks>创建时取值，运行期改配置不会影响已经存在的实例。</remarks>
     public BrokerOptions Options { get; }
 
     /// <summary>Credential validator used by CONNECT.</summary>
+    /// <remarks>可能是本地账号、JWT 或自定义实现，Broker 不关心凭据来源。</remarks>
     public IClientAuthenticator Authenticator { get; }
 
     /// <summary>Topic ACL used for publish and subscribe.</summary>
+    /// <remarks>发布与订阅各检查一次，结果不缓存。</remarks>
     public ITopicAuthorizer Authorizer { get; }
 
     /// <summary>Cross-node router; a null implementation when clustering is off.</summary>
+    /// <remarks>关闭集群时它是空实现，调用点不需要写分支。</remarks>
     public IClusterRouter Cluster { get; }
 
     /// <summary>Per-address CONNECT limiter, disabled unless configured.</summary>
+    /// <remarks>未配置时取令牌恒成功，不产生哈希查找。</remarks>
     public ConnectionRateLimiter ConnectionLimits { get; }
 
     /// <summary>Shared per-topic publish quotas, disabled unless configured.</summary>
+    /// <remarks>按主题过滤器匹配，一个主题命中多条配额时每条都要通过。</remarks>
     public TopicQuotaLimiter TopicQuotas { get; }
 
     /// <summary>Optional NATS forwarding for locally accepted messages.</summary>
+    /// <remarks>只在首次接收的节点调用，避免集群里重复投递。</remarks>
     public NatsBridge? Nats { get; }
 
     /// <summary>Optional Kafka forwarding for locally accepted messages.</summary>
+    /// <remarks>异步投递，失败只影响桥本身，不阻断本地路由。</remarks>
     public KafkaBridge? Kafka { get; }
 
     /// <summary>Optional RabbitMQ forwarding for locally accepted messages.</summary>
+    /// <remarks>publisher confirm 成功后才计入转发数。</remarks>
     public RabbitBridge? Rabbit { get; }
 
     /// <summary>Optional routing rules that can discard messages before storage.</summary>
+    /// <remarks>在落保留与投递之前执行，但集成已经先拿到了一份。</remarks>
     public RuleEngine? Rules { get; }
 
     /// <summary>Optional webhook fan-out for locally accepted messages.</summary>
+    /// <remarks>每条规则一条独立队列，慢端点不会拖住发布路径。</remarks>
     public WebhookDispatcher? Webhooks { get; }
 
     /// <summary>Enhanced authentication providers by method name.</summary>
+    /// <remarks>方法名大小写敏感，未注册的方法按协议错误拒绝。</remarks>
     public IReadOnlyDictionary<string, IEnhancedAuthenticator> EnhancedAuthenticators { get; }
         = new Dictionary<string, IEnhancedAuthenticator>(StringComparer.Ordinal);
 
@@ -131,30 +149,38 @@ public sealed class MqttBroker : IAsyncDisposable
     public int ClusterSize { get; private set; } = 1;
 
     /// <summary>All sessions, online and offline.</summary>
+    /// <remarks>键是客户端 ID；持久会话在断开后仍留在这里直到过期。</remarks>
     public SessionRegistry Sessions { get; } = new();
 
     /// <summary>Subscription index used for routing.</summary>
+    /// <remarks>与 Sessions 分开维护，清理会话时两处都要删。</remarks>
     public SubscriptionIndex Subscriptions { get; } = new();
 
     /// <summary>Retained messages, optionally journaled to disk.</summary>
+    /// <remarks>是否落盘在启动时决定，运行期不切换。</remarks>
     public RetainedMessageStore Retained { get; }
 
     /// <summary>Monotonic counters exposed through the API and metrics endpoint.</summary>
+    /// <remarks>进程内累加，重启归零，不承诺跨重启连续。</remarks>
     public BrokerMetrics Metrics { get; } = new();
 
     /// <summary>Inbound publish rate for the last 60 seconds.</summary>
+    /// <remarks>一秒一格，只用于面板曲线。</remarks>
     public RateTracker PublishRate { get; } = new();
 
     /// <summary>Outbound delivery rate for the last 60 seconds.</summary>
+    /// <remarks>按订阅者计数，跨节点转发进来的也算。</remarks>
     public RateTracker DeliveryRate { get; } = new();
 
     /// <summary>Returns the provider registered for an authentication method, if any.</summary>
+    /// <remarks>未注册返回 null，由连接层回 0x8C。</remarks>
     /// <param name="method">Authentication Method from CONNECT.</param>
     /// <returns>Provider or null when the method is not supported.</returns>
     public IEnhancedAuthenticator? GetEnhancedAuthenticator(string method)
         => EnhancedAuthenticators.TryGetValue(method, out var authenticator) ? authenticator : null;
 
     /// <summary>Validates credentials through the configured authenticator.</summary>
+    /// <remarks>直接转给认证器，Broker 不做二次判断。</remarks>
     /// <param name="context">Client identity and credentials from CONNECT.</param>
     /// <param name="cancellationToken">Cancels the async authentication step.</param>
     public ValueTask<AuthenticationResult> AuthenticateAsync(
@@ -248,6 +274,7 @@ public sealed class MqttBroker : IAsyncDisposable
     }
 
     /// <summary>Applies disconnect rules: will publication, expiry and metrics.</summary>
+    /// <remarks>遗嘱只在非正常断开或显式 DisconnectWithWill 时发布；会话是否保留看过期时间。</remarks>
     /// <param name="session">Session whose connection ended.</param>
     /// <param name="connection">Connection that closed.</param>
     /// <param name="disconnect">DISCONNECT packet, when the client sent one.</param>
@@ -302,6 +329,7 @@ public sealed class MqttBroker : IAsyncDisposable
     }
 
     /// <summary>Routes a publish to local subscribers and, optionally, to peers.</summary>
+    /// <remarks>顺序是校验主题、落保留、计数、集成、规则、本地投递、跨节点转发。</remarks>
     public async ValueTask RouteAsync(
         PublishPacket publish,
         string? sourceClientId,
@@ -393,6 +421,7 @@ public sealed class MqttBroker : IAsyncDisposable
     }
 
     /// <summary>Entry point used by the cluster transport for remote publishes.</summary>
+    /// <remarks>不再二次转发，否则消息会在节点之间来回放大。</remarks>
     public ValueTask RouteFromClusterAsync(PublishPacket publish, CancellationToken cancellationToken = default)
         => RouteAsync(publish, sourceClientId: null, cancellationToken, forwardToCluster: false);
 
@@ -443,6 +472,7 @@ public sealed class MqttBroker : IAsyncDisposable
     }
 
     /// <summary>Delivers one message to the local sessions matched by the index.</summary>
+    /// <remarks>同一客户端的多个命中合并成一次投递，QoS 取最大，订阅标识合并去重。</remarks>
     /// <param name="publish">Message being routed.</param>
     /// <param name="matches">Local subscription matches.</param>
     /// <param name="sourceClientId">Publishing client, used by noLocal.</param>
@@ -513,6 +543,7 @@ public sealed class MqttBroker : IAsyncDisposable
     }
 
     /// <summary>Publishes internally, for example for a will or the dashboard.</summary>
+    /// <remarks>走完整路由，因此会触发保留、规则与集成；主题非法直接抛异常而不是静默丢弃。</remarks>
     /// <param name="topic">Topic name.</param>
     /// <param name="payload">Payload bytes.</param>
     /// <param name="qos">Delivery guarantee to use.</param>
@@ -542,6 +573,7 @@ public sealed class MqttBroker : IAsyncDisposable
     }
 
     /// <summary>Starts the maintenance loop and the cluster router.</summary>
+    /// <remarks>幂等：重复调用不会起第二个清扫线程。</remarks>
     /// <param name="cancellationToken">Cancels startup.</param>
     public Task StartAsync(CancellationToken cancellationToken)
     {
@@ -550,6 +582,7 @@ public sealed class MqttBroker : IAsyncDisposable
     }
 
     /// <summary>Stops background loops without disposing session state.</summary>
+    /// <remarks>停心跳与清扫，但保留会话内存，宿主可以先落盘再释放。</remarks>
     public async Task StopAsync()
     {
         _lifetime.Cancel();
@@ -569,6 +602,7 @@ public sealed class MqttBroker : IAsyncDisposable
     }
 
     /// <summary>Samples counters and gauges for the statistics endpoint.</summary>
+    /// <remarks>一次取齐，避免面板上各数字来自不同时刻。</remarks>
     public BrokerStats GetStats()
         => Metrics.Snapshot(
             Sessions.ConnectedCount(),
@@ -578,6 +612,7 @@ public sealed class MqttBroker : IAsyncDisposable
             PublishRate.Snapshot());
 
     /// <summary>Lists sessions with subscription counts for the clients table.</summary>
+    /// <remarks>每个会话单独查订阅数，会话量大时这个接口是 O(n·m)。</remarks>
     public IReadOnlyList<ClientSnapshot> GetClients()
         => Sessions.Snapshot()
             .Select(session => session.Snapshot(Subscriptions.GetByClient(session.ClientId).Count))
@@ -585,6 +620,7 @@ public sealed class MqttBroker : IAsyncDisposable
             .ToList();
 
     /// <summary>Lists every subscription for the subscriptions table.</summary>
+    /// <remarks>按客户端与过滤器排序，保证分页稳定。</remarks>
     public IReadOnlyList<SubscriptionSnapshot> GetSubscriptions()
         => Subscriptions.GetAll()
             .Select(subscription => new SubscriptionSnapshot(
@@ -601,6 +637,7 @@ public sealed class MqttBroker : IAsyncDisposable
             .ToList();
 
     /// <summary>Lists retained messages for the retained table.</summary>
+    /// <remarks>按主题排序；过期但尚未清扫的也会出现。</remarks>
     public IReadOnlyList<RetainedSnapshot> GetRetained()
         => Retained.Snapshot()
             .Select(message => new RetainedSnapshot(
@@ -613,6 +650,7 @@ public sealed class MqttBroker : IAsyncDisposable
             .ToList();
 
     /// <summary>Administratively disconnects a client with 0x98.</summary>
+    /// <remarks>在线连接发 DISCONNECT，离线会话直接删除，两种情况都返回成功。</remarks>
     /// <param name="clientId">Session to disconnect.</param>
     /// <param name="cancellationToken">Cancels the disconnect.</param>
     /// <returns><c>true</c> when a connected client was found and kicked.</returns>
@@ -641,17 +679,26 @@ public sealed class MqttBroker : IAsyncDisposable
     }
 
     /// <summary>Deletes one retained message.</summary>
+    /// <remarks>返回 false 表示该主题本来就没有保留值。</remarks>
     /// <param name="topic">Exact topic name.</param>
     public bool DeleteRetained(string topic) => Retained.Remove(topic);
 
-    /// <summary>Number of retained messages after an administrative clear request.</summary>
-    /// <returns>Remaining count, which is zero after the call.</returns>
-    public int ClearRetained() => Retained.Count;
+    /// <summary>Removes every retained message and returns how many were deleted.</summary>
+    /// <remarks>返回的是删除前的数量，调用方可以据此写审计日志；写删除记录后才清空，恢复时不会复活。</remarks>
+    /// <returns>Number of retained messages that were removed.</returns>
+    public int ClearRetained()
+    {
+        var removed = Retained.Count;
+        Retained.Clear();
+        return removed;
+    }
 
     /// <summary>Membership view for the cluster page and API.</summary>
+    /// <remarks>关闭集群时返回单节点视图。</remarks>
     public ClusterSnapshot GetCluster() => Cluster.GetSnapshot();
 
     /// <summary>Flushes session state and releases resources.</summary>
+    /// <remarks>先停后台循环再落盘，最后逐会话释放；重复调用安全。</remarks>
     public async ValueTask DisposeAsync()
     {
         if (_disposed)
@@ -768,6 +815,7 @@ public sealed class MqttBroker : IAsyncDisposable
     }
 
     /// <summary>Exports retained messages and persistent sessions.</summary>
+    /// <remarks>纯 JSON 快照，不含连接与在途报文；导入时还会再过滤掉过期或非法的条目。</remarks>
     public BrokerBackup CreateBackup() => new()
     {
         CreatedAt = DateTimeOffset.UtcNow,
@@ -789,6 +837,10 @@ public sealed class MqttBroker : IAsyncDisposable
     /// Imports a backup. Retained messages replace the current set; sessions are
     /// only added when no live session with the same client id exists.
     /// </summary>
+    /// <remarks>
+    /// 保留消息是整表替换而不是合并，先清空再写入，避免备份里没有的旧主题留下来；
+    /// 会话则相反，只补缺失的，正在运行的连接不会被一份旧快照顶掉。
+    /// </remarks>
     public RestoreResult RestoreBackup(BrokerBackup backup)
     {
         var now = DateTimeOffset.UtcNow;
@@ -841,6 +893,10 @@ public sealed class MqttBroker : IAsyncDisposable
     /// Waits for in-flight QoS traffic to be acknowledged before shutdown.
     /// Returns the number of sessions that still had inflight messages.
     /// </summary>
+    /// <remarks>
+    /// 100 毫秒轮询一次，等到超时就返回；返回值非零说明这次停机丢了未确认的消息，
+    /// 调用方可以据此决定是否让编排系统延后终止。
+    /// </remarks>
     public async Task<int> DrainAsync(TimeSpan timeout, CancellationToken cancellationToken = default)
     {
         var deadline = DateTimeOffset.UtcNow + timeout;
