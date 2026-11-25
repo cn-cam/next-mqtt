@@ -36,6 +36,25 @@ nextmqtt sub --topic 'alerts/#,audit/#' --count 10
 
 `--count 0`은 Ctrl+C까지 계속합니다.
 
+## 요청/응답
+
+```bash
+nextmqtt request --topic svc/echo --payload '{"ping":1}' --timeout 5
+```
+
+응답 토픽을 구독한 뒤 MQTT 5의 `Response Topic`과 `Correlation Data`를 붙여
+발행하고, 상관 데이터가 일치하는 첫 응답을 출력합니다. MQTT 5가 필요합니다.
+
+| 옵션 | 기본 | 설명 |
+| --- | --- | --- |
+| `--topic` | – | 요청 토픽 (필수) |
+| `--payload` | 빈 값 | 요청 페이로드 |
+| `--response-topic` | `/reply/<client>/<guid>` | 응답 토픽 |
+| `--correlation` | 임의 GUID | 비교할 상관 데이터 |
+| `--timeout` | 5 | 응답 대기 초 |
+| `--qos` | 0 | 발행/구독 QoS |
+
+응답이 없으면 종료 코드 1.
 ## Benchmark
 
 ```bash

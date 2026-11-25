@@ -20,6 +20,14 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 - Retained messages use the origin timestamp for last-write-wins merging, and
   deletions leave a tombstone so an older replica cannot resurrect a removed value.
 
+## [0.9.0] - 2026-11-25
+
+### Added
+
+- `nextmqtt request` command built on MQTT 5 request/response: subscribes to a
+  response topic, publishes with Response Topic and Correlation Data, and prints
+  the matching reply.
+
 ## [0.8.0] - 2026-11-25
 
 ### Added
@@ -225,7 +233,8 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 - GitHub Actions for CI, CodeQL, releases and GitHub Pages.
 - Mechanical brand/trademark compliance scanner and repository policy.
 
-[Unreleased]: https://github.com/cn-cam/next-mqtt/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/cn-cam/next-mqtt/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.9.0
 [0.8.0]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.8.0
 [0.7.0]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.7.0
 [0.6.2]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.6.2

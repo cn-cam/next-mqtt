@@ -36,6 +36,25 @@ nextmqtt sub --topic 'alerts/#,audit/#' --count 10
 
 `--count 0` は Ctrl+C まで継続。
 
+## リクエスト/応答
+
+```bash
+nextmqtt request --topic svc/echo --payload '{"ping":1}' --timeout 5
+```
+
+応答トピックを購読し、MQTT 5 の `Response Topic` と `Correlation Data` を付けて
+公開し、相関データが一致する最初の応答を表示します。MQTT 5 が必要です。
+
+| オプション | 既定 | 説明 |
+| --- | --- | --- |
+| `--topic` | – | リクエストトピック（必須） |
+| `--payload` | 空 | リクエストのペイロード |
+| `--response-topic` | `/reply/<client>/<guid>` | 応答トピック |
+| `--correlation` | ランダム GUID | 照合する相関データ |
+| `--timeout` | 5 | 応答待ちの秒数 |
+| `--qos` | 0 | 公開と購読の QoS |
+
+応答が無い場合は終了コード 1。
 ## Benchmark
 
 ```bash

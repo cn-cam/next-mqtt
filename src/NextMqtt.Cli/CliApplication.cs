@@ -280,6 +280,7 @@ internal static class CliApplication
                 "version" or "--version" => PrintVersion(),
                 "pub" or "publish" => await PublishAsync(args[1..]),
                 "sub" or "subscribe" => await SubscribeAsync(args[1..]),
+                "request" or "req" => await RequestAsync(args[1..]),
                 "bench" or "benchmark" => await BenchmarkAsync(args[1..]),
                 "bench-connections" or "connect-bench" => await BenchmarkConnectionsAsync(args[1..]),
                 "hash" or "hash-password" => HashPassword(args[1..]),
@@ -361,6 +362,96 @@ internal static class CliApplication
             $"published {payload.Length} byte(s) to {topic} (qos={qos}, retain={retain.ToString().ToLowerInvariant()})");
 
         return 0;
+    }
+
+    /// <summary>Sends a request and waits for the correlated reply.</summary>
+    /// <remarks>
+    /// 使用 MQTT 5 的 Response Topic 与 Correlation Data：先订阅回复主题，再发布请求，
+    /// 收到 Correlation Data 匹配的第一条消息即返回。
+    /// </remarks>
+    private static async Task<int> RequestAsync(string[] args)
+    {
+        var options = ParseOptions(args);
+        var topic = options.GetValueOrDefault("topic");
+
+        if (string.IsNullOrWhiteSpace(topic))
+        {
+            Console.Error.WriteLine("error: --topic is required");
+            return 2;
+        }
+
+        if (ParseProtocol(options.GetValueOrDefault("protocol")) != MqttProtocolVersion.V500)
+        {
+            Console.Error.WriteLine("error: request needs MQTT 5 (--protocol 5)");
+            return 2;
+        }
+
+        var qos = ParseQos(options.GetValueOrDefault("qos"));
+        var timeout = ParseInt(options.GetValueOrDefault("timeout"), 5, 1, 300);
+        var clientOptions = BuildClientOptions(options);
+        var responseTopic = options.GetValueOrDefault("response-topic");
+
+        if (string.IsNullOrWhiteSpace(responseTopic))
+        {
+            responseTopic = $"$nextmqtt/reply/{clientOptions.ClientId ?? "cli"}/{Guid.NewGuid():N}";
+        }
+
+        var correlation = options.TryGetValue("correlation", out var correlationText)
+            ? System.Text.Encoding.UTF8.GetBytes(correlationText)
+            : Guid.NewGuid().ToByteArray();
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(timeout));
+
+        try
+        {
+            await using var client = await MqttCliClient.ConnectAsync(clientOptions, cts.Token);
+            await client.SubscribeAsync([responseTopic], qos, cts.Token);
+
+            var payload = System.Text.Encoding.UTF8.GetBytes(
+                options.GetValueOrDefault("payload") ?? options.GetValueOrDefault("message") ?? string.Empty);
+
+            var properties = new MqttProperties()
+                .AddString(MqttPropertyId.ResponseTopic, responseTopic)
+                .AddBinary(MqttPropertyId.CorrelationData, correlation);
+
+            await client.SendAsync(new PublishPacket
+            {
+                Topic = topic,
+                Payload = payload,
+                QoS = qos,
+                PacketId = qos == MqttQoS.AtMostOnce ? (ushort)0 : (ushort)1,
+                Properties = properties,
+            }, cts.Token);
+
+            Console.WriteLine($"request sent to {topic}; waiting up to {timeout}s on {responseTopic}");
+
+            while (true)
+            {
+                var packet = await client.ReadPacketAsync(cts.Token);
+
+                if (packet is not PublishPacket reply)
+                {
+                    continue;
+                }
+
+                var received = reply.Properties.GetBinary(MqttPropertyId.CorrelationData);
+
+                if (received is not null && !received.AsSpan().SequenceEqual(correlation))
+                {
+                    continue;
+                }
+
+                var text = System.Text.Encoding.UTF8.GetString(reply.Payload);
+                Console.WriteLine($"[{DateTimeOffset.Now:HH:mm:ss.fff}] {reply.Topic} qos={(byte)reply.QoS} bytes={reply.Payload.Length}");
+                Console.WriteLine(text);
+                return 0;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            Console.Error.WriteLine($"error: no reply within {timeout}s");
+            return 1;
+        }
     }
 
     private static async Task<int> SubscribeAsync(string[] args)
@@ -664,6 +755,8 @@ internal static class CliApplication
                              [--topic bench] [connection options]
               nextmqtt bench-connections [--connections 1000] [--hold 5]
                              [connection options]
+              nextmqtt request --topic <topic> [--payload <text>] [--response-topic <topic>]
+                             [--correlation <text>] [--timeout 5] [--qos 0] [connection options]
               nextmqtt hash-password [--password <secret>]
               nextmqtt version
 

@@ -68,6 +68,25 @@ nextmqtt sub --topic 'alerts/#,audit/#' --count 10
 订阅端会自动确认 QoS 1/2 消息，打印主题、QoS、retain、字节数和 UTF-8/Base64
 负载。
 
+## 请求与应答
+
+```bash
+nextmqtt request --topic svc/echo --payload '{"ping":1}' --timeout 5
+```
+
+先订阅回复主题，再用 MQTT 5 的 `Response Topic` 与 `Correlation Data` 发布请求，
+收到关联数据匹配的第一条回复后打印内容。需要 MQTT 5（默认）。
+
+| 选项 | 默认 | 说明 |
+| --- | --- | --- |
+| `--topic` | – | 请求主题（必填） |
+| `--payload` | 空 | 请求负载文本 |
+| `--response-topic` | `/reply/<client>/<guid>` | 回复必须使用的主题 |
+| `--correlation` | 随机 GUID | 用于匹配的关联数据 |
+| `--timeout` | 5 | 等待回复的秒数 |
+| `--qos` | 0 | 请求与订阅的 QoS |
+
+超时未收到回复时退出码为 1。
 ## 压测
 
 ```bash

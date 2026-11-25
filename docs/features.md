@@ -92,7 +92,7 @@ Legend: ✅ implemented · ⚠️ partial or with documented limits · ❌ not i
 | JSON statistics | ✅ | 60-second publish series |
 | Health and readiness | ✅ | `/healthz`, `/readyz` |
 | Structured logs | ✅ | stdout, configurable levels |
-| CLI | ✅ | `pub`, `sub`, `bench`, `hash-password` |
+| CLI | ✅ | `pub`, `sub`, `request`, `bench`, `hash-password` |
 | Docker image | ✅ | Multi-arch, non-root, health check |
 | Compose single node / 3-node cluster | ✅ | `docker-compose.yml`, `deploy/compose` |
 | Kustomize manifests | ✅ | StatefulSet, PDB, HPA, Ingress, NetworkPolicy |

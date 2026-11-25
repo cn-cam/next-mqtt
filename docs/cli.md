@@ -71,6 +71,26 @@ nextmqtt sub --topic 'alerts/#,audit/#' --count 10
 The subscriber acknowledges QoS 1/2 messages and prints topic, QoS, retain
 flag, byte count and a UTF-8 or base64 payload.
 
+## Request and reply
+
+`ash
+nextmqtt request --topic svc/echo --payload '{"ping":1}' --timeout 5
+`
+
+Subscribes to a response topic, publishes the request with MQTT 5
+`Response Topic` and `Correlation Data`, then prints the first reply whose
+correlation data matches. Needs `--protocol 5` (the default).
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `--topic` | – | Request topic (required) |
+| `--payload` | empty | Request payload text |
+| `--response-topic` | `/reply/<client>/<guid>` | Topic the reply must use |
+| `--correlation` | random GUID | Correlation text to match |
+| `--timeout` | 5 | Seconds to wait for the reply |
+| `--qos` | 0 | QoS for both the request and the subscription |
+
+Exit code is 1 when no reply arrives in time.
 ## Benchmark
 
 ```bash

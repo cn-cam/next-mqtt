@@ -32,7 +32,7 @@ security needs.
 
 - [x] Enhanced authentication (`AUTH`) with pluggable providers (0.8.0)
 - [ ] Outbound topic aliases
-- [ ] Response-topic request/response helpers
+- [x] Response-topic request/response helpers (0.9.0)
 - [ ] MQTT over QUIC experiment
 - [ ] Global shared-subscription coordination across nodes
 - [x] Cluster-aware retained tombstones and last-write-wins conflict resolution (0.7.0)
