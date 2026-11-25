@@ -23,8 +23,7 @@ jobs:
         run: bash scripts/compliance-check.sh
 
       - name: Check C# documentation coverage
-        shell: pwsh
-        run: ./scripts/docs-coverage.ps1
+        run: pwsh -NoProfile -File scripts/docs-coverage.ps1
 
       - name: Verify licence and notice files exist
         run: |
