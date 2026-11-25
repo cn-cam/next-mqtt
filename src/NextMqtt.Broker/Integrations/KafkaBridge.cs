@@ -74,6 +74,8 @@ public sealed class KafkaBridge : IAsyncDisposable
             BootstrapServers = options.BootstrapServers,
             ClientId = options.ClientId,
             LingerMs = options.LingerMs,
+            // Surface an unreachable broker quickly instead of buffering for minutes.
+            MessageTimeoutMs = 5000,
             CompressionType = ParseCompression(options.Compression),
         };
 
