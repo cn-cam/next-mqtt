@@ -10,4 +10,8 @@
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- ADR 0007: the only runtime NuGet dependency, used by the Kafka bridge. -->
+    <PackageReference Include="Confluent.Kafka" />
+  </ItemGroup>
 </Project>

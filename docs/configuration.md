@@ -382,6 +382,26 @@ Publishes matching the filter are forwarded as `PUB` frames over the NATS text
 protocol; `/` becomes `.` and unsafe characters become `_`. A bounded queue
 absorbs bursts, the worker reconnects every two seconds, and only the node that
 first accepted the message forwards, so clusters do not duplicate.
+### Kafka bridge
+
+```json
+{
+  "Integrations": {
+    "Kafka": {
+      "Enabled": true,
+      "BootstrapServers": "127.0.0.1:9092",
+      "TopicPrefix": "mqtt.",
+      "Filter": "telemetry/#",
+      "Compression": "gzip"
+    }
+  }
+}
+```
+
+`Confluent.Kafka` (Apache-2.0) is the only runtime NuGet dependency, approved
+in ADR 0007. Topics map the same way as NATS (`/` → `.`, unsafe characters →
+`_`), a bounded queue absorbs bursts, and a broken broker address only logs a
+warning at startup instead of failing the listener.
 ## Authentication
 
 ```json

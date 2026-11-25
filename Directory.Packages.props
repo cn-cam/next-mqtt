@@ -5,7 +5,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- Test-only dependencies. The runtime has no third-party NuGet dependencies. -->
+    <!-- ADR 0007: Confluent.Kafka is the only runtime dependency (Kafka bridge). -->
+    <PackageVersion Include="Confluent.Kafka" Version="2.6.1" />
+
+    <!-- Test-only dependencies. -->
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.12.0" />
     <PackageVersion Include="xunit" Version="2.9.3" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />

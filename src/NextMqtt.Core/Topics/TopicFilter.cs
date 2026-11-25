@@ -106,6 +106,7 @@ public static class MqttTopic
     }
 
     /// <summary>Splits a topic or filter into levels on '/'.</summary>
+    /// <remarks>按 `/` 切层，保留空层：`a//b` 合法，和订阅匹配语义一致。</remarks>
     /// <remarks>保留空层，<c>a//b</c> 合法且与订阅匹配语义一致。</remarks>
     /// <param name="value">Topic name or filter.</param>
     /// <returns>Levels in order; empty entries represent empty levels.</returns>
@@ -120,6 +121,7 @@ public sealed class TopicFilter
     private const string SharedPrefix = "$share/";
 
     /// <summary>Creates a filter from already-validated parts.</summary>
+    /// <remarks>内部构造，调用前必须已验证，避免重复解析。</remarks>
     /// <param name="original">Text supplied by the client.</param>
     /// <param name="filter">Effective filter without the shared prefix.</param>
     /// <param name="sharedGroup">Group name for shared subscriptions.</param>
@@ -142,13 +144,16 @@ public sealed class TopicFilter
     public string? SharedGroup { get; }
 
     /// <summary>True when the filter belongs to a shared subscription group.</summary>
+    /// <remarks>共享订阅按组内轮询投递，组名在 SharedGroup 里。</remarks>
     /// <remarks>共享订阅按组内轮询投递，组信息由 <see cref="SharedGroup"/> 提供。</remarks>
     public bool IsShared => SharedGroup is not null;
 
     /// <summary>Levels of the effective filter, without the shared prefix.</summary>
+    /// <remarks>共享订阅去掉 `$share/group/` 后的层级，匹配时用这个。</remarks>
     public string[] Levels { get; }
 
     /// <summary>Parses a filter, throwing when it is invalid.</summary>
+    /// <remarks>解析失败直接抛，适合启动期配置；运行时请用 TryParse 拿原因。</remarks>
     /// <remarks>解析失败时抛出 <see cref="ArgumentException"/>，消息包含具体原因。</remarks>
     /// <param name="value">Filter text, optionally starting with <c>$share/{group}/</c>.</param>
     /// <returns>The parsed filter.</returns>
@@ -219,6 +224,7 @@ public sealed class TopicFilter
     }
 
     /// <summary>Returns true when this filter matches the supplied topic name.</summary>
+    /// <remarks>根层不匹配 `$` 开头的系统主题，符合 MQTT 5 规范 4.7.2。</remarks>
     public bool Matches(string topic)
     {
         if (string.IsNullOrEmpty(topic))
@@ -260,5 +266,6 @@ public sealed class TopicFilter
     }
 
     /// <summary>Returns the original filter text supplied by the client.</summary>
+    /// <remarks>返回客户端原文；ACL 与取消订阅都按原文比对。</remarks>
     public override string ToString() => Original;
 }

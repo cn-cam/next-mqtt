@@ -33,7 +33,7 @@ Legend: ✅ implemented · ⚠️ partial or with documented limits · ❌ not i
 | Plugin host | ✅ | Manifest + collectible load context; authenticator/authorizer selection |
 | Rule engine actions | ✅ | Topic-filtered `drop` and prefix `rewrite` before storage |
 | NATS bridge | ✅ | Text-protocol publisher, bounded queue, auto-reconnect |
-| Kafka bridge | ⚠️ | Approved in ADR 0007; implementation pending |
+| Kafka bridge | ✅ | Confluent.Kafka producer, filtered and bounded like NATS |
 
 ## Sessions and delivery
 

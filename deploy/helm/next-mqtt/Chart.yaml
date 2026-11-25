@@ -2,8 +2,8 @@ apiVersion: v2
 name: nextmqtt
 description: Cloud-native MQTT broker with management API and dashboard
 type: application
-version: 0.14.0
-appVersion: "0.14.0"
+version: 0.15.0
+appVersion: "0.15.0"
 home: https://github.com/cn-cam/next-mqtt
 sources:
   - https://github.com/cn-cam/next-mqtt

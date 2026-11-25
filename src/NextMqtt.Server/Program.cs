@@ -153,6 +153,21 @@ if (integrationsOptions.Nats.Enabled)
     });
 }
 
+if (integrationsOptions.Kafka.Enabled)
+{
+    builder.Services.AddSingleton(sp =>
+    {
+        var bridge = new KafkaBridge(
+            integrationsOptions.Kafka,
+            sp.GetRequiredService<ILogger<KafkaBridge>>());
+
+        sp.GetRequiredService<IHostApplicationLifetime>().ApplicationStopping.Register(() =>
+            bridge.DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(3)));
+
+        return bridge;
+    });
+}
+
 if (integrationsOptions.Rules.Count > 0)
 {
     builder.Services.AddSingleton(sp => new RuleEngine(
@@ -181,7 +196,8 @@ builder.Services.AddSingleton(sp =>
         enhancedAuthenticators,
         sp.GetService<WebhookDispatcher>(),
         sp.GetService<RuleEngine>(),
-        sp.GetService<NatsBridge>());
+        sp.GetService<NatsBridge>(),
+        sp.GetService<KafkaBridge>());
 
     if (cluster is ClusterRouter clusterRouter)
     {

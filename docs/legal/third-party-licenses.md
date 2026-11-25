@@ -27,6 +27,7 @@ therefore distributed with the broker image and the release archives.
 | Vue | 3.5.x | MIT | UI framework |
 | Vue Router | 4.x | MIT | Client-side routing |
 | Pinia | 3.x | MIT | Session and UI state |
+| Confluent.Kafka | 2.6.x | Apache-2.0 | Server-side Kafka producer for the optional Kafka bridge (ADR 0007) |
 | mqtt (MQTT.js) | 5.16.x | MIT | Browser MQTT 3.1.1 / 5.0 client used by the debugger |
 | mqtt-packet | 9.x | MIT | Packet encoding and decoding |
 | readable-stream | 4.x | MIT | Stream implementation |

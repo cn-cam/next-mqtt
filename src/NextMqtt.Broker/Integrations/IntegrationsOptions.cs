@@ -14,6 +14,9 @@ public sealed class IntegrationsOptions
 
     /// <summary>Optional NATS forwarding.</summary>
     public NatsOptions Nats { get; set; } = new();
+
+    /// <summary>Optional Kafka forwarding (ADR 0007).</summary>
+    public KafkaOptions Kafka { get; set; } = new();
 }
 
 /// <summary>One routing rule, evaluated on every inbound publish.</summary>

@@ -52,7 +52,8 @@ public sealed class MqttBroker : IAsyncDisposable
         IEnumerable<IEnhancedAuthenticator>? enhancedAuthenticators = null,
         WebhookDispatcher? webhooks = null,
         RuleEngine? rules = null,
-        NatsBridge? nats = null)
+        NatsBridge? nats = null,
+        KafkaBridge? kafka = null)
     {
         Options = options;
         Authenticator = authenticator;
@@ -66,6 +67,7 @@ public sealed class MqttBroker : IAsyncDisposable
         Webhooks = webhooks;
         Rules = rules;
         Nats = nats;
+        Kafka = kafka;
 
         foreach (var provider in enhancedAuthenticators ?? [])
         {
@@ -102,6 +104,9 @@ public sealed class MqttBroker : IAsyncDisposable
 
     /// <summary>Optional NATS forwarding for locally accepted messages.</summary>
     public NatsBridge? Nats { get; }
+
+    /// <summary>Optional Kafka forwarding for locally accepted messages.</summary>
+    public KafkaBridge? Kafka { get; }
 
     /// <summary>Optional routing rules that can discard messages before storage.</summary>
     public RuleEngine? Rules { get; }

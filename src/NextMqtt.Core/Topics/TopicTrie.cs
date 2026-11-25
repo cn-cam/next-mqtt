@@ -12,9 +12,11 @@ public sealed class TopicTrie<TValue>
     private readonly EqualityComparer<TValue> _comparer = EqualityComparer<TValue>.Default;
 
     /// <summary>Number of values currently stored in the tree.</summary>
+    /// <remarks>存了多少个值，空节点不计。</remarks>
     public int Count { get; private set; }
 
     /// <summary>Stores a value under the given filter (topic or wildcard).</summary>
+    /// <remarks>同一路径可挂多个值，查找时按插入顺序返回。</remarks>
     /// <remarks>同一过滤器可存多个值；查找时按插入顺序返回。</remarks>
     /// <param name="filter">Topic name or filter whose levels form the path.</param>
     /// <param name="value">Value to attach to that path.</param>
@@ -34,6 +36,7 @@ public sealed class TopicTrie<TValue>
     }
 
     /// <summary>Removes one value from the given filter's path.</summary>
+    /// <remarks>只删指定值，节点空了就剪掉，避免内存里堆积空路径。</remarks>
     /// <remarks>只移除匹配到的那一个值，空节点会被剪掉以保持内存有界。</remarks>
     /// <param name="filter">Path that was used by <see cref="Add"/>.</param>
     /// <param name="value">Value to remove.</param>
@@ -73,6 +76,7 @@ public sealed class TopicTrie<TValue>
     }
 
     /// <summary>Returns every stored value in depth-first order.</summary>
+    /// <remarks>快照，遍历期间树可以继续变化。</remarks>
     /// <returns>Snapshot list; the tree may change afterwards.</returns>
     public List<TValue> ToList()
     {
@@ -82,6 +86,7 @@ public sealed class TopicTrie<TValue>
     }
 
     /// <summary>Drops every stored value and the nodes that held them.</summary>
+    /// <remarks>保留根节点，计数归零；用于关闭或测试。</remarks>
     /// <remarks>根节点保留，计数归零。</remarks>
     public void Clear()
     {
@@ -91,6 +96,7 @@ public sealed class TopicTrie<TValue>
     }
 
     /// <summary>Walks topic levels, collecting exact, '+' and '#' matches.</summary>
+    /// <remarks>根层跳过 `$` 系统主题，这是协议要求而不是优化。</remarks>
     // 根层不匹配 $ 开头的系统主题，符合 MQTT 5 规范 4.7.2。
     private static void MatchNode(Node node, string[] levels, int index, List<TValue> results, bool isRoot, bool topicIsDollar)
     {
@@ -123,6 +129,7 @@ public sealed class TopicTrie<TValue>
     }
 
     /// <summary>Walks filter levels, expanding '+' and '#' across the tree.</summary>
+    /// <remarks>保留消息反查用：过滤器含通配符时展开所有候选节点。</remarks>
     // 用于保留消息的反向查找：过滤器含通配符时展开所有候选节点。
     private static void SearchNode(Node node, string[] levels, int index, List<TValue> results, bool isRoot)
     {
@@ -269,15 +276,19 @@ public sealed class TopicTrie<TValue>
     }
 
     /// <summary>Classifies one trie node: children keyed by level, values at the leaf.</summary>
+    /// <remarks>每个节点只管一层；值是挂在路径末端的具体对象。</remarks>
     private sealed class Node
     {
         /// <summary>Child nodes by topic level; null when the node has no children.</summary>
+    /// <remarks>字典按层名索引，用 ordinal 比较保证大小写敏感。</remarks>
         public Dictionary<string, Node>? Children { get; set; }
 
         /// <summary>Values stored exactly at this node; null when empty.</summary>
+    /// <remarks>只有在路径末端才会有值。</remarks>
         public List<TValue>? Values { get; set; }
 
         /// <summary>True when the node holds neither values nor children.</summary>
+    /// <remarks>用于删除后剪枝。</remarks>
         public bool IsEmpty => Values is null && (Children is null || Children.Count == 0);
 
         public Node GetOrAddChild(string level)
