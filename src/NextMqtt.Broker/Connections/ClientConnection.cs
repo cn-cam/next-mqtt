@@ -29,6 +29,15 @@ public sealed class ClientConnection : IClientConnection, IRateScalable
     private readonly string _remoteAddress;
     private readonly Dictionary<ushort, string> _inboundAliases = new();
     private readonly TokenBucket? _publishBucket;
+
+    /// <summary>Topics this client has been assigned an outbound alias for.</summary>
+    private readonly Dictionary<string, ushort> _outboundAliases = new(StringComparer.Ordinal);
+
+    /// <summary>Largest alias the client accepts, from its CONNECT properties.</summary>
+    private ushort _clientTopicAliasMax;
+
+    /// <summary>Next alias to hand out; aliases start at 1.</summary>
+    private ushort _nextOutboundAlias = 1;
     private readonly int _publishRate;
     private readonly int _publishBurst;
     private int _clusterSize = 1;
@@ -219,6 +228,12 @@ public sealed class ClientConnection : IClientConnection, IRateScalable
     private async Task<bool> HandleConnectAsync(ConnectPacket connect, CancellationToken cancellationToken)
     {
         _version = connect.ProtocolVersion;
+
+        if (connect.ProtocolVersion == MqttProtocolVersion.V500
+            && connect.Properties.GetUInt16(MqttPropertyId.TopicAliasMaximum) is > 0 and var aliasMaximum)
+        {
+            _clientTopicAliasMax = aliasMaximum;
+        }
 
         if (!_broker.ConnectionLimits.TryAcquire(_remoteAddress))
         {
@@ -530,9 +545,12 @@ public sealed class ClientConnection : IClientConnection, IRateScalable
         var reasonCodes = new List<byte>(subscribe.Subscriptions.Count);
         var retainedTargets = new List<Subscription>();
         var identifier = subscribe.Properties.GetVariableByteInteger(MqttPropertyId.SubscriptionIdentifier);
-        var existing = _broker.Subscriptions.GetByClient(_session!.ClientId)
+        var clientSubscriptions = _broker.Subscriptions.GetByClient(_session!.ClientId);
+        var existing = clientSubscriptions
             .Select(subscription => subscription.Filter.Original)
             .ToHashSet(StringComparer.Ordinal);
+        var identified = clientSubscriptions.Count(subscription => subscription.Identifier is not null);
+        var identifierLimit = _broker.Options.MaxSubscriptionIdentifiersPerClient;
 
         foreach (var request in subscribe.Subscriptions)
         {
@@ -556,6 +574,21 @@ public sealed class ClientConnection : IClientConnection, IRateScalable
             }
 
             var isNew = !existing.Contains(request.Filter);
+            var hadIdentifier = !isNew && clientSubscriptions.Any(subscription =>
+                subscription.Identifier is not null
+                && string.Equals(subscription.Filter.Original, request.Filter, StringComparison.Ordinal));
+
+            if (identifier is not null && identifierLimit > 0 && !hadIdentifier && identified >= identifierLimit)
+            {
+                reasonCodes.Add(MqttReasonCodes.QuotaExceeded);
+                continue;
+            }
+
+            if (identifier is not null && !hadIdentifier)
+            {
+                identified++;
+            }
+
             var subscription = new Subscription
             {
                 ClientId = _session.ClientId,
@@ -730,7 +763,7 @@ public sealed class ClientConnection : IClientConnection, IRateScalable
             await foreach (var frame in _outbound.Reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
             {
                 var buffer = new ArrayBufferWriter<byte>(256);
-                MqttPacketWriter.Write(buffer, frame.Packet, _version);
+                MqttPacketWriter.Write(buffer, ApplyOutboundAlias(frame.Packet), _version);
                 await _stream.WriteAsync(buffer.WrittenMemory, cancellationToken).ConfigureAwait(false);
                 await _stream.FlushAsync(cancellationToken).ConfigureAwait(false);
                 _broker.Metrics.AddBytesSent(buffer.WrittenCount);
@@ -745,6 +778,63 @@ public sealed class ClientConnection : IClientConnection, IRateScalable
         {
             _logger.LogDebug(ex, "Write loop ended for {RemoteAddress}", _remoteAddress);
         }
+    }
+
+    /// <summary>Rewrites a PUBLISH to use the client's outbound topic alias budget.</summary>
+    /// <remarks>
+    /// 第一次发送某主题时带上完整主题和新分配的别名；之后再发同一主题时主题留空，只带别名。
+    /// 别名用尽后新主题继续发送完整主题，符合 MQTT 5 规范 3.3.2.3.4。
+    /// </remarks>
+    /// <param name="packet">Packet queued for this connection.</param>
+    /// <returns>Original packet, or a PUBLISH rewritten for aliasing.</returns>
+    private MqttPacket ApplyOutboundAlias(MqttPacket packet)
+    {
+        if (_clientTopicAliasMax == 0 || packet is not PublishPacket publish || publish.Topic.Length == 0)
+        {
+            return packet;
+        }
+
+        if (_outboundAliases.TryGetValue(publish.Topic, out var alias))
+        {
+            return Rewrite(publish, string.Empty, alias);
+        }
+
+        if (_outboundAliases.Count >= _clientTopicAliasMax)
+        {
+            return packet;
+        }
+
+        alias = _nextOutboundAlias++;
+        _outboundAliases[publish.Topic] = alias;
+        return Rewrite(publish, publish.Topic, alias);
+    }
+
+    /// <summary>Copies a PUBLISH, optionally blanking the topic and adding an alias.</summary>
+    /// <param name="publish">Original packet.</param>
+    /// <param name="topic">Topic to send (empty for alias-only).</param>
+    /// <param name="alias">Alias to attach.</param>
+    /// <returns>Rewritten packet with copied properties.</returns>
+    private static PublishPacket Rewrite(PublishPacket publish, string topic, ushort alias)
+    {
+        var properties = new MqttProperties();
+
+        foreach (var property in publish.Properties.Items)
+        {
+            properties.Add(property.Id, property.Value);
+        }
+
+        properties.AddUInt16(MqttPropertyId.TopicAlias, alias);
+
+        return new PublishPacket
+        {
+            Topic = topic,
+            Payload = publish.Payload,
+            QoS = publish.QoS,
+            Retain = publish.Retain,
+            Duplicate = publish.Duplicate,
+            PacketId = publish.PacketId,
+            Properties = properties,
+        };
     }
 
     private async Task WriteConnAckAsync(ConnAckPacket connAck, CancellationToken cancellationToken)

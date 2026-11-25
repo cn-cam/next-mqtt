@@ -46,6 +46,7 @@ NEXTMQTT_CLUSTER__SEEDS__0=http://node-b:8080
 | `MaxQueuedMessages` | 1000 |
 | `MaxSubscriptionsPerSession` | 1000 |
 | `MaxTopicAlias` | 32 |
+| `MaxSubscriptionIdentifiersPerClient` | 0 | 識別子付き購読の上限（0 で無効） |
 | `ConnectTimeout` | 10 s |
 | `RetransmitInterval` | 10 s |
 | `SweepInterval` | 30 s |

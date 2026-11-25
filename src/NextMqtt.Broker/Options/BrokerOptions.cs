@@ -21,6 +21,12 @@ public sealed class BrokerOptions
     /// <summary>Maximum inbound topic aliases accepted per connection.</summary>
     public int MaxTopicAlias { get; set; } = 32;
 
+    /// <summary>
+    /// Largest number of subscriptions per client that may carry an MQTT 5
+    /// subscription identifier; 0 disables the quota.
+    /// </summary>
+    public int MaxSubscriptionIdentifiersPerClient { get; set; }
+
     /// <summary>How long the server waits for a CONNECT packet.</summary>
     public TimeSpan ConnectTimeout { get; set; } = TimeSpan.FromSeconds(10);
 

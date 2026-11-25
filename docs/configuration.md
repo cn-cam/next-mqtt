@@ -119,6 +119,7 @@ Setting `Http:WebSocketPort` equal to `Http:Port` disables the extra endpoint.
 | `MaxQueuedMessages` | 1000 | Offline queue per persistent session |
 | `MaxSubscriptionsPerSession` | 1000 | Subscription quota |
 | `MaxTopicAlias` | 32 | Inbound topic alias table size |
+| `MaxSubscriptionIdentifiersPerClient` | 0 | Subscriptions per client that may carry an identifier; 0 disables |
 | `ConnectTimeout` | 10 s | Time allowed to send CONNECT |
 | `RetransmitInterval` | 10 s | QoS retransmission timer |
 | `SweepInterval` | 30 s | Expiry and maintenance cadence |

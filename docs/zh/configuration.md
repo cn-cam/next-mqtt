@@ -69,6 +69,7 @@ NEXTMQTT_CLUSTER__SEEDS__0=http://node-b:8080
 | `MaxQueuedMessages` | 1000 | 离线队列上限 |
 | `MaxSubscriptionsPerSession` | 1000 | 每会话订阅上限 |
 | `MaxTopicAlias` | 32 | 入站主题别名表 |
+| `MaxSubscriptionIdentifiersPerClient` | 0 | 每客户端可带订阅标识的订阅数，0 表示不限 |
 | `ConnectTimeout` | `00:00:10` | CONNECT 超时 |
 | `RetransmitInterval` | `00:00:10` | QoS 重传周期 |
 | `SweepInterval` | `00:00:30` | 过期清理周期 |

@@ -5,6 +5,16 @@ All notable changes to NextMQTT are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- Outbound topic aliases: the server assigns aliases per connection inside the
+  client's Topic Alias Maximum and sends later PUBLISH packets with an empty
+  topic.
+- `MaxSubscriptionIdentifiersPerClient` caps how many subscriptions per client
+  may carry an MQTT 5 subscription identifier; excess filters get 0x97.
+
 ## [0.6.2] - 2026-11-25
 
 ### Fixed

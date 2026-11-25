@@ -62,6 +62,8 @@ Legend: ✅ implemented · ⚠️ partial or with documented limits · ❌ not i
 | Role-based dashboard permissions | ❌ | Single admin role today |
 | Client connection/message rate limits | ✅ | Token buckets per remote address and per client |
 | Topic-level publish quotas | ✅ | One token bucket per topic filter, shared across clients |
+| Outbound topic aliases | ✅ | Server assigns aliases per connection within the client's Topic Alias Maximum |
+| Subscription identifier quota | ✅ | `MaxSubscriptionIdentifiersPerClient` caps identified subscriptions per client |
 | mTLS policy | ⚠️ | Optional client certificate request; platform validation |
 
 ## Cluster
