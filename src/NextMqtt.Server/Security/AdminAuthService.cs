@@ -12,7 +12,7 @@ namespace NextMqtt.Server.Security;
 /// Dashboard authentication: PBKDF2 password login issues a short-lived
 /// HS256 token; API keys are accepted through the X-API-Key header.
 /// </summary>
-/// <summary>Dashboard authentication: PBKDF2 login, HS256 tokens and API keys.</summary>
+/// <remarks>令牌与 API Key 各自独立校验，任一通过即视为超管；没有配置密钥时会生成临时密钥并在日志里告警。</remarks>
 public sealed class AdminAuthService
 {
     private readonly string _username;
@@ -46,6 +46,7 @@ public sealed class AdminAuthService
     }
 
     /// <summary>Builds the service from configuration and environment overrides.</summary>
+    /// <remarks>环境变量优先于配置文件；两者都没有时生成随机密码并打进日志。</remarks>
     /// <param name="options">Admin username, hash, token secret and API key digests.</param>
     /// <param name="logger">Logger used for bootstrap warnings.</param>
     public static AdminAuthService Create(AdminOptions options, ILogger logger)
@@ -88,6 +89,7 @@ public sealed class AdminAuthService
     }
 
     /// <summary>Verifies a username/password pair in constant time.</summary>
+    /// <remarks>用户名与哈希各比较一次，失败原因不区分。</remarks>
     /// <param name="username">Submitted username.</param>
     /// <param name="password">Submitted plaintext password.</param>
     public bool ValidateCredentials(string username, string password)
@@ -95,6 +97,7 @@ public sealed class AdminAuthService
            && PasswordHasher.Verify(password, _passwordHash);
 
     /// <summary>Issues a bearer token for the configured admin user.</summary>
+    /// <remarks>角色固定为 admin，有效期来自配置并被夹在 5 分钟到 7 天之间。</remarks>
     /// <param name="expiresAt">Expiry written into the token.</param>
     /// <returns>The encoded JWT.</returns>
     public string IssueToken(out DateTimeOffset expiresAt)
@@ -121,6 +124,7 @@ public sealed class AdminAuthService
     }
 
     /// <summary>Authenticates a request by bearer token or API key.</summary>
+    /// <remarks>先看 API Key，再看 Bearer；都失败返回 null，由端点回 401。</remarks>
     /// <param name="request">Incoming HTTP request.</param>
     /// <returns>Principal on success, null otherwise.</returns>
     public ClientPrincipal? Authenticate(HttpRequest request)
@@ -151,6 +155,7 @@ public sealed class AdminAuthService
     }
 
     /// <summary>Validates an HS256 token and rebuilds the principal.</summary>
+    /// <remarks>供 WebSocket 握手使用，那里拿不到 HttpRequest。</remarks>
     /// <param name="token">JWT without the <c>Bearer</c> prefix.</param>
     public ClientPrincipal? ValidateToken(string token)
         => _validator.TryValidate(token, out var principal, out _)
@@ -158,6 +163,7 @@ public sealed class AdminAuthService
             : null;
 
     /// <summary>Hashes an API key for comparison with configured digests.</summary>
+    /// <remarks>配置里只存 SHA-256，泄露配置也拿不到可用密钥。</remarks>
     /// <param name="apiKey">Plaintext key.</param>
     public static string HashApiKey(string apiKey)
         => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(apiKey)));

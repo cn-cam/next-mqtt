@@ -3,6 +3,7 @@ using System.Buffers;
 namespace NextMqtt.Core.Protocol;
 
 /// <summary>MQTT 5 property identifiers.</summary>
+/// <remarks>编号与规范一致；存储与集群转发都按这个值解释，不能重排。</remarks>
 public enum MqttPropertyId
 {
     /// <summary>0x01 — payload is UTF-8 text (0) or unspecified binary (1).</summary>
@@ -115,6 +116,7 @@ public enum MqttPropertyId
 }
 
 /// <summary>Wire encoding of an MQTT 5 property value.</summary>
+/// <remarks>决定解码时读几个字节，也决定持久化后怎么还原。</remarks>
 public enum MqttPropertyDataType
 {
     /// <summary>Single byte.</summary>
@@ -154,6 +156,7 @@ public readonly record struct MqttProperty(MqttPropertyId Id, object Value);
 /// Ordered MQTT 5 property bag. User properties may repeat; all other
 /// properties are unique.
 /// </summary>
+/// <remarks>顺序保留，因为用户属性可能有业务含义；其余属性重复出现按协议错误处理。</remarks>
 public sealed class MqttProperties
 {
     private readonly List<MqttProperty> _items = [];
@@ -474,6 +477,7 @@ public sealed class MqttProperties
 }
 
 /// <summary>Validates property usage per packet type and per value.</summary>
+/// <remarks>属性出现在不允许的报文里按 0x81 拒绝；每种报文的允许集合是一张静态表。</remarks>
 public static class MqttPropertyValidation
 {
     private static readonly HashSet<MqttPropertyId> ConnectProperties =

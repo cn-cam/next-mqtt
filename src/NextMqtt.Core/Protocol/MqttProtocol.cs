@@ -116,6 +116,7 @@ public enum MqttRetainHandling : byte
 /// MQTT 5 reason codes, plus the MQTT 3.1.1 CONNACK return codes which share
 /// the same byte positions.
 /// </summary>
+/// <remarks>3.1.1 只用得到 0x00–0x05，其余值只出现在 5.0 连接上；编码前要按协议级别裁剪。</remarks>
 public static class MqttReasonCodes
 {
     /// <summary>0x00 — the request completed successfully.</summary>

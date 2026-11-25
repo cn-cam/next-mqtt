@@ -560,5 +560,6 @@ static bool IsPublicApi(PathString path)
        || path == "/api/v1/auth/login";
 
 /// <summary>Entry point marker used by integration tests and tooling.</summary>
+/// <remarks>测试用 WebApplicationFactory 找程序集入口，不要删。</remarks>
 public partial class Program;
 

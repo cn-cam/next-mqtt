@@ -50,6 +50,7 @@ public sealed class TopicTrie<TValue>
     }
 
     /// <summary>Returns every value whose filter matches <paramref name="topic"/>.</summary>
+    /// <remarks>按具体主题查询；$ 开头的主题不会命中 # 与 + 的通配。</remarks>
     public List<TValue> Match(string topic)
     {
         if (string.IsNullOrEmpty(topic))
@@ -63,6 +64,7 @@ public sealed class TopicTrie<TValue>
     }
 
     /// <summary>Returns every value whose topic matches <paramref name="filter"/>.</summary>
+    /// <remarks>用过滤器反向查询；非法过滤器直接返回空列表。</remarks>
     public List<TValue> Search(string filter)
     {
         if (!MqttTopic.IsValidFilter(filter, out _))

@@ -4,10 +4,11 @@ using NextMqtt.Broker.Diagnostics;
 namespace NextMqtt.Server.Api;
 
 /// <summary>Renders Prometheus text exposition format (version 0.0.4).</summary>
-/// <summary>Renders Prometheus text exposition format (version 0.0.4).</summary>
+/// <remarks>只输出文本格式，不引入客户端库；指标名一旦发布就不要改，面板与告警都按名字匹配。</remarks>
 public static class PrometheusFormatter
 {
     /// <summary>Formats counters and gauges for <c>/metrics</c>.</summary>
+    /// <remarks>每次请求现算；指标名是外部契约，改名会让面板与告警失效。</remarks>
     /// <param name="stats">Snapshot taken from the broker.</param>
     /// <param name="clusterNodes">Live cluster member count.</param>
     /// <param name="version">Build version exposed as a label.</param>

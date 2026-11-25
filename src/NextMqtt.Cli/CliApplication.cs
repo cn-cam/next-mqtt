@@ -24,6 +24,7 @@ internal sealed record CliClientOptions
 }
 
 /// <summary>Small MQTT 5 / 3.1.1 client used by the CLI commands.</summary>
+/// <remarks>同步用法、单连接、够用即可；不做重连、会话恢复与集群发现。</remarks>
 internal sealed class MqttCliClient : IAsyncDisposable
 {
     private readonly TcpClient _tcp;

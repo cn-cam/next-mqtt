@@ -4,8 +4,8 @@ using NextMqtt.Broker.Clustering;
 
 namespace NextMqtt.Server.Api;
 
-/// <summary>Signed node-to-node endpoints. Not exposed to MQTT clients.</summary>
 /// <summary>Internal endpoints used by peer nodes for heartbeats and forwarding.</summary>
+/// <remarks>走 HMAC 签名而不是管理令牌；请求体上限 4 MiB，超过直接回 413。</remarks>
 public static class ClusterEndpoints
 {
     private const int MaxBodyBytes = 4 * 1024 * 1024;

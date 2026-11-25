@@ -7,6 +7,7 @@ namespace NextMqtt.Core.Protocol;
 /// Reads complete MQTT frames from a <see cref="PipeReader"/>. A single
 /// instance is not thread-safe; use it from one connection loop.
 /// </summary>
+/// <remarks>每次只取一个报文，剩余数据留在管道里；超过长度上限直接抛协议异常，不做截断。</remarks>
 public sealed class MqttPacketReader
 {
     private readonly PipeReader _reader;

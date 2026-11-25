@@ -4,6 +4,7 @@ using System.Text;
 namespace NextMqtt.Core.Topics;
 
 /// <summary>Validation helpers for MQTT topic names and filters.</summary>
+/// <remarks>只做语法与长度校验，不涉及 ACL；拒绝时给出可以直接回给客户端的原因。</remarks>
 public static class MqttTopic
 {
     /// <summary>
@@ -116,6 +117,7 @@ public static class MqttTopic
 /// <summary>
 /// A parsed topic filter, including optional shared-subscription metadata.
 /// </summary>
+/// <remarks>解析一次就缓存；共享前缀在这里剥离，Original 保留原文用于回显与删除订阅。</remarks>
 public sealed class TopicFilter
 {
     private const string SharedPrefix = "$share/";
@@ -135,16 +137,18 @@ public sealed class TopicFilter
     }
 
     /// <summary>The filter exactly as supplied by the client.</summary>
+    /// <remarks>共享订阅带 $share/组名 前缀，回显与删除订阅时用它。</remarks>
     public string Original { get; }
 
     /// <summary>The filter without the shared-subscription prefix.</summary>
+    /// <remarks>匹配与 trie 索引都用这个。</remarks>
     public string Filter { get; }
 
     /// <summary>Shared subscription group, or null for a normal subscription.</summary>
+    /// <remarks>普通订阅为 null，不能当空字符串处理。</remarks>
     public string? SharedGroup { get; }
 
     /// <summary>True when the filter belongs to a shared subscription group.</summary>
-    /// <remarks>共享订阅按组内轮询投递，组名在 SharedGroup 里。</remarks>
     /// <remarks>共享订阅按组内轮询投递，组信息由 <see cref="SharedGroup"/> 提供。</remarks>
     public bool IsShared => SharedGroup is not null;
 
