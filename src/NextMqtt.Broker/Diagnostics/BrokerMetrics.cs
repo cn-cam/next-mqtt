@@ -6,19 +6,33 @@ namespace NextMqtt.Broker.Diagnostics;
 /// <remarks>所有计数使用 <see cref="Interlocked"/> 累加，读取时保证可见性。</remarks>
 public sealed class BrokerMetrics
 {
+    /// <summary>Created with a counter that only ever grows.</summary>
     private long _connectionsOpened;
+    /// <summary>Closed connections, paired with the opened counter.</summary>
     private long _connectionsClosed;
+    /// <summary>CONNECT attempts refused before a session existed.</summary>
     private long _connectionsRejected;
+    /// <summary>Credential rejections, a subset of the rejected counter.</summary>
     private long _authFailures;
+    /// <summary>Inbound PUBLISH packets that entered routing.</summary>
     private long _publishesReceived;
+    /// <summary>Outbound PUBLISH packets handed to connections.</summary>
     private long _publishesSent;
+    /// <summary>Bytes read from sockets, fixed headers included.</summary>
     private long _bytesReceived;
+    /// <summary>Bytes written to sockets, fixed headers included.</summary>
     private long _bytesSent;
+    /// <summary>Messages discarded by policy, expiry or back-pressure.</summary>
     private long _droppedMessages;
+    /// <summary>QoS retransmissions, scheduled or after reconnect.</summary>
     private long _retransmissions;
+    /// <summary>Successful SUBSCRIBE operations since start.</summary>
     private long _subscriptionsCreated;
+    /// <summary>Sessions removed because their expiry passed.</summary>
     private long _sessionsExpired;
+    /// <summary>CONNECTs refused by the per-address limiter.</summary>
     private long _connectionsRateLimited;
+    /// <summary>PUBLISH packets refused by a rate limit or topic quota.</summary>
     private long _publishesRateLimited;
 
     /// <summary>Connections that completed CONNECT since start.</summary>
@@ -308,10 +322,15 @@ public sealed record ClusterSnapshot(
 /// <remarks>一秒一格，够用且开销极低。</remarks>
 public sealed class RateTracker
 {
+    /// <summary>Number of one-second samples kept for the chart.</summary>
     private readonly int _capacity;
+    /// <summary>Completed seconds, oldest first.</summary>
     private readonly ConcurrentQueue<(long Second, long Count)> _samples = new();
+    /// <summary>Guards the current bucket and sample eviction.</summary>
     private readonly object _gate = new();
+    /// <summary>Unix second currently being accumulated.</summary>
     private long _currentSecond;
+    /// <summary>Events seen in the current second.</summary>
     private long _currentCount;
 
     /// <summary>Creates a tracker that keeps the last N one-second samples.</summary>

@@ -52,8 +52,11 @@ public sealed class PluginHost : IDisposable
     /// <remarks>清单里的版本必须完全相等，不做兼容范围。</remarks>
     public const int ContractVersion = 1;
 
+    /// <summary>Load contexts, kept so they can be unloaded later.</summary>
     private readonly List<PluginLoadContext> _contexts = [];
+    /// <summary>Plugins that loaded successfully.</summary>
     private readonly List<LoadedPlugin> _plugins = [];
+    /// <summary>Objects created from plugin assemblies, searched by contract type.</summary>
     private readonly List<object> _instances = [];
 
     /// <summary>Assemblies whose types must stay identical to the host's.</summary>
@@ -64,6 +67,7 @@ public sealed class PluginHost : IDisposable
         typeof(Core.Protocol.MqttProtocolVersion).Assembly,
     ];
 
+    /// <summary>Creates an empty host, used when loading is disabled.</summary>
     private PluginHost()
     {
     }

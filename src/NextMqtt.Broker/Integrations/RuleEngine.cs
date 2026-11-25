@@ -10,7 +10,9 @@ namespace NextMqtt.Broker.Integrations;
 /// </remarks>
 public sealed class RuleEngine
 {
+    /// <summary>Compiled filters that discard messages.</summary>
     private readonly List<TopicFilter> _dropFilters;
+    /// <summary>Compiled rewrites in configuration order.</summary>
     private readonly List<RewriteRule> _rewriteRules;
 
     /// <summary>Compiles the configured rules once at startup.</summary>

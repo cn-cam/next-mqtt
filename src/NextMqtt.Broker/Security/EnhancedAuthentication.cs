@@ -74,6 +74,7 @@ public sealed class JwtEnhancedAuthenticator : IEnhancedAuthenticator
     /// <remarks>固定为 nextmqtt-jwt，改名会让现有客户端全部失败。</remarks>
     public const string MethodName = "nextmqtt-jwt";
 
+    /// <summary>Validator built once from the JWT options.</summary>
     private readonly JwtValidator _validator;
 
     /// <summary>Creates the provider from the JWT configuration.</summary>

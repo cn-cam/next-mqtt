@@ -62,14 +62,23 @@ public sealed class RabbitOptions
 /// </remarks>
 public sealed class RabbitBridge : IAsyncDisposable
 {
+    /// <summary>RabbitMQ settings copied at construction.</summary>
     private readonly RabbitOptions _options;
+    /// <summary>Parsed filter; unmatched publishes are never queued.</summary>
     private readonly TopicFilter _filter;
+    /// <summary>Bounded queue of already-mapped routing keys and payloads.</summary>
     private readonly Channel<(string RoutingKey, byte[] Payload)> _queue;
+    /// <summary>Logger for connection and publish failures.</summary>
     private readonly ILogger<RabbitBridge> _logger;
+    /// <summary>Cancelled on dispose; stops the reconnect loop.</summary>
     private readonly CancellationTokenSource _lifetime = new();
+    /// <summary>Connection loop task, awaited during dispose.</summary>
     private readonly Task _worker;
+    /// <summary>Messages the broker confirmed.</summary>
     private long _forwarded;
+    /// <summary>Messages rejected because the queue was full.</summary>
     private long _dropped;
+    /// <summary>Publishes that threw before confirmation; they are not retried.</summary>
     private long _failed;
 
     /// <summary>Validates the filter and starts the delivery worker.</summary>

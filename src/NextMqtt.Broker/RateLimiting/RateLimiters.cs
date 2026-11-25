@@ -25,10 +25,15 @@ public interface IRateScalable
 /// <remarks>用 Stopwatch 而不是墙钟计时，系统时间跳变不会把令牌算错；锁内只有浮点运算。</remarks>
 public sealed class TokenBucket
 {
+    /// <summary>Maximum tokens; changes when the cluster rescales.</summary>
     private double _capacity;
+    /// <summary>Tokens added per second; also rescales.</summary>
     private double _refillPerSecond;
+    /// <summary>Protects the token count and refill timestamp.</summary>
     private readonly object _gate = new();
+    /// <summary>Tokens available right now, refilled lazily.</summary>
     private double _tokens;
+    /// <summary>Last refill moment on the monotonic clock.</summary>
     private long _lastTimestamp = Stopwatch.GetTimestamp();
 
     /// <summary>Creates a full bucket.</summary>
@@ -102,6 +107,7 @@ public sealed class TokenBucket
         }
     }
 
+    /// <summary>Adds the tokens earned since the last call, capped at capacity.</summary>
     private void Refill()
     {
         var now = Stopwatch.GetTimestamp();
@@ -124,8 +130,11 @@ public sealed class TokenBucket
 /// <remarks>一个过滤器一个桶，所有客户端共享；命中多条规则时逐条扣减，最严格的那条决定结果。</remarks>
 public sealed class TopicQuotaLimiter : IRateScalable
 {
+    /// <summary>One bucket per configured filter, with its original numbers for rescaling.</summary>
     private readonly List<(TopicFilter Filter, TokenBucket Bucket, int Rate, int Burst)> _rules = [];
+    /// <summary>Serialises acquisition and rescaling across rules.</summary>
     private readonly object _gate = new();
+    /// <summary>Node count the buckets are currently scaled for.</summary>
     private int _clusterSize = 1;
 
     /// <summary>Builds one shared bucket per configured topic rule.</summary>
@@ -210,12 +219,18 @@ public sealed class TopicQuotaLimiter : IRateScalable
 /// <remarks>表大小跟随活跃来源数而不是历史连接数；回满超过一分钟的地址会被清掉。</remarks>
 public sealed class ConnectionRateLimiter : IRateScalable
 {
+    /// <summary>How often idle address buckets are swept.</summary>
     private static readonly TimeSpan SweepInterval = TimeSpan.FromSeconds(60);
 
+    /// <summary>One bucket per remote address, created on first use.</summary>
     private readonly ConcurrentDictionary<string, TokenBucket> _buckets = new(StringComparer.Ordinal);
+    /// <summary>Configured cluster-wide connect rate.</summary>
     private readonly int _rate;
+    /// <summary>Configured cluster-wide burst.</summary>
     private readonly int _burst;
+    /// <summary>Last sweep time on the monotonic clock.</summary>
     private long _lastSweep = Stopwatch.GetTimestamp();
+    /// <summary>Node count the address buckets are scaled for.</summary>
     private int _clusterSize = 1;
 
     /// <summary>Creates the limiter from configuration; rate 0 disables it.</summary>
@@ -313,6 +328,7 @@ public sealed class ConnectionRateLimiter : IRateScalable
         return remoteAddress;
     }
 
+    /// <summary>Removes full buckets once a minute so the table tracks active peers.</summary>
     private void SweepIfDue()
     {
         var now = Stopwatch.GetTimestamp();

@@ -89,8 +89,11 @@ public interface IClientAuthenticator
 /// <remarks>编码里带算法、迭代次数与盐，换参数不需要迁移旧哈希。</remarks>
 public static class PasswordHasher
 {
+    /// <summary>Algorithm tag written at the front of every hash.</summary>
     private const string Prefix = "pbkdf2-sha256";
+    /// <summary>Salt length; 128 bits is the usual floor.</summary>
     private const int SaltBytes = 16;
+    /// <summary>Derived key length, matching the SHA-256 output size.</summary>
     private const int HashBytes = 32;
 
     /// <summary>Default PBKDF2 work factor (210,000 SHA-256 iterations).</summary>
@@ -175,9 +178,13 @@ public static class PasswordHasher
 /// <remarks>顺序固定：先查本地账号，再验 JWT，最后才看匿名开关；匿名只接受完全空的凭据。</remarks>
 public sealed class ClientAuthenticator : IClientAuthenticator
 {
+    /// <summary>Local accounts by username, ordinal comparison.</summary>
     private readonly Dictionary<string, LocalUserOptions> _users;
+    /// <summary>Names that bypass ACL checks.</summary>
     private readonly HashSet<string> _superusers;
+    /// <summary>Token validator, or null when JWT authentication is off.</summary>
     private readonly JwtValidator? _jwt;
+    /// <summary>Whether a connection without credentials is accepted.</summary>
     private readonly bool _allowAnonymous;
 
     /// <summary>Builds the authenticator from configuration.</summary>

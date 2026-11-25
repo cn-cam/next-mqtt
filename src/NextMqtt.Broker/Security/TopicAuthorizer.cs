@@ -30,8 +30,11 @@ public interface ITopicAuthorizer
 /// <remarks>规则顺序即优先级；先按动作与主体筛选，再判断主题是否被覆盖，第一条命中即返回。</remarks>
 public sealed class TopicAuthorizer : ITopicAuthorizer
 {
+    /// <summary>Compiled rules in configuration order.</summary>
     private readonly List<CompiledRule> _rules;
+    /// <summary>Applied when no rule matches.</summary>
     private readonly AclDefaultPolicy _defaultPolicy;
+    /// <summary>Expanded topic patterns, parsed once per distinct string.</summary>
     private readonly ConcurrentDictionary<string, TopicFilter?> _filterCache = new(StringComparer.Ordinal);
 
     /// <summary>Compiles the rule list once at startup.</summary>
@@ -71,6 +74,7 @@ public sealed class TopicAuthorizer : ITopicAuthorizer
         return Evaluate(principal, filter, isSubscription: true);
     }
 
+    /// <summary>Shared rule loop for publish and subscribe checks.</summary>
     private bool Evaluate(ClientPrincipal principal, string topic, bool isSubscription)
     {
         if (principal.IsSuperuser)
@@ -111,6 +115,7 @@ public sealed class TopicAuthorizer : ITopicAuthorizer
         return _defaultPolicy == AclDefaultPolicy.Allow;
     }
 
+    /// <summary>Precompiles the globs and rejects an empty topic pattern.</summary>
     private static CompiledRule Compile(AclRuleOptions rule)
     {
         if (string.IsNullOrEmpty(rule.Topic))
@@ -126,11 +131,13 @@ public sealed class TopicAuthorizer : ITopicAuthorizer
             rule.ClientId is null ? null : GlobToRegex(rule.ClientId));
     }
 
+    /// <summary>Substitutes username and client id into the rule's filter.</summary>
     private static string ExpandPlaceholders(string topic, ClientPrincipal principal)
         => topic
             .Replace("${username}", principal.Username ?? string.Empty, StringComparison.Ordinal)
             .Replace("${clientid}", principal.ClientId ?? string.Empty, StringComparison.Ordinal);
 
+    /// <summary>A null pattern means no restriction on that field.</summary>
     private static bool Matches(Regex? pattern, string? value)
     {
         if (pattern is null)
@@ -141,6 +148,7 @@ public sealed class TopicAuthorizer : ITopicAuthorizer
         return value is not null && pattern.IsMatch(value);
     }
 
+    /// <summary>Anchors * and ? into a case-sensitive regular expression.</summary>
     private static Regex GlobToRegex(string pattern)
     {
         var escaped = Regex.Escape(pattern)
@@ -150,6 +158,7 @@ public sealed class TopicAuthorizer : ITopicAuthorizer
         return new Regex($"^{escaped}$", RegexOptions.CultureInvariant);
     }
 
+    /// <summary>True when the rule covers every topic the requested filter could match.</summary>
     private static bool FilterCovers(TopicFilter aclFilter, string requestedFilter)
     {
         if (!MqttTopic.IsValidFilter(requestedFilter, out _))

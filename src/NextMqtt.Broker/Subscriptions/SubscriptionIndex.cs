@@ -50,10 +50,15 @@ public readonly record struct SubscriptionMatch(Subscription Subscription, strin
 /// </remarks>
 public sealed class SubscriptionIndex
 {
+    /// <summary>Guards every dictionary and both tries.</summary>
     private readonly object _gate = new();
+    /// <summary>Non-shared subscriptions, indexed by effective filter.</summary>
     private readonly TopicTrie<Subscription> _normal = new();
+    /// <summary>Shared groups, indexed by filter so routing finds them by topic.</summary>
     private readonly TopicTrie<SharedSubscriptionGroup> _sharedTrie = new();
+    /// <summary>Groups keyed by group name plus filter, for removal.</summary>
     private readonly Dictionary<string, SharedSubscriptionGroup> _sharedGroups = new(StringComparer.Ordinal);
+    /// <summary>Per-client subscriptions keyed by original filter text.</summary>
     private readonly Dictionary<string, Dictionary<string, Subscription>> _byClient = new(StringComparer.Ordinal);
 
     /// <summary>Total subscriptions, normal and shared.</summary>
@@ -234,6 +239,7 @@ public sealed class SubscriptionIndex
         }
     }
 
+    /// <summary>Removes one subscription from both the client map and the matching index.</summary>
     private bool RemoveCore(string clientId, string originalFilter)
     {
         if (!_byClient.TryGetValue(clientId, out var filters)
@@ -259,6 +265,7 @@ public sealed class SubscriptionIndex
         return true;
     }
 
+    /// <summary>Drops a member from its group and removes the group when it empties.</summary>
     private void RemoveShared(Subscription subscription, string group)
     {
         var key = SharedKey(group, subscription.EffectiveFilter);
@@ -277,6 +284,7 @@ public sealed class SubscriptionIndex
         }
     }
 
+    /// <summary>Builds an unambiguous group key with a NUL separator.</summary>
     private static string SharedKey(string group, string filter) => $"{group}\0{filter}";
 }
 
@@ -284,27 +292,35 @@ public sealed class SubscriptionIndex
 /// <remarks>组内按下标轮转，保证同组成员被均匀使用。</remarks>
 internal sealed class SharedSubscriptionGroup
 {
+    /// <summary>Subscriptions in this group, in join order.</summary>
     private readonly List<Subscription> _members = [];
+    /// <summary>Index of the next member to pick.</summary>
     private int _next;
 
+    /// <summary>Creates an empty group for one shared filter.</summary>
     public SharedSubscriptionGroup(string group, string filter)
     {
         Group = group;
         Filter = filter;
     }
 
+    /// <summary>Group name from the $share prefix.</summary>
     public string Group { get; }
 
+    /// <summary>Effective filter shared by every member.</summary>
     public string Filter { get; }
 
-    /// <summary>Total subscriptions, normal and shared.</summary>
-    /// <remarks>普通订阅与共享订阅都计入，直接返回计数器，不走 trie。</remarks>
+    /// <summary>Number of members currently in this group.</summary>
+    /// <remarks>为 0 时组会从索引里移除；轮转下标随之重置。</remarks>
     public int Count => _members.Count;
 
+    /// <summary>Members in join order, exposed for admin views.</summary>
     public IReadOnlyList<Subscription> Members => _members;
 
+    /// <summary>Appends a member; duplicates are prevented by the caller.</summary>
     public void Add(Subscription subscription) => _members.Add(subscription);
 
+    /// <summary>Removes a member and resets the cursor when it fell off the end.</summary>
     public void Remove(Subscription subscription)
     {
         _members.Remove(subscription);
@@ -314,6 +330,7 @@ internal sealed class SharedSubscriptionGroup
         }
     }
 
+    /// <summary>Returns the next member in rotation, or null when the group is empty.</summary>
     public Subscription? Pick()
     {
         if (_members.Count == 0)

@@ -21,17 +21,29 @@ namespace NextMqtt.Broker.Clustering;
 /// </remarks>
 public sealed class ClusterRouter : IClusterRouter
 {
+    /// <summary>Cluster settings captured at construction.</summary>
     private readonly ClusterOptions _options;
+    /// <summary>Router logger for joins, timeouts and failed rounds.</summary>
     private readonly ILogger<ClusterRouter> _logger;
+    /// <summary>Shared client for heartbeats and forwarded publishes; not disposed here.</summary>
     private readonly HttpClient _httpClient;
+    /// <summary>Membership table keyed by node identifier.</summary>
     private readonly ConcurrentDictionary<string, Member> _members = new(StringComparer.Ordinal);
+    /// <summary>Recently accepted message ids, used to drop duplicates.</summary>
     private readonly ConcurrentDictionary<string, DateTimeOffset> _seenMessages = new(StringComparer.Ordinal);
+    /// <summary>Cancelled on stop; ends the heartbeat loop.</summary>
     private readonly CancellationTokenSource _lifetime = new();
+    /// <summary>Heartbeat loop task, awaited during stop.</summary>
     private Task? _loop;
+    /// <summary>Broker used to route inbound forwards and read local filters.</summary>
     private MqttBroker? _broker;
+    /// <summary>This node's membership row; null until the router starts.</summary>
     private Member? _self;
+    /// <summary>Publishes forwarded to peers.</summary>
     private long _publishesSent;
+    /// <summary>Publishes accepted from peers.</summary>
     private long _publishesReceived;
+    /// <summary>Guards stop so the leave message is sent at most once.</summary>
     private int _stopped;
 
     /// <summary>Creates the router; it stays idle until <see cref="StartAsync"/> is called.</summary>
@@ -506,6 +518,7 @@ public sealed class ClusterRouter : IClusterRouter
     /// <remarks>包含普通消息与共享专用消息。</remarks>
     public long PublishesReceived => Interlocked.Read(ref _publishesReceived);
 
+    /// <summary>Runs one gossip round per interval and keeps going when a peer fails.</summary>
     private async Task HeartbeatLoopAsync(CancellationToken cancellationToken)
     {
         using var timer = new PeriodicTimer(TimeSpan.FromSeconds(Math.Max(1, _options.HeartbeatSeconds)));
@@ -541,6 +554,7 @@ public sealed class ClusterRouter : IClusterRouter
         }
     }
 
+    /// <summary>Refreshes the local row, then heartbeats peers and seeds with bounded parallelism.</summary>
     private async Task BroadcastAsync(CancellationToken cancellationToken)
     {
         if (_self is null)
@@ -580,6 +594,7 @@ public sealed class ClusterRouter : IClusterRouter
         PruneSeenMessages(DateTimeOffset.UtcNow);
     }
 
+    /// <summary>Sends one heartbeat and merges the membership view it returns.</summary>
     private async Task SendHeartbeatAsync(string baseUrl, string[] filters, CancellationToken cancellationToken)
     {
         if (_self is null)
@@ -608,6 +623,7 @@ public sealed class ClusterRouter : IClusterRouter
         }
     }
 
+    /// <summary>Posts a heartbeat and treats an unreachable peer as a silent miss, not an error.</summary>
     private async Task<ClusterHeartbeatResponse?> PostHeartbeatAsync(
         string baseUrl,
         ClusterHeartbeatRequest request,
@@ -634,6 +650,7 @@ public sealed class ClusterRouter : IClusterRouter
         }
     }
 
+    /// <summary>Forwards one publish to a peer and counts it only when the peer accepted it.</summary>
     private async Task SendPublishAsync(Member member, ClusterPublishMessage message, CancellationToken cancellationToken)
     {
         try
@@ -652,6 +669,7 @@ public sealed class ClusterRouter : IClusterRouter
         }
     }
 
+    /// <summary>Signs and posts one cluster request, returning default on any non-success status.</summary>
     private async Task<TResponse?> PostAsync<TRequest, TResponse>(
         string baseUrl,
         string path,
@@ -692,6 +710,7 @@ public sealed class ClusterRouter : IClusterRouter
             : JsonSerializer.Deserialize<TResponse>(body, ClusterJson.Options);
     }
 
+    /// <summary>Filters advertised to peers, capped by MaxFiltersPerHeartbeat.</summary>
     private string[] LocalFilters()
     {
         if (_broker is null)
@@ -706,6 +725,7 @@ public sealed class ClusterRouter : IClusterRouter
             .ToArray();
     }
 
+    /// <summary>Validates and stores a member row, logging joins and address changes.</summary>
     private void MergeMember(string nodeId, string advertiseUrl, string[] filters, DateTimeOffset now)
     {
         if (_self is null
@@ -741,6 +761,7 @@ public sealed class ClusterRouter : IClusterRouter
         _members[nodeId] = new Member(nodeId, advertiseUrl.TrimEnd('/'), now, normalizedFilters);
     }
 
+    /// <summary>Removes peers that have been silent for three node timeouts.</summary>
     private void PruneDeadMembers(DateTimeOffset now)
     {
         if (_self is null)
@@ -760,6 +781,7 @@ public sealed class ClusterRouter : IClusterRouter
         }
     }
 
+    /// <summary>Drops duplicate-suppression ids older than ten minutes once the table grows.</summary>
     private void PruneSeenMessages(DateTimeOffset now)
     {
         if (_seenMessages.Count < 10_000)
@@ -778,6 +800,7 @@ public sealed class ClusterRouter : IClusterRouter
         }
     }
 
+    /// <summary>Packs one MQTT property into the JSON shape, choosing the field by data type.</summary>
     private static ClusterPropertyDto EncodeProperty(MqttProperty property)
     {
         return MqttProperties.GetDataType(property.Id) switch
@@ -803,6 +826,7 @@ public sealed class ClusterRouter : IClusterRouter
         };
     }
 
+    /// <summary>Rebuilds a property value from the JSON shape.</summary>
     private static object DecodeProperty(ClusterPropertyDto property)
     {
         return MqttProperties.GetDataType((MqttPropertyId)property.Id) switch

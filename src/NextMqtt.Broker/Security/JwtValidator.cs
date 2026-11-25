@@ -9,7 +9,9 @@ namespace NextMqtt.Broker.Security;
 /// <remarks>只支持 HS256 与紧凑格式，不支持 JWKS 与 RS256。</remarks>
 public sealed class JwtValidator
 {
+    /// <summary>Claim names plus the issuer and audience expectations.</summary>
     private readonly JwtOptions _options;
+    /// <summary>HMAC key bytes, derived once from the secret.</summary>
     private readonly byte[] _key;
 
     /// <summary>Prepares the HMAC key from the configured secret.</summary>
@@ -157,6 +159,7 @@ public sealed class JwtValidator
         }
     }
 
+    /// <summary>Accepts aud as a string or an array and compares it exactly.</summary>
     private bool HasAudience(JsonElement root)
     {
         if (!root.TryGetProperty("aud", out var audience))
@@ -183,6 +186,7 @@ public sealed class JwtValidator
         return false;
     }
 
+    /// <summary>Reads roles from a space-separated string or a string array.</summary>
     private List<string> ReadRoles(JsonElement root)
     {
         var roles = new List<string>();
@@ -210,6 +214,7 @@ public sealed class JwtValidator
         return roles;
     }
 
+    /// <summary>Decodes base64url, adding the padding the encoder dropped.</summary>
     private static bool TryDecode(string value, out byte[] bytes)
     {
         var normalized = value.Replace('-', '+').Replace('_', '/');

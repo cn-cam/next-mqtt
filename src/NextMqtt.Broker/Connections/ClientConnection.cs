@@ -25,14 +25,23 @@ namespace NextMqtt.Broker.Connections;
 /// </remarks>
 public sealed class ClientConnection : IClientConnection, IRateScalable
 {
+    /// <summary>Transport stream: TCP, TLS or WebSocket, owned by this connection.</summary>
     private readonly Stream _stream;
+    /// <summary>Broker that owns sessions, routing and metrics.</summary>
     private readonly MqttBroker _broker;
+    /// <summary>Connection-scoped logger; logging must never fail the connection.</summary>
     private readonly ILogger<ClientConnection> _logger;
+    /// <summary>Frame reader over the stream, created with the configured packet size limit.</summary>
     private readonly MqttPacketReader _reader;
+    /// <summary>Bounded queue between routing and the write loop; a full queue means a slow client.</summary>
     private readonly Channel<PendingFrame> _outbound;
+    /// <summary>Cancelled once during shutdown; stops both loops.</summary>
     private readonly CancellationTokenSource _lifetime = new();
+    /// <summary>Peer address as reported by the transport, used for rate limits and logs.</summary>
     private readonly string _remoteAddress;
+    /// <summary>Aliases the client registered for its own publishes, valid for this connection only.</summary>
     private readonly Dictionary<ushort, string> _inboundAliases = new();
+    /// <summary>Per-client publish bucket, or null when no publish rate is configured.</summary>
     private readonly TokenBucket? _publishBucket;
 
     /// <summary>Topics this client has been assigned an outbound alias for.</summary>
@@ -50,17 +59,29 @@ public sealed class ClientConnection : IClientConnection, IRateScalable
     /// <summary>Next alias to hand out; aliases start at 1.</summary>
     /// <remarks>从 1 递增，达到客户端上限后不再分配新别名，改为重发完整主题。</remarks>
     private ushort _nextOutboundAlias = 1;
+    /// <summary>Configured publish rate, kept so a cluster rescale can rebuild the bucket.</summary>
     private readonly int _publishRate;
+    /// <summary>Configured publish burst, kept for the same reason.</summary>
     private readonly int _publishBurst;
+    /// <summary>Live node count applied to this bucket; one until the first rescale.</summary>
     private int _clusterSize = 1;
+    /// <summary>Attached session, null before CONNECT and after cleanup.</summary>
     private BrokerSession? _session;
+    /// <summary>Write loop task, awaited during cleanup so no frame is lost.</summary>
     private Task? _writerTask;
+    /// <summary>Protocol level from CONNECT; 3.1.1 until the packet is parsed.</summary>
     private MqttProtocolVersion _version = MqttProtocolVersion.V311;
+    /// <summary>DISCONNECT sent by the client, used for will and expiry decisions.</summary>
     private DisconnectPacket? _disconnectPacket;
+    /// <summary>True once CONNACK was sent.</summary>
     private bool _connected;
+    /// <summary>True when the peer sent DISCONNECT, which suppresses the will.</summary>
     private bool _graceful;
+    /// <summary>Set with Interlocked so cleanup runs exactly once.</summary>
     private int _closing;
+    /// <summary>Last packet timestamp on the monotonic clock, used by keep-alive.</summary>
     private long _lastActivity = Stopwatch.GetTimestamp();
+    /// <summary>Inbound alias budget taken from broker options.</summary>
     private ushort _maxTopicAlias;
 
     /// <summary>Creates the per-connection state machine.</summary>
@@ -213,6 +234,7 @@ public sealed class ClientConnection : IClientConnection, IRateScalable
         _lifetime.Cancel();
     }
 
+    /// <summary>Waits for the first packet under the connect timeout; null means timeout or clean close.</summary>
     private async ValueTask<ConnectPacket?> ReadConnectAsync(CancellationToken cancellationToken)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -243,6 +265,7 @@ public sealed class ClientConnection : IClientConnection, IRateScalable
         return connect;
     }
 
+    /// <summary>Validates CONNECT, authenticates, attaches the session and writes CONNACK; false means the client was refused.</summary>
     private async Task<bool> HandleConnectAsync(ConnectPacket connect, CancellationToken cancellationToken)
     {
         _version = connect.ProtocolVersion;
@@ -410,6 +433,7 @@ public sealed class ClientConnection : IClientConnection, IRateScalable
         return true;
     }
 
+    /// <summary>Dispatches packets after CONNECT until the peer leaves or violates the protocol.</summary>
     private async Task ReadLoopAsync(CancellationToken cancellationToken)
     {
         while (true)
@@ -464,6 +488,7 @@ public sealed class ClientConnection : IClientConnection, IRateScalable
         }
     }
 
+    /// <summary>Applies alias, syntax, ACL, rate limits and rules to one inbound PUBLISH.</summary>
     private async Task HandlePublishAsync(PublishPacket publish, CancellationToken cancellationToken)
     {
         publish = ResolveTopicAlias(publish);
@@ -564,6 +589,7 @@ public sealed class ClientConnection : IClientConnection, IRateScalable
         }
     }
 
+    /// <summary>Completes the inbound QoS 2 handshake and routes the stored message.</summary>
     private async Task HandlePubRelAsync(PubRelPacket pubRel, CancellationToken cancellationToken)
     {
         if (_session!.TryCompleteInboundQos2(pubRel.PacketId, out var publish) && publish is not null)
@@ -582,6 +608,7 @@ public sealed class ClientConnection : IClientConnection, IRateScalable
         });
     }
 
+    /// <summary>Applies ACL and quota checks to SUBSCRIBE, then answers with SUBACK and retained messages.</summary>
     private async Task HandleSubscribeAsync(SubscribePacket subscribe, CancellationToken cancellationToken)
     {
         var reasonCodes = new List<byte>(subscribe.Subscriptions.Count);
@@ -664,6 +691,7 @@ public sealed class ClientConnection : IClientConnection, IRateScalable
         }
     }
 
+    /// <summary>Removes the requested filters and answers with per-filter reason codes.</summary>
     private async Task HandleUnsubscribeAsync(UnsubscribePacket unsubscribe, CancellationToken cancellationToken)
     {
         var reasonCodes = new List<byte>(unsubscribe.Filters.Count);
@@ -683,6 +711,7 @@ public sealed class ClientConnection : IClientConnection, IRateScalable
         await Task.CompletedTask;
     }
 
+    /// <summary>Sends retained messages for a new subscription, honouring retain handling and granted QoS.</summary>
     private async Task DeliverRetainedAsync(Subscription subscription, CancellationToken cancellationToken)
     {
         var now = DateTimeOffset.UtcNow;
@@ -728,6 +757,7 @@ public sealed class ClientConnection : IClientConnection, IRateScalable
         await Task.CompletedTask;
     }
 
+    /// <summary>Expands an inbound alias or records a new one; an unknown alias ends the connection.</summary>
     private PublishPacket ResolveTopicAlias(PublishPacket publish)
     {
         if (_version != MqttProtocolVersion.V500)
@@ -761,6 +791,7 @@ public sealed class ClientConnection : IClientConnection, IRateScalable
         return publish;
     }
 
+    /// <summary>Starts the 1.5x keep-alive watchdog; zero disables it.</summary>
     private void StartKeepAlive(ushort keepAliveSeconds)
     {
         if (keepAliveSeconds == 0)
@@ -952,6 +983,7 @@ public sealed class ClientConnection : IClientConnection, IRateScalable
             .ConfigureAwait(false);
     }
 
+    /// <summary>Serialises queued frames onto the stream and completes their senders.</summary>
     private async Task WriteLoopAsync(CancellationToken cancellationToken)
     {
         try
@@ -1034,6 +1066,7 @@ public sealed class ClientConnection : IClientConnection, IRateScalable
         };
     }
 
+    /// <summary>Writes CONNACK directly, because the write loop does not exist yet.</summary>
     private async Task WriteConnAckAsync(ConnAckPacket connAck, CancellationToken cancellationToken)
     {
         var buffer = new ArrayBufferWriter<byte>(64);
@@ -1043,6 +1076,7 @@ public sealed class ClientConnection : IClientConnection, IRateScalable
         _broker.Metrics.AddBytesSent(buffer.WrittenCount);
     }
 
+    /// <summary>Queues a packet and waits for the write loop, bounded by a timeout.</summary>
     private async Task<bool> SendAsync(MqttPacket packet, TimeSpan timeout, CancellationToken cancellationToken)
     {
         var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -1063,6 +1097,7 @@ public sealed class ClientConnection : IClientConnection, IRateScalable
         }
     }
 
+    /// <summary>Sends DISCONNECT on a best-effort basis; failures are ignored.</summary>
     private async Task TrySendDisconnectAsync(byte reasonCode, string reason)
     {
         if (!_connected || _version != MqttProtocolVersion.V500)
@@ -1074,6 +1109,7 @@ public sealed class ClientConnection : IClientConnection, IRateScalable
             .ConfigureAwait(false);
     }
 
+    /// <summary>Builds a DISCONNECT carrying a reason string for MQTT 5 peers.</summary>
     private static DisconnectPacket CreateDisconnect(byte reasonCode, string reason)
     {
         var properties = new MqttProperties();
@@ -1087,6 +1123,7 @@ public sealed class ClientConnection : IClientConnection, IRateScalable
         return new DisconnectPacket { ReasonCode = reasonCode, Properties = properties };
     }
 
+    /// <summary>Single exit path: detach the session, publish the will, release the transport.</summary>
     private async Task CleanupAsync()
     {
         _outbound.Writer.TryComplete();
@@ -1118,6 +1155,7 @@ public sealed class ClientConnection : IClientConnection, IRateScalable
         _stream.Dispose();
     }
 
+    /// <summary>Maps a 5.0 reason code to the closest 3.1.1 CONNACK return code.</summary>
     private static byte ToConnAckReason(byte reasonCode, MqttProtocolVersion version)
     {
         if (version == MqttProtocolVersion.V500)
@@ -1136,6 +1174,7 @@ public sealed class ClientConnection : IClientConnection, IRateScalable
         };
     }
 
+    /// <summary>Returns a CONNECT copy carrying the generated client identifier.</summary>
     private static ConnectPacket WithClientId(ConnectPacket connect, string clientId)
     {
         return new ConnectPacket
@@ -1151,6 +1190,7 @@ public sealed class ClientConnection : IClientConnection, IRateScalable
         };
     }
 
+    /// <summary>Returns a copy with a resolved topic, sharing payload and properties.</summary>
     private static PublishPacket ClonePublish(PublishPacket publish, string topic)
     {
         return new PublishPacket
@@ -1165,5 +1205,6 @@ public sealed class ClientConnection : IClientConnection, IRateScalable
         };
     }
 
+    /// <summary>One queued frame plus the optional waiter released after it is written.</summary>
     private readonly record struct PendingFrame(MqttPacket Packet, TaskCompletionSource? Completion);
 }

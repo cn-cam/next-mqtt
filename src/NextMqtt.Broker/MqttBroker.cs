@@ -32,16 +32,27 @@ public sealed record SessionAttachResult(
 /// </remarks>
 public sealed class MqttBroker : IAsyncDisposable
 {
+    /// <summary>Broker-wide logger for lifecycle events and delivery warnings.</summary>
     private readonly ILogger<MqttBroker> _logger;
+    /// <summary>Serialises session attach so two CONNECTs with the same identifier cannot race.</summary>
     private readonly SemaphoreSlim _attachGate = new(1, 1);
+    /// <summary>Delayed wills waiting to fire, keyed by client identifier.</summary>
     private readonly Dictionary<string, CancellationTokenSource> _pendingWills = new(StringComparer.Ordinal);
+    /// <summary>Guards the pending-will map; never held across an await.</summary>
     private readonly object _willGate = new();
+    /// <summary>Cancelled on stop and dispose; ends the maintenance loop.</summary>
     private readonly CancellationTokenSource _lifetime = new();
+    /// <summary>Durable snapshot store, or null when sessions stay in memory.</summary>
     private readonly ISessionSnapshotStore? _sessionStore;
+    /// <summary>Minimum time between two snapshots, from storage options.</summary>
     private readonly TimeSpan _sessionSnapshotInterval;
+    /// <summary>Earliest time the next snapshot may be written.</summary>
     private DateTimeOffset _nextSessionSnapshot = DateTimeOffset.MinValue;
+    /// <summary>Cheap change detector: session, queued-message and subscription counts.</summary>
     private (int Sessions, int Queued, int Subscriptions) _lastSessionFingerprint = (-1, -1, -1);
+    /// <summary>Background sweep task, created on the first start.</summary>
     private Task? _maintenanceTask;
+    /// <summary>Set once in dispose so the call is idempotent.</summary>
     private bool _disposed;
 
     /// <summary>Creates the broker facade and restores persisted state.</summary>
@@ -733,6 +744,7 @@ public sealed class MqttBroker : IAsyncDisposable
         _lifetime.Dispose();
     }
 
+    /// <summary>Rebuilds offline sessions and subscriptions from snapshots, skipping invalid filters.</summary>
     private void RestoreSessions(IReadOnlyList<PersistedSession> persisted)
     {
         if (persisted.Count == 0)
@@ -951,6 +963,7 @@ public sealed class MqttBroker : IAsyncDisposable
         _logger.LogInformation("Rate-limit budgets rescaled for {Nodes} live node(s)", size);
     }
 
+    /// <summary>Writes a snapshot when the interval elapsed; a no-op without a store.</summary>
     private void PersistSessionsIfDue(DateTimeOffset now)    {
         if (_sessionStore is null || now < _nextSessionSnapshot)
         {
@@ -961,6 +974,7 @@ public sealed class MqttBroker : IAsyncDisposable
         PersistSessions(force: false);
     }
 
+    /// <summary>Writes the snapshot unless nothing changed and the write is not forced.</summary>
     private void PersistSessions(bool force)
     {
         if (_sessionStore is null)
@@ -983,6 +997,7 @@ public sealed class MqttBroker : IAsyncDisposable
         _lastSessionFingerprint = fingerprint;
     }
 
+    /// <summary>Projects persistent sessions and their subscriptions into the on-disk shape.</summary>
     private List<PersistedSession> SnapshotSessions()
     {
         var subscriptions = Subscriptions.GetAll()
@@ -1048,6 +1063,7 @@ public sealed class MqttBroker : IAsyncDisposable
         return snapshot;
     }
 
+    /// <summary>Converts a stored message for delivery, or null when its payload is not valid base64.</summary>
     private static OutboundMessage? TryToOutbound(PersistedMessage message)
     {
         try
@@ -1068,6 +1084,7 @@ public sealed class MqttBroker : IAsyncDisposable
         }
     }
 
+    /// <summary>Runs the sweep on the shorter of the sweep and retransmit intervals, at least once a second.</summary>
     private async Task MaintenanceLoopAsync(CancellationToken cancellationToken)    {
         var interval = Options.SweepInterval < Options.RetransmitInterval
             ? Options.SweepInterval
@@ -1093,6 +1110,7 @@ public sealed class MqttBroker : IAsyncDisposable
         }
     }
 
+    /// <summary>Prunes retained messages, persists sessions, rescales limits, retransmits and expires sessions.</summary>
     private void Sweep(DateTimeOffset now)
     {
         Retained.PruneExpired(now);
@@ -1115,6 +1133,7 @@ public sealed class MqttBroker : IAsyncDisposable
         }
     }
 
+    /// <summary>Removes a session and its subscriptions, then disposes it.</summary>
     private void RemoveSession(BrokerSession session)
     {
         Sessions.Remove(session.ClientId);
@@ -1122,6 +1141,7 @@ public sealed class MqttBroker : IAsyncDisposable
         session.Dispose();
     }
 
+    /// <summary>Publishes the will after its delay, clamped to the session expiry, replacing any earlier one.</summary>
     private void ScheduleWill(string clientId, MqttWill will, uint sessionExpiryInterval)
     {
         var delaySeconds = will.Properties.GetUInt32(MqttPropertyId.WillDelayInterval) ?? 0;
@@ -1178,6 +1198,7 @@ public sealed class MqttBroker : IAsyncDisposable
         }, CancellationToken.None);
     }
 
+    /// <summary>Cancels a delayed will, for example when the client reconnects first.</summary>
     private void CancelPendingWill(string clientId)
     {
         lock (_willGate)
@@ -1190,6 +1211,7 @@ public sealed class MqttBroker : IAsyncDisposable
         }
     }
 
+    /// <summary>Keeps only the user-visible will properties and routes the message like any publish.</summary>
     private async Task PublishWillAsync(MqttWill will, CancellationToken cancellationToken)
     {
         var properties = new MqttProperties();
@@ -1221,6 +1243,7 @@ public sealed class MqttBroker : IAsyncDisposable
         await RouteAsync(publish, sourceClientId: null, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>Builds one delivery per client: highest QoS, merged identifiers, absolute expiry.</summary>
     private OutboundMessage BuildOutboundMessage(PublishPacket publish, DeliveryAggregate aggregate)
     {
         var properties = new MqttProperties();
@@ -1258,6 +1281,7 @@ public sealed class MqttBroker : IAsyncDisposable
         };
     }
 
+    /// <summary>Applies the 3.1.1 rule: clean start is non-persistent, otherwise expiry is unlimited.</summary>
     private static bool ResolvePersistence(ConnectPacket connect, out uint expiry)
     {
         if (connect.ProtocolVersion == MqttProtocolVersion.V500)
@@ -1276,12 +1300,16 @@ public sealed class MqttBroker : IAsyncDisposable
         return true;
     }
 
+    /// <summary>Merges several matching subscriptions of one client into a single delivery.</summary>
     private sealed class DeliveryAggregate
     {
+        /// <summary>Highest QoS among the matched subscriptions.</summary>
         public MqttQoS QoS { get; set; } = MqttQoS.AtMostOnce;
 
+        /// <summary>True when any matched subscription keeps the original retain flag.</summary>
         public bool RetainAsPublished { get; set; }
 
+        /// <summary>Identifiers to echo on the delivery, de-duplicated.</summary>
         public HashSet<int> SubscriptionIdentifiers { get; } = [];
     }
 }

@@ -8,6 +8,7 @@ namespace NextMqtt.Broker.Storage;
 /// <remarks>按 Id/Type/Value 三段保存，便于跨版本读取。</remarks>
 public sealed class PropertyRecord
 {
+    /// <summary>Default settings for encoding a user-property key/value pair.</summary>
     private static readonly JsonSerializerOptions SerializerOptions = new();
 
     /// <summary>MQTT 5 property identifier.</summary>

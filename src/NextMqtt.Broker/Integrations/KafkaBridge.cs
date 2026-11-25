@@ -53,15 +53,25 @@ public sealed class KafkaOptions
 /// </remarks>
 public sealed class KafkaBridge : IAsyncDisposable
 {
+    /// <summary>Kafka settings copied at construction.</summary>
     private readonly KafkaOptions _options;
+    /// <summary>Parsed filter; unmatched publishes are never queued.</summary>
     private readonly TopicFilter _filter;
+    /// <summary>Producer, or null when it could not be created for the configured bootstrap servers.</summary>
     private readonly IProducer<string, byte[]>? _producer;
+    /// <summary>Bounded queue between routing and the delivery worker.</summary>
     private readonly Channel<(string Topic, byte[] Payload)> _queue;
+    /// <summary>Logger for producer creation and produce failures.</summary>
     private readonly ILogger<KafkaBridge> _logger;
+    /// <summary>Cancelled on dispose to stop the worker.</summary>
     private readonly CancellationTokenSource _lifetime = new();
+    /// <summary>Delivery task, absent when the producer was not created.</summary>
     private readonly Task? _worker;
+    /// <summary>Messages acknowledged by Kafka.</summary>
     private long _forwarded;
+    /// <summary>Messages rejected because the queue was full.</summary>
     private long _dropped;
+    /// <summary>Produce attempts that threw.</summary>
     private long _failed;
 
     /// <summary>Builds the producer and starts the delivery worker.</summary>

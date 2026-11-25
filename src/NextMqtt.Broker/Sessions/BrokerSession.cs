@@ -12,14 +12,23 @@ namespace NextMqtt.Broker.Sessions;
 /// <remarks>只保存与连接无关的状态；连接由 Bind 挂上、Detach 摘掉，订阅索引单独维护，避免会话锁住路由表。</remarks>
 public sealed class BrokerSession : IDisposable
 {
+    /// <summary>Guards the queue, inflight window and inbound QoS 2 table.</summary>
     private readonly object _gate = new();
+    /// <summary>Limits copied from the broker at creation time.</summary>
     private readonly BrokerOptions _options;
+    /// <summary>Counters updated when messages are dropped or retransmitted.</summary>
     private readonly BrokerMetrics _metrics;
+    /// <summary>Messages waiting for a connection, oldest first.</summary>
     private readonly Queue<QueuedMessage> _queue = new();
+    /// <summary>Sent but unacknowledged messages, keyed by packet identifier.</summary>
     private readonly Dictionary<ushort, OutboundInflight> _inflight = new();
+    /// <summary>Inbound QoS 2 messages waiting for PUBREL.</summary>
     private readonly Dictionary<ushort, PublishPacket> _inboundQos2 = new();
+    /// <summary>Attached connection, null while offline.</summary>
     private IClientConnection? _connection;
+    /// <summary>Last packet identifier handed out; wraps at 65535.</summary>
     private ushort _nextPacketId;
+    /// <summary>Set once so dispose cannot run twice.</summary>
     private bool _disposed;
 
     /// <summary>Creates an empty session; state is filled by <see cref="Bind"/> or <see cref="Restore"/>.</summary>
@@ -560,6 +569,7 @@ public sealed class BrokerSession : IDisposable
         }
     }
 
+    /// <summary>Appends to the offline queue, dropping the oldest entry when it is full.</summary>
     private void EnqueueLocked(OutboundMessage message)
     {
         while (_queue.Count >= _options.MaxQueuedMessages)
@@ -571,6 +581,7 @@ public sealed class BrokerSession : IDisposable
         _queue.Enqueue(new QueuedMessage(message, DateTimeOffset.UtcNow));
     }
 
+    /// <summary>Returns the next identifier that is not in flight; throws when the window is full.</summary>
     private ushort AllocatePacketIdLocked()
     {
         for (var i = 0; i < ushort.MaxValue; i++)
@@ -586,6 +597,7 @@ public sealed class BrokerSession : IDisposable
         throw new InvalidOperationException("No packet identifiers available for the session.");
     }
 
+    /// <summary>Builds the outbound packet; properties are dropped for 3.1.1 peers.</summary>
     private PublishPacket BuildPublish(OutboundMessage message, ushort packetId, bool duplicate)
     {
         return new PublishPacket
@@ -600,6 +612,7 @@ public sealed class BrokerSession : IDisposable
         };
     }
 
+    /// <summary>Copies a packet to resend it with the duplicate flag set.</summary>
     private static PublishPacket ClonePublish(PublishPacket packet, bool duplicate)
     {
         return new PublishPacket
@@ -614,15 +627,21 @@ public sealed class BrokerSession : IDisposable
         };
     }
 
+    /// <summary>A queued message plus when it entered the queue.</summary>
     private sealed record QueuedMessage(OutboundMessage Message, DateTimeOffset EnqueuedAt);
 
+    /// <summary>Which acknowledgement the outbound window is waiting for.</summary>
     private enum OutboundState
     {
+        /// <summary>QoS 1 message waiting for PUBACK.</summary>
         AwaitingPubAck,
+        /// <summary>QoS 2 message waiting for PUBREC.</summary>
         AwaitingPubRec,
+        /// <summary>QoS 2 message waiting for PUBCOMP.</summary>
         AwaitingPubComp,
     }
 
+    /// <summary>One unacknowledged outbound message and its retry bookkeeping.</summary>
     private sealed class OutboundInflight
     {
         public OutboundInflight(PublishPacket packet, MqttQoS qos)
@@ -631,12 +650,16 @@ public sealed class BrokerSession : IDisposable
             State = qos == MqttQoS.AtLeastOnce ? OutboundState.AwaitingPubAck : OutboundState.AwaitingPubRec;
         }
 
+        /// <summary>Packet that was sent; resent verbatim with the duplicate flag.</summary>
         public PublishPacket Packet { get; }
 
+        /// <summary>Current step of the QoS handshake.</summary>
         public OutboundState State { get; set; }
 
+        /// <summary>When it was last written, used to schedule retransmission.</summary>
         public DateTimeOffset LastSent { get; set; } = DateTimeOffset.UtcNow;
 
+        /// <summary>How many times it has been sent.</summary>
         public int Attempts { get; set; }
     }
 }

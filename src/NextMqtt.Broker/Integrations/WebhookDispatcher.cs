@@ -19,13 +19,21 @@ public sealed class WebhookDispatcher : IAsyncDisposable
     /// <remarks>共 3 次，含首次；间隔按 200 毫秒线性增长。</remarks>
     private const int MaxAttempts = 3;
 
+    /// <summary>One entry per valid webhook rule.</summary>
     private readonly List<Target> _targets;
+    /// <summary>Client supplied by the host; this class does not own it.</summary>
     private readonly HttpClient _httpClient;
+    /// <summary>Logger for skipped rules and exhausted retries.</summary>
     private readonly ILogger<WebhookDispatcher> _logger;
+    /// <summary>Cancelled on dispose to stop every worker.</summary>
     private readonly CancellationTokenSource _lifetime = new();
+    /// <summary>One delivery task per target.</summary>
     private readonly List<Task> _workers = [];
+    /// <summary>Events their endpoint accepted.</summary>
     private long _delivered;
+    /// <summary>Events that used up all their attempts.</summary>
     private long _failed;
+    /// <summary>Events rejected because a queue was full.</summary>
     private long _dropped;
 
     /// <summary>Builds one target per valid webhook rule and starts its worker.</summary>

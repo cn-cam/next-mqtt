@@ -50,13 +50,21 @@ public sealed class NatsOptions
 /// </remarks>
 public sealed class NatsBridge : IAsyncDisposable
 {
+    /// <summary>NATS settings copied at construction.</summary>
     private readonly NatsOptions _options;
+    /// <summary>Parsed filter; unmatched publishes are never queued.</summary>
     private readonly TopicFilter _filter;
+    /// <summary>Bounded queue of already-mapped subjects and payloads.</summary>
     private readonly Channel<(string Subject, byte[] Payload)> _queue;
+    /// <summary>Logger for connection failures and reconnects.</summary>
     private readonly ILogger<NatsBridge> _logger;
+    /// <summary>Cancelled on dispose; stops the reconnect loop.</summary>
     private readonly CancellationTokenSource _lifetime = new();
+    /// <summary>Connection loop task, awaited during dispose.</summary>
     private readonly Task _worker;
+    /// <summary>Frames written to the server; NATS sends no acknowledgement.</summary>
     private long _forwarded;
+    /// <summary>Messages rejected because the queue was full.</summary>
     private long _dropped;
 
     /// <summary>Parses the URL, validates the filter and starts the worker.</summary>

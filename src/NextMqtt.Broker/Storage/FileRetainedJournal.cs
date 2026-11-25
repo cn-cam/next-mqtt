@@ -46,14 +46,19 @@ public interface IRetainedJournal
 /// <remarks>断电最多丢最后一行；压缩走临时文件替换，不会留下半个日志。</remarks>
 public sealed class FileRetainedJournal : IRetainedJournal, IDisposable
 {
+    /// <summary>Omits null fields; the field names are the on-disk contract.</summary>
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
     };
 
+    /// <summary>Absolute journal path, resolved in the constructor.</summary>
     private readonly string _path;
+    /// <summary>Size at which the file is rewritten, in bytes.</summary>
     private readonly long _compactThresholdBytes;
+    /// <summary>Serialises appends, reads and compaction.</summary>
     private readonly object _gate = new();
+    /// <summary>Open append stream; null after compaction or dispose.</summary>
     private FileStream? _stream;
 
     /// <summary>Creates the journal and the parent directory when missing.</summary>
@@ -186,6 +191,7 @@ public sealed class FileRetainedJournal : IRetainedJournal, IDisposable
         }
     }
 
+    /// <summary>Writes one line, then compacts when the file outgrew the threshold.</summary>
     private void Append(RetainedRecord record)
     {
         lock (_gate)
@@ -205,6 +211,7 @@ public sealed class FileRetainedJournal : IRetainedJournal, IDisposable
         }
     }
 
+    /// <summary>Rewrites the file through a temporary sibling and reopens the stream.</summary>
     private void CompactCore(IReadOnlyList<RetainedMessage> messages)
     {
         _stream?.Dispose();
@@ -268,6 +275,7 @@ public sealed class FileRetainedJournal : IRetainedJournal, IDisposable
         return live.Values.ToList();
     }
 
+    /// <summary>Lazily opens the journal for appending while allowing readers.</summary>
     private void OpenAppendStream()
     {
         _stream ??= new FileStream(
