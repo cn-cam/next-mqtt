@@ -6,14 +6,17 @@ using NextMqtt.Core.Topics;
 namespace NextMqtt.Broker.Security;
 
 /// <summary>Decides whether a principal may publish or subscribe to a topic.</summary>
+/// <remarks>返回布尔值不抛异常，拒绝原因由调用方映射成原因码。</remarks>
 public interface ITopicAuthorizer
 {
     /// <summary>True when the principal may publish to the topic.</summary>
+    /// <remarks>每次发布都检查，不缓存结果。</remarks>
     /// <param name="principal">Authenticated identity.</param>
     /// <param name="topic">Concrete topic name.</param>
     bool CanPublish(ClientPrincipal principal, string topic);
 
     /// <summary>True when the principal may subscribe to the filter.</summary>
+    /// <remarks>共享订阅前缀会被剥掉，再按普通过滤器判断。</remarks>
     /// <param name="principal">Authenticated identity.</param>
     /// <param name="filter">Requested filter, wildcards allowed.</param>
     bool CanSubscribe(ClientPrincipal principal, string filter);
@@ -24,6 +27,7 @@ public interface ITopicAuthorizer
 /// patterns match decides; otherwise the default policy applies.
 /// Topic filters may contain <c>${username}</c> and <c>${clientid}</c>.
 /// </summary>
+/// <remarks>规则顺序即优先级；先按动作与主体筛选，再判断主题是否被覆盖，第一条命中即返回。</remarks>
 public sealed class TopicAuthorizer : ITopicAuthorizer
 {
     private readonly List<CompiledRule> _rules;
@@ -31,6 +35,7 @@ public sealed class TopicAuthorizer : ITopicAuthorizer
     private readonly ConcurrentDictionary<string, TopicFilter?> _filterCache = new(StringComparer.Ordinal);
 
     /// <summary>Compiles the rule list once at startup.</summary>
+    /// <remarks>用户名与客户端 ID 的 glob 只编译一次；主题模式含占位符，只能按请求展开。</remarks>
     /// <param name="options">Ordered ACL rules and the default policy.</param>
     public TopicAuthorizer(AclOptions options)
     {
@@ -41,12 +46,14 @@ public sealed class TopicAuthorizer : ITopicAuthorizer
     }
 
     /// <summary>Evaluates publish access against the compiled rules.</summary>
+    /// <remarks>发布只需通配匹配。</remarks>
     /// <param name="principal">Authenticated identity.</param>
     /// <param name="topic">Concrete topic name.</param>
     public bool CanPublish(ClientPrincipal principal, string topic)
         => Evaluate(principal, topic, isSubscription: false);
 
     /// <summary>Evaluates subscribe access, including filter containment.</summary>
+    /// <remarks>请求 audit/# 而规则只允许 audit/1 时必须拒绝，否则可以用更宽的过滤器绕过。</remarks>
     /// <param name="principal">Authenticated identity.</param>
     /// <param name="filter">Requested filter.</param>
     public bool CanSubscribe(ClientPrincipal principal, string filter)

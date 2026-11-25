@@ -13,6 +13,7 @@ namespace NextMqtt.Broker.RateLimiting;
 public interface IRateScalable
 {
     /// <summary>Recomputes the local share for the given number of live nodes.</summary>
+    /// <remarks>传入 0 或负数按 1 处理，配额不会被算成 0。</remarks>
     /// <param name="nodes">Live node count; values below one are treated as one.</param>
     void SetClusterSize(int nodes);
 }
@@ -21,6 +22,7 @@ public interface IRateScalable
 /// Lock-protected token bucket. Tokens refill continuously at a fixed rate up to
 /// a burst capacity, so a short spike is allowed while the long-term rate holds.
 /// </summary>
+/// <remarks>用 Stopwatch 而不是墙钟计时，系统时间跳变不会把令牌算错；锁内只有浮点运算。</remarks>
 public sealed class TokenBucket
 {
     private double _capacity;
@@ -30,6 +32,7 @@ public sealed class TokenBucket
     private long _lastTimestamp = Stopwatch.GetTimestamp();
 
     /// <summary>Creates a full bucket.</summary>
+    /// <remarks>初始即满，允许启动瞬间的突发。</remarks>
     /// <param name="refillPerSecond">Sustained rate; must be positive.</param>
     /// <param name="capacity">Burst size; must be positive.</param>
     public TokenBucket(int refillPerSecond, int capacity)
@@ -43,9 +46,11 @@ public sealed class TokenBucket
     }
 
     /// <summary>Current burst capacity after any cluster rescaling.</summary>
+    /// <remarks>只读；扩缩容后由 Reconfigure 更新。</remarks>
     public double Capacity => _capacity;
 
     /// <summary>Consumes one token when available.</summary>
+    /// <remarks>返回 false 时调用方应丢弃消息，不要原地重试。</remarks>
     public bool TryTake()
     {
         lock (_gate)
@@ -84,6 +89,7 @@ public sealed class TokenBucket
     }
 
     /// <summary>True when the bucket has fully refilled, so it can be evicted.</summary>
+    /// <remarks>只用于清理空闲桶，不参与限流判断。</remarks>
     public bool IsFull
     {
         get
@@ -115,6 +121,7 @@ public sealed class TokenBucket
 /// Global publish quota per topic filter. One bucket per rule, shared by every
 /// client, so a topic cannot be flooded by opening more connections.
 /// </summary>
+/// <remarks>一个过滤器一个桶，所有客户端共享；命中多条规则时逐条扣减，最严格的那条决定结果。</remarks>
 public sealed class TopicQuotaLimiter : IRateScalable
 {
     private readonly List<(TopicFilter Filter, TokenBucket Bucket, int Rate, int Burst)> _rules = [];
@@ -138,9 +145,11 @@ public sealed class TopicQuotaLimiter : IRateScalable
     }
 
     /// <summary>True when at least one valid topic rule was configured.</summary>
+    /// <remarks>规则全被跳过时为 false，发布路径直接放行。</remarks>
     public bool Enabled => _rules.Count > 0;
 
     /// <summary>Number of active topic rules.</summary>
+    /// <remarks>无效或速率为 0 的规则不计入。</remarks>
     public int RuleCount => _rules.Count;
 
     /// <summary>
@@ -171,6 +180,7 @@ public sealed class TopicQuotaLimiter : IRateScalable
     }
 
     /// <summary>Consumes quota for every matching rule; false when any is exhausted.</summary>
+    /// <remarks>命中多条时只要一条不足就整体拒绝，已扣的令牌不退。</remarks>
     public bool TryAcquire(string topic)
     {
         if (_rules.Count == 0)
@@ -197,6 +207,7 @@ public sealed class TopicQuotaLimiter : IRateScalable
 /// Per-remote-address connection limiter. Buckets for addresses that have fully
 /// refilled are swept periodically so the table stays bounded by active peers.
 /// </summary>
+/// <remarks>表大小跟随活跃来源数而不是历史连接数；回满超过一分钟的地址会被清掉。</remarks>
 public sealed class ConnectionRateLimiter : IRateScalable
 {
     private static readonly TimeSpan SweepInterval = TimeSpan.FromSeconds(60);
@@ -216,6 +227,7 @@ public sealed class ConnectionRateLimiter : IRateScalable
     }
 
     /// <summary>True when a per-address CONNECT rate was configured.</summary>
+    /// <remarks>速率为 0 时所有调用都放行。</remarks>
     public bool Enabled => _rate > 0;
 
     /// <summary>
@@ -246,9 +258,11 @@ public sealed class ConnectionRateLimiter : IRateScalable
     }
 
     /// <summary>Effective refill rate per node after cluster scaling.</summary>
+    /// <remarks>最少保留 1/秒，避免分摊后小到永远取不到令牌。</remarks>
     private double EffectiveRate => Math.Max(1.0, (double)_rate / _clusterSize);
 
     /// <summary>Effective burst per node after cluster scaling.</summary>
+    /// <remarks>同上，容量最小为 1。</remarks>
     private double EffectiveBurst => Math.Max(1.0, (double)_burst / _clusterSize);
 
     /// <summary>
@@ -271,9 +285,11 @@ public sealed class ConnectionRateLimiter : IRateScalable
     }
 
     /// <summary>Number of tracked addresses; exposed for tests and metrics.</summary>
+    /// <remarks>清理是惰性的，数值可能包含刚回满的地址。</remarks>
     public int TrackedAddresses => _buckets.Count;
 
     /// <summary>Strips an optional port from an IPv4 or bracketed IPv6 address.</summary>
+    /// <remarks>裸 IPv6（含多个冒号）原样返回，避免误截。</remarks>
     public static string Normalize(string remoteAddress)
     {
         if (string.IsNullOrEmpty(remoteAddress))

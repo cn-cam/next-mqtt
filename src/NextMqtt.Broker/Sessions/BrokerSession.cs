@@ -9,6 +9,7 @@ namespace NextMqtt.Broker.Sessions;
 /// Persistent client state: identity, subscriptions (indexed elsewhere),
 /// outbound inflight window, offline queue and inbound QoS 2 handshake.
 /// </summary>
+/// <remarks>只保存与连接无关的状态；连接由 Bind 挂上、Detach 摘掉，订阅索引单独维护，避免会话锁住路由表。</remarks>
 public sealed class BrokerSession : IDisposable
 {
     private readonly object _gate = new();
@@ -22,6 +23,7 @@ public sealed class BrokerSession : IDisposable
     private bool _disposed;
 
     /// <summary>Creates an empty session; state is filled by <see cref="Bind"/> or <see cref="Restore"/>.</summary>
+    /// <remarks>构造时不分配队列也不注册订阅，离线恢复后同样从空开始。</remarks>
     /// <param name="clientId">Identifier that owns the session.</param>
     /// <param name="options">Broker limits used for inflight and queue bounds.</param>
     /// <param name="metrics">Counters updated when messages are dropped.</param>
@@ -246,6 +248,7 @@ public sealed class BrokerSession : IDisposable
     /// Queues or sends a message. Returns false if the message was dropped
     /// (fresh non-persistent session, expired message or full queue).
     /// </summary>
+    /// <remarks>在线直接写连接，离线且持久才入队；入队后按顺序补发，过期消息不再补发。</remarks>
     public bool Deliver(OutboundMessage message)
     {
         if (message.ExpiresAt is { } expiry && expiry <= DateTimeOffset.UtcNow)

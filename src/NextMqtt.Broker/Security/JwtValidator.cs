@@ -6,12 +6,14 @@ using NextMqtt.Broker.Options;
 namespace NextMqtt.Broker.Security;
 
 /// <summary>Validates compact HS256 JWTs used as MQTT passwords.</summary>
+/// <remarks>只支持 HS256 与紧凑格式，不支持 JWKS 与 RS256。</remarks>
 public sealed class JwtValidator
 {
     private readonly JwtOptions _options;
     private readonly byte[] _key;
 
     /// <summary>Prepares the HMAC key from the configured secret.</summary>
+    /// <remarks>密钥按 UTF-8 原始字节使用，不做 Base64 解码。</remarks>
     /// <param name="options">Secret, issuer, audience and claim names.</param>
     public JwtValidator(JwtOptions options)
     {
@@ -27,6 +29,7 @@ public sealed class JwtValidator
     }
 
     /// <summary>Validates signature, time claims and builds the principal.</summary>
+    /// <remarks>先验签再读声明，签名错误时不会解析出任何身份。</remarks>
     /// <param name="token">Compact JWS from the password field.</param>
     /// <param name="principal">Principal when validation succeeds.</param>
     /// <param name="error">Reason when it fails.</param>

@@ -6,6 +6,7 @@ using NextMqtt.Broker.Options;
 namespace NextMqtt.Broker.Security;
 
 /// <summary>Authenticated identity attached to a session.</summary>
+/// <remarks>会话的权限判断只认这个对象，原始凭据不会保留。</remarks>
 /// <param name="Name">Display name; the username or client id.</param>
 /// <param name="Username">Authenticated username, null for anonymous.</param>
 /// <param name="ClientId">Client identifier the principal is bound to.</param>
@@ -19,11 +20,13 @@ public sealed record ClientPrincipal(
     IReadOnlyDictionary<string, string> Claims)
 {
     /// <summary>Creates the anonymous principal used when no credentials are sent.</summary>
+    /// <remarks>名字取客户端 ID，不是超管，也没有任何角色。</remarks>
     /// <param name="clientId">Client identifier.</param>
     public static ClientPrincipal Anonymous(string clientId) =>
         new(clientId, null, clientId, IsSuperuser: false, new Dictionary<string, string>());
 
     /// <summary>Creates a principal from a validated username.</summary>
+    /// <remarks>Name 与 Username 相同，ACL 占位符展开时用它。</remarks>
     /// <param name="username">Authenticated username.</param>
     /// <param name="clientId">Client identifier.</param>
     /// <param name="isSuperuser">True when ACL checks are bypassed.</param>
@@ -33,6 +36,7 @@ public sealed record ClientPrincipal(
 }
 
 /// <summary>Input supplied by the client during CONNECT.</summary>
+/// <remarks>密码保留原始字节：可能是 UTF-8 密码，也可能是二进制令牌。</remarks>
 /// <param name="ClientId">Client identifier from CONNECT.</param>
 /// <param name="Username">Username from CONNECT, when present.</param>
 /// <param name="Password">Raw password bytes from CONNECT.</param>
@@ -46,28 +50,34 @@ public sealed record ClientAuthenticationContext(
     MqttProtocolVersion ProtocolVersion);
 
 /// <summary>Authentication outcome. A non-null principal indicates success.</summary>
+/// <remarks>失败时只带原因码，不区分“用户不存在”与“密码错误”。</remarks>
 /// <param name="Principal">Identity on success, null on failure.</param>
 /// <param name="ReasonCode">0x00 or the CONNACK reason code to return.</param>
 public readonly record struct AuthenticationResult(ClientPrincipal? Principal, byte ReasonCode)
 {
     /// <summary>True when a principal was produced.</summary>
+    /// <remarks>调用方据此决定回 CONNACK 还是拒绝。</remarks>
     public bool Succeeded => Principal is not null;
 
     /// <summary>Builds a success result.</summary>
+    /// <remarks>原因码固定为 0x00。</remarks>
     /// <param name="principal">Authenticated identity.</param>
     public static AuthenticationResult Success(ClientPrincipal principal) =>
         new(principal, MqttReasonCodes.Success);
 
     /// <summary>Builds a failure result with the CONNACK reason code.</summary>
+    /// <remarks>3.1.1 客户端只会看到 0x04/0x05 的映射结果。</remarks>
     /// <param name="reasonCode">Code returned to the client.</param>
     public static AuthenticationResult Failure(byte reasonCode) =>
         new(null, reasonCode);
 }
 
 /// <summary>Validates CONNECT credentials.</summary>
+/// <remarks>实现可以查库、验签或直接放行，Broker 只关心结果。</remarks>
 public interface IClientAuthenticator
 {
     /// <summary>Validates one CONNECT.</summary>
+    /// <remarks>每个连接一次；增强认证走另一条路径。</remarks>
     /// <param name="context">Identity and credentials.</param>
     /// <param name="cancellationToken">Cancels remote lookups.</param>
     ValueTask<AuthenticationResult> AuthenticateAsync(
@@ -76,6 +86,7 @@ public interface IClientAuthenticator
 }
 
 /// <summary>PBKDF2-SHA256 password hashing with a versioned, self-describing format.</summary>
+/// <remarks>编码里带算法、迭代次数与盐，换参数不需要迁移旧哈希。</remarks>
 public static class PasswordHasher
 {
     private const string Prefix = "pbkdf2-sha256";
@@ -83,10 +94,11 @@ public static class PasswordHasher
     private const int HashBytes = 32;
 
     /// <summary>Default PBKDF2 work factor (210,000 SHA-256 iterations).</summary>
+    /// <remarks>取自 OWASP 的推荐值；调低会让离线爆破更容易。</remarks>
     public const int DefaultIterations = 210_000;
 
     /// <summary>Hashes a password with a fresh random salt.</summary>
-    /// <remarks>输出格式：pbkdf2-sha256（Base64）。</remarks>
+    /// <remarks>输出格式：pbkdf2-sha256$迭代次数$盐$哈希，盐与哈希都是 Base64，用 $ 分段。</remarks>
     /// <param name="password">Plaintext password.</param>
     /// <param name="iterations">Work factor; at least 10,000.</param>
     public static string Hash(string password, int iterations = DefaultIterations)
@@ -106,6 +118,7 @@ public static class PasswordHasher
     }
 
     /// <summary>Verifies a password against a stored hash in constant time.</summary>
+    /// <remarks>格式不认识就返回 false 而不抛异常，避免把配置错误暴露给客户端。</remarks>
     /// <param name="password">Plaintext candidate.</param>
     /// <param name="encoded">Stored hash produced by <see cref="Hash"/>.</param>
     public static bool Verify(string password, string encoded)
@@ -159,6 +172,7 @@ public static class PasswordHasher
 /// Password, JWT and anonymous authentication in that order. JWT tokens are
 /// sent in the MQTT password field.
 /// </summary>
+/// <remarks>顺序固定：先查本地账号，再验 JWT，最后才看匿名开关；匿名只接受完全空的凭据。</remarks>
 public sealed class ClientAuthenticator : IClientAuthenticator
 {
     private readonly Dictionary<string, LocalUserOptions> _users;
@@ -167,6 +181,7 @@ public sealed class ClientAuthenticator : IClientAuthenticator
     private readonly bool _allowAnonymous;
 
     /// <summary>Builds the authenticator from configuration.</summary>
+    /// <remarks>用户名重复时后者覆盖前者，比较区分大小写。</remarks>
     /// <param name="options">Users, superusers, JWT settings and anonymous policy.</param>
     public ClientAuthenticator(AuthenticationOptions options)
     {
@@ -231,6 +246,7 @@ public sealed class ClientAuthenticator : IClientAuthenticator
     }
 
     /// <summary>Decodes password bytes as UTF-8, returning empty on invalid input.</summary>
+    /// <remarks>非法字节视为空密码，最终按认证失败处理。</remarks>
     /// <param name="password">Raw bytes from CONNECT.</param>
     private static string DecodePassword(ReadOnlyMemory<byte> password)
     {
