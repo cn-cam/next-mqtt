@@ -55,7 +55,7 @@ function trail(plugin: PluginsInfo['plugins'][number]): string {
           <h3>{{ t('plugins.hooks') }}</h3>
           <p>{{ t('plugins.hooksHint') }}</p>
         </div>
-        <span class="tag" :class="data.enabled ? 'ok' : ''">
+        <span class="tag" :class="data.enabled ? 'green' : ''">
           {{ data.enabled ? t('common.enabled') : t('common.disabled') }}
         </span>
       </div>
@@ -75,7 +75,7 @@ function trail(plugin: PluginsInfo['plugins'][number]): string {
               <th>{{ t('plugins.authenticator') }}</th>
               <td>
                 <span class="mono">{{ data.authenticator || t('plugins.none') }}</span>
-                <span class="tag" :class="data.authenticatorLoaded ? 'ok' : ''">
+                <span class="tag" :class="data.authenticatorLoaded ? 'green' : ''">
                   {{ data.authenticatorLoaded ? t('plugins.resolved') : t('plugins.unresolved') }}
                 </span>
               </td>
@@ -84,7 +84,7 @@ function trail(plugin: PluginsInfo['plugins'][number]): string {
               <th>{{ t('plugins.authorizer') }}</th>
               <td>
                 <span class="mono">{{ data.authorizer || t('plugins.none') }}</span>
-                <span class="tag" :class="data.authorizerLoaded ? 'ok' : ''">
+                <span class="tag" :class="data.authorizerLoaded ? 'green' : ''">
                   {{ data.authorizerLoaded ? t('plugins.resolved') : t('plugins.unresolved') }}
                 </span>
               </td>
