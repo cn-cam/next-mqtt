@@ -42,6 +42,11 @@ public sealed class ClientConnection : IClientConnection, IRateScalable
     private long _lastActivity = Stopwatch.GetTimestamp();
     private ushort _maxTopicAlias;
 
+    /// <summary>Creates the per-connection state machine.</summary>
+    /// <param name="stream">Transport stream (TCP, TLS or WebSocket).</param>
+    /// <param name="remoteAddress">Peer address, port included.</param>
+    /// <param name="broker">Broker that owns the session.</param>
+    /// <param name="logger">Connection logger.</param>
     public ClientConnection(
         Stream stream,
         string remoteAddress,
@@ -98,10 +103,14 @@ public sealed class ClientConnection : IClientConnection, IRateScalable
             Math.Max(1.0, (double)_publishBurst / size));
     }
 
+    /// <summary>Peer address reported by the transport.</summary>
     public string RemoteAddress => _remoteAddress;
 
+    /// <summary>Protocol level negotiated by CONNECT.</summary>
     public MqttProtocolVersion ProtocolVersion => _version;
 
+    /// <summary>Queues a packet without blocking; false when closing.</summary>
+    /// <param name="packet">Packet to enqueue.</param>
     public bool TrySend(MqttPacket packet)
     {
         if (_closing != 0)
@@ -112,6 +121,8 @@ public sealed class ClientConnection : IClientConnection, IRateScalable
         return _outbound.Writer.TryWrite(new PendingFrame(packet, null));
     }
 
+    /// <summary>Reads CONNECT, then runs the read loop until the peer leaves.</summary>
+    /// <param name="cancellationToken">Stops the connection on shutdown.</param>
     public async Task RunAsync(CancellationToken cancellationToken)
     {
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
@@ -155,6 +166,10 @@ public sealed class ClientConnection : IClientConnection, IRateScalable
         }
     }
 
+    /// <summary>Sends DISCONNECT on MQTT 5 and closes the transport.</summary>
+    /// <param name="reasonCode">Reason code shown to the client.</param>
+    /// <param name="reason">Explanation used in local logs.</param>
+    /// <param name="cancellationToken">Cancels the close.</param>
     public async Task DisconnectAsync(byte reasonCode, string reason, CancellationToken cancellationToken = default)
     {
         if (Interlocked.Exchange(ref _closing, 1) != 0)

@@ -9,10 +9,13 @@ public sealed class PropertyRecord
 {
     private static readonly JsonSerializerOptions SerializerOptions = new();
 
+    /// <summary>MQTT 5 property identifier.</summary>
     public int Id { get; set; }
 
+    /// <summary>Wire encoding of the value, from <see cref="MqttPropertyDataType"/>.</summary>
     public int Type { get; set; }
 
+    /// <summary>Value rendered as text; binary values are Base64.</summary>
     public string? Value { get; set; }
 
     /// <summary>Serializes a property bag, dropping message expiry (stored absolutely).</summary>

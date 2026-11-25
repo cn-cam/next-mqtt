@@ -15,8 +15,12 @@ public interface IRetainedJournal
     /// <summary>Replays the journal and returns the current live messages.</summary>
     IReadOnlyList<RetainedMessage> Load();
 
+    /// <summary>Journals a store operation.</summary>
+    /// <param name="message">Message that was written to the index.</param>
     void AppendSet(RetainedMessage message);
 
+    /// <summary>Journals a deletion.</summary>
+    /// <param name="topic">Topic whose entry was removed.</param>
     void AppendRemove(string topic);
 
     /// <summary>Rewrites the journal so it only contains <paramref name="messages"/>.</summary>
@@ -40,6 +44,9 @@ public sealed class FileRetainedJournal : IRetainedJournal, IDisposable
     private readonly object _gate = new();
     private FileStream? _stream;
 
+    /// <summary>Creates the journal and the parent directory when missing.</summary>
+    /// <param name="path">Journal file path; relative paths resolve against the working directory.</param>
+    /// <param name="compactThresholdBytes">Size at which the file is rewritten.</param>
     public FileRetainedJournal(string path, long compactThresholdBytes = 4 * 1024 * 1024)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
@@ -54,8 +61,11 @@ public sealed class FileRetainedJournal : IRetainedJournal, IDisposable
         }
     }
 
+    /// <summary>Absolute journal path, exposed for diagnostics and tests.</summary>
     public string FilePath => _path;
 
+    /// <summary>Replays the journal, skipping expired and unreadable lines.</summary>
+    /// <returns>Live messages in last-write-wins order.</returns>
     public IReadOnlyList<RetainedMessage> Load()
     {
         lock (_gate)
@@ -118,16 +128,22 @@ public sealed class FileRetainedJournal : IRetainedJournal, IDisposable
         }
     }
 
+    /// <summary>Appends a set operation.</summary>
+    /// <param name="message">Message to journal.</param>
     public void AppendSet(RetainedMessage message)
     {
         Append(RetainedRecord.FromMessage(message));
     }
 
+    /// <summary>Appends a remove operation.</summary>
+    /// <param name="topic">Topic to delete on replay.</param>
     public void AppendRemove(string topic)
     {
         Append(new RetainedRecord { Op = RetainedRecord.RemoveOperation, Topic = topic });
     }
 
+    /// <summary>Rewrites the journal so it only contains the given messages.</summary>
+    /// <param name="messages">Live set to persist.</param>
     public void Compact(IReadOnlyList<RetainedMessage> messages)
     {
         lock (_gate)
@@ -136,6 +152,7 @@ public sealed class FileRetainedJournal : IRetainedJournal, IDisposable
         }
     }
 
+    /// <summary>Flushes pending writes and closes the journal file.</summary>
     public void Dispose()
     {
         lock (_gate)

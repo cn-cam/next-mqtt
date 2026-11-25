@@ -45,6 +45,7 @@ public sealed class SubscriptionIndex
     private readonly Dictionary<string, SharedSubscriptionGroup> _sharedGroups = new(StringComparer.Ordinal);
     private readonly Dictionary<string, Dictionary<string, Subscription>> _byClient = new(StringComparer.Ordinal);
 
+    /// <summary>Total subscriptions, normal and shared.</summary>
     public int Count
     {
         get
@@ -56,6 +57,7 @@ public sealed class SubscriptionIndex
         }
     }
 
+    /// <summary>Number of clients that hold at least one subscription.</summary>
     public int ClientCount
     {
         get
@@ -104,6 +106,9 @@ public sealed class SubscriptionIndex
         }
     }
 
+    /// <summary>Removes one subscription by client and original filter text.</summary>
+    /// <param name="clientId">Subscriber.</param>
+    /// <param name="originalFilter">Filter exactly as subscribed.</param>
     public bool Remove(string clientId, string originalFilter)
     {
         lock (_gate)
@@ -112,6 +117,9 @@ public sealed class SubscriptionIndex
         }
     }
 
+    /// <summary>Removes every subscription of a client.</summary>
+    /// <param name="clientId">Subscriber.</param>
+    /// <returns>Removed subscriptions.</returns>
     public List<Subscription> RemoveAll(string clientId)
     {
         lock (_gate)
@@ -140,6 +148,8 @@ public sealed class SubscriptionIndex
         }
     }
 
+    /// <summary>Finds subscriptions matching one topic, shared groups included.</summary>
+    /// <param name="topic">Concrete topic name.</param>
     public List<SubscriptionMatch> Match(string topic)
     {
         lock (_gate)
@@ -164,6 +174,8 @@ public sealed class SubscriptionIndex
         }
     }
 
+    /// <summary>Lists one client's subscriptions.</summary>
+    /// <param name="clientId">Subscriber.</param>
     public List<Subscription> GetByClient(string clientId)
     {
         lock (_gate)
@@ -174,6 +186,7 @@ public sealed class SubscriptionIndex
         }
     }
 
+    /// <summary>Copies every subscription, for heartbeat and admin views.</summary>
     public List<Subscription> GetAll()
     {
         lock (_gate)
@@ -189,6 +202,7 @@ public sealed class SubscriptionIndex
         }
     }
 
+    /// <summary>Drops every subscription, for example on shutdown.</summary>
     public void Clear()
     {
         lock (_gate)
@@ -262,6 +276,7 @@ internal sealed class SharedSubscriptionGroup
 
     public string Filter { get; }
 
+    /// <summary>Total subscriptions, normal and shared.</summary>
     public int Count => _members.Count;
 
     public IReadOnlyList<Subscription> Members => _members;

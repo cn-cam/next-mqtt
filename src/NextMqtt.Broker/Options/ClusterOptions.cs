@@ -3,6 +3,7 @@ namespace NextMqtt.Broker.Options;
 /// <summary>Cluster membership and internal transport settings.</summary>
 public sealed class ClusterOptions
 {
+    /// <summary>Configuration section name (<c>Cluster</c> / <c>NEXTMQTT_CLUSTER__</c>).</summary>
     public const string SectionName = "Cluster";
 
     /// <summary>Turns gossip membership and cross-node forwarding on.</summary>

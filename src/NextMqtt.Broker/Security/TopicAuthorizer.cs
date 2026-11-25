@@ -5,10 +5,17 @@ using NextMqtt.Core.Topics;
 
 namespace NextMqtt.Broker.Security;
 
+/// <summary>Decides whether a principal may publish or subscribe to a topic.</summary>
 public interface ITopicAuthorizer
 {
+    /// <summary>True when the principal may publish to the topic.</summary>
+    /// <param name="principal">Authenticated identity.</param>
+    /// <param name="topic">Concrete topic name.</param>
     bool CanPublish(ClientPrincipal principal, string topic);
 
+    /// <summary>True when the principal may subscribe to the filter.</summary>
+    /// <param name="principal">Authenticated identity.</param>
+    /// <param name="filter">Requested filter, wildcards allowed.</param>
     bool CanSubscribe(ClientPrincipal principal, string filter);
 }
 
@@ -23,6 +30,8 @@ public sealed class TopicAuthorizer : ITopicAuthorizer
     private readonly AclDefaultPolicy _defaultPolicy;
     private readonly ConcurrentDictionary<string, TopicFilter?> _filterCache = new(StringComparer.Ordinal);
 
+    /// <summary>Compiles the rule list once at startup.</summary>
+    /// <param name="options">Ordered ACL rules and the default policy.</param>
     public TopicAuthorizer(AclOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
@@ -31,9 +40,15 @@ public sealed class TopicAuthorizer : ITopicAuthorizer
         _defaultPolicy = options.DefaultPolicy;
     }
 
+    /// <summary>Evaluates publish access against the compiled rules.</summary>
+    /// <param name="principal">Authenticated identity.</param>
+    /// <param name="topic">Concrete topic name.</param>
     public bool CanPublish(ClientPrincipal principal, string topic)
         => Evaluate(principal, topic, isSubscription: false);
 
+    /// <summary>Evaluates subscribe access, including filter containment.</summary>
+    /// <param name="principal">Authenticated identity.</param>
+    /// <param name="filter">Requested filter.</param>
     public bool CanSubscribe(ClientPrincipal principal, string filter)
     {
         if (filter.StartsWith("$share/", StringComparison.Ordinal))

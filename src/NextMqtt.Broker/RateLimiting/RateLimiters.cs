@@ -29,6 +29,9 @@ public sealed class TokenBucket
     private double _tokens;
     private long _lastTimestamp = Stopwatch.GetTimestamp();
 
+    /// <summary>Creates a full bucket.</summary>
+    /// <param name="refillPerSecond">Sustained rate; must be positive.</param>
+    /// <param name="capacity">Burst size; must be positive.</param>
     public TokenBucket(int refillPerSecond, int capacity)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(refillPerSecond);
@@ -39,6 +42,7 @@ public sealed class TokenBucket
         _tokens = capacity;
     }
 
+    /// <summary>Current burst capacity after any cluster rescaling.</summary>
     public double Capacity => _capacity;
 
     /// <summary>Consumes one token when available.</summary>
@@ -133,8 +137,10 @@ public sealed class TopicQuotaLimiter : IRateScalable
         }
     }
 
+    /// <summary>True when at least one valid topic rule was configured.</summary>
     public bool Enabled => _rules.Count > 0;
 
+    /// <summary>Number of active topic rules.</summary>
     public int RuleCount => _rules.Count;
 
     /// <summary>
@@ -209,6 +215,7 @@ public sealed class ConnectionRateLimiter : IRateScalable
         _burst = options.ConnectBurst > 0 ? options.ConnectBurst : Math.Max(1, options.ConnectPerSecondPerIp);
     }
 
+    /// <summary>True when a per-address CONNECT rate was configured.</summary>
     public bool Enabled => _rate > 0;
 
     /// <summary>

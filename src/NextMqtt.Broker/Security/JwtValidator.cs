@@ -11,6 +11,8 @@ public sealed class JwtValidator
     private readonly JwtOptions _options;
     private readonly byte[] _key;
 
+    /// <summary>Prepares the HMAC key from the configured secret.</summary>
+    /// <param name="options">Secret, issuer, audience and claim names.</param>
     public JwtValidator(JwtOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
@@ -24,6 +26,10 @@ public sealed class JwtValidator
         _key = Encoding.UTF8.GetBytes(options.Secret);
     }
 
+    /// <summary>Validates signature, time claims and builds the principal.</summary>
+    /// <param name="token">Compact JWS from the password field.</param>
+    /// <param name="principal">Principal when validation succeeds.</param>
+    /// <param name="error">Reason when it fails.</param>
     public bool TryValidate(string token, out ClientPrincipal principal, out string? error)
     {
         principal = null!;
