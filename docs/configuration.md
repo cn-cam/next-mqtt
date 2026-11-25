@@ -328,6 +328,37 @@ accepted the publish posts the event, so a cluster does not duplicate webhooks.
 A matching message is discarded before retained storage, delivery and cluster
 forwarding, and counts in `nextmqtt_messages_dropped_total`. `drop` is the only
 action in this release; rewrite and enrichment are on the roadmap.
+## Plugins
+
+Plugins run in-process, in a collectible load context, and are discovered from
+`plugin.json` manifests. The contract version must match the host's.
+
+```json
+{
+  "Plugins": {
+    "Enabled": true,
+    "Directory": "plugins",
+    "Authenticator": "MyCompany.Auth.MyAuthenticator"
+  }
+}
+```
+
+```text
+plugins/audit/
+  plugin.json          { "name": "audit", "version": "1.0.0", "contractVersion": 1, "entryAssembly": "MyCompany.Audit.dll" }
+  MyCompany.Audit.dll
+```
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `Enabled` | `false` | Load plugins at startup |
+| `Directory` | `plugins` | Folder scanned recursively for `plugin.json` |
+| `Authenticator` | – | Full type name of the `IClientAuthenticator` to use |
+| `Authorizer` | – | Full type name of the `ITopicAuthorizer` to use |
+
+A plugin is loaded only if its manifest names an existing assembly and the
+contract version matches; otherwise it is logged and skipped. Plugins run with
+broker privileges — this is an extension mechanism, not a sandbox.
 ## Authentication
 
 ```json

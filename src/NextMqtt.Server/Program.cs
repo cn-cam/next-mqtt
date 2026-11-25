@@ -8,6 +8,7 @@ using NextMqtt.Broker.Connections;
 using NextMqtt.Broker.Options;
 using NextMqtt.Broker.Security;
 using NextMqtt.Broker.Integrations;
+using Microsoft.Extensions.Logging;
 using NextMqtt.Broker.Storage;
 using NextMqtt.Server.Api;
 using NextMqtt.Server.Hosting;
@@ -88,8 +89,16 @@ builder.Services.AddCors(options =>
 builder.Services.AddSingleton(serverOptions);
 builder.Services.AddSingleton(brokerOptions);
 builder.Services.AddSingleton(adminOptions);
-builder.Services.AddSingleton<IClientAuthenticator>(_ => new ClientAuthenticator(authenticationOptions));
-builder.Services.AddSingleton<ITopicAuthorizer>(_ => new TopicAuthorizer(aclOptions));
+var pluginOptions = builder.Configuration.GetSection(PluginOptions.SectionName).Get<PluginOptions>()
+    ?? new PluginOptions();
+var pluginHost = PluginHost.Load(
+    pluginOptions,
+    LoggerFactory.Create(logging => logging.AddSimpleConsole()).CreateLogger<PluginHost>());
+var pluginAuthenticator = pluginHost.FindAuthenticator(pluginOptions.Authenticator);
+var pluginAuthorizer = pluginHost.FindAuthorizer(pluginOptions.Authorizer);
+
+builder.Services.AddSingleton<IClientAuthenticator>(_ => pluginAuthenticator ?? new ClientAuthenticator(authenticationOptions));
+builder.Services.AddSingleton<ITopicAuthorizer>(_ => pluginAuthorizer ?? new TopicAuthorizer(aclOptions));
 builder.Services.AddSingleton(clusterOptions);
 builder.Services.AddSingleton(_ => new HttpClient
 {
@@ -173,6 +182,7 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<BrokerLifecycleSer
 builder.Services.AddHostedService<MqttTcpListenerService>();
 
 var app = builder.Build();
+app.Lifetime.ApplicationStopping.Register(pluginHost.Dispose);
 var broker = app.Services.GetRequiredService<MqttBroker>();
 var adminAuth = app.Services.GetRequiredService<AdminAuthService>();
 var clusterRouter = app.Services.GetRequiredService<ClusterRouter>();

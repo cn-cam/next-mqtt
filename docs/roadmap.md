@@ -43,7 +43,7 @@ security needs.
 - [x] HTTP webhook bridge with filter rules (0.10.0)
 - [ ] Kafka and NATS bridge modules
 - [ ] Rule engine for topic routing, filtering and enrichment
-- [ ] Plugin SDK for .NET extensions
+- [x] First-party plugin host with manifest and collectible loading (0.12.0)
 
   Scoped as a first-party extension host: a versioned contract, an explicit
   lifecycle and a manifest this project defines, not a foreign plugin API. It
