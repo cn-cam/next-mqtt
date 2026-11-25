@@ -4,6 +4,7 @@ using System.Text;
 namespace NextMqtt.Core.Protocol;
 
 /// <summary>Strict UTF-8 helpers for MQTT strings.</summary>
+/// <remarks>拒绝非法 UTF-8 与内嵌 U+0000，协议要求而不能放宽。</remarks>
 internal static class MqttUtf8
 {
     private static readonly UTF8Encoding StrictEncoding = new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
@@ -55,6 +56,7 @@ internal static class MqttUtf8
 }
 
 /// <summary>Forward-only reader over a decoded packet body.</summary>
+/// <remarks>只前进不回退；越界读取立即抛异常，避免带病解析。</remarks>
 internal ref struct MqttSpanReader
 {
     private readonly ReadOnlySpan<byte> _buffer;
@@ -143,6 +145,7 @@ internal ref struct MqttSpanReader
 }
 
 /// <summary>Big-endian wire writer helpers.</summary>
+/// <remarks>所有整数按网络字节序写出，变长整数最多 4 字节。</remarks>
 internal static class MqttWire
 {
     public static void WriteByte(IBufferWriter<byte> writer, byte value)

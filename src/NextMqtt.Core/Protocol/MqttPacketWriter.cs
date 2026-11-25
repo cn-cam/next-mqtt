@@ -3,9 +3,11 @@ using System.Buffers;
 namespace NextMqtt.Core.Protocol;
 
 /// <summary>Encodes MQTT control packets.</summary>
+/// <remarks>按连接协商的版本编码，3.1.1 不写 MQTT 5 属性。</remarks>
 public static class MqttPacketWriter
 {
     /// <summary>Serializes one packet, writing the fixed and variable headers.</summary>
+/// <remarks>先写剩余长度占位，再回填，保证长度与内容一致。</remarks>
     /// <remarks>校验和版本差异在此统一处理：3.1.1 不编码 MQTT 5 属性。</remarks>
     /// <param name="writer">Destination buffer; the caller owns flushing.</param>
     /// <param name="packet">Packet to encode.</param>

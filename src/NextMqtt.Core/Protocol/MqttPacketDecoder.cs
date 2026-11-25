@@ -3,6 +3,7 @@ using System.Buffers;
 namespace NextMqtt.Core.Protocol;
 
 /// <summary>Decodes a packet body (without the fixed header) into a model.</summary>
+/// <remarks>定长头已由 Reader 剥掉；这里只管变长头与负载，越界按 0x81 拒绝。</remarks>
 internal static class MqttPacketDecoder
 {
     public static MqttPacket Decode(ReadOnlySpan<byte> body, byte header, MqttProtocolVersion version)
