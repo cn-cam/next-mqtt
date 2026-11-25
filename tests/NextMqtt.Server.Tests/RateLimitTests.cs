@@ -135,8 +135,11 @@ public class RateLimitTests
         await first.PublishAsync("quota/shared", "one", MqttQoS.AtMostOnce);
         await second.PublishAsync("quota/shared", "two", MqttQoS.AtMostOnce);
 
-        Assert.True(await server.WaitForAsync(() => server.Broker.Metrics.PublishesRateLimited == 1));
-        Assert.Equal(2, server.Broker.Metrics.PublishesReceived);
+        // Both publishes are processed on different connections, so wait for the
+        // receipt counter too instead of assuming it already caught up.
+        Assert.True(await server.WaitForAsync(() =>
+            server.Broker.Metrics.PublishesRateLimited == 1
+            && server.Broker.Metrics.PublishesReceived == 2));
     }
 
     [Fact]
