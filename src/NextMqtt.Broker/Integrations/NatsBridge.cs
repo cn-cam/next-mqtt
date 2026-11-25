@@ -8,6 +8,7 @@ using NextMqtt.Core.Topics;
 namespace NextMqtt.Broker.Integrations;
 
 /// <summary>NATS bridge settings.</summary>
+/// <remarks>手写文本协议，不引入客户端依赖。</remarks>
 public sealed class NatsOptions
 {
     /// <summary>Forward publishes to NATS.</summary>
@@ -15,6 +16,7 @@ public sealed class NatsOptions
     public bool Enabled { get; set; }
 
     /// <summary>Server address, for example <c>nats://127.0.0.1:4222</c>.</summary>
+    /// <remarks>只解析 host:port，不支持下线列表或 TLS 参数。</remarks>
     public string Url { get; set; } = "nats://127.0.0.1:4222";
 
     /// <summary>Prefix added to every subject; the topic is appended with dots.</summary>
@@ -22,6 +24,7 @@ public sealed class NatsOptions
     public string SubjectPrefix { get; set; } = "mqtt.";
 
     /// <summary>Topic filter that selects messages to forward.</summary>
+    /// <remarks>先按 MQTT 过滤器筛，再把主题转成 NATS subject。</remarks>
     public string Filter { get; set; } = "#";
 
     /// <summary>Buffered messages before new ones are dropped.</summary>
@@ -57,6 +60,7 @@ public sealed class NatsBridge : IAsyncDisposable
     private long _dropped;
 
     /// <summary>Parses the URL, validates the filter and starts the worker.</summary>
+    /// <remarks>过滤器非法会在构造时抛出，属于配置错误。</remarks>
     /// <param name="options">Bridge settings.</param>
     /// <param name="logger">Logger for connection failures.</param>
     public NatsBridge(NatsOptions options, ILogger<NatsBridge> logger)
@@ -74,12 +78,15 @@ public sealed class NatsBridge : IAsyncDisposable
     }
 
     /// <summary>Messages accepted by the NATS server.</summary>
+    /// <remarks>以写成功计，NATS 服务端不回执。</remarks>
     public long Forwarded => Interlocked.Read(ref _forwarded);
 
     /// <summary>Messages dropped because the queue was full or the link was down.</summary>
+    /// <remarks>断线期间队列照常堆积，满了才丢。</remarks>
     public long Dropped => Interlocked.Read(ref _dropped);
 
     /// <summary>Queues a message when it matches the configured filter.</summary>
+    /// <remarks>只有过滤命中时才做主题转换。</remarks>
     /// <param name="publish">Message accepted by the broker.</param>
     public void Publish(PublishPacket publish)
     {
@@ -95,6 +102,7 @@ public sealed class NatsBridge : IAsyncDisposable
     }
 
     /// <summary>Stops the worker and closes the connection.</summary>
+    /// <remarks>先取消再等待，避免写到已关闭的 socket。</remarks>
     public async ValueTask DisposeAsync()
     {
         _lifetime.Cancel();
@@ -113,6 +121,7 @@ public sealed class NatsBridge : IAsyncDisposable
     }
 
     /// <summary>Maps an MQTT topic to a safe NATS subject.</summary>
+    /// <remarks>层级变点号；空格与通配符换下划线，避免产生非法 subject。</remarks>
     /// <param name="topic">MQTT topic name.</param>
     private string Subject(string topic)
     {
@@ -134,6 +143,7 @@ public sealed class NatsBridge : IAsyncDisposable
     }
 
     /// <summary>Keeps one connection alive and publishes queued messages.</summary>
+    /// <remarks>断线后每两秒重连，重连期间消息留在队列里。</remarks>
     /// <param name="cancellationToken">Stops the loop.</param>
     private async Task RunAsync(CancellationToken cancellationToken)
     {
@@ -176,6 +186,7 @@ public sealed class NatsBridge : IAsyncDisposable
     }
 
     /// <summary>Writes queued messages to an established connection.</summary>
+    /// <remarks>整个 PUB 帧写完再 flush，避免半帧。</remarks>
     /// <param name="stream">Connected NATS stream.</param>
     /// <param name="cancellationToken">Stops the pump.</param>
     private async Task PumpAsync(NetworkStream stream, CancellationToken cancellationToken)
@@ -192,6 +203,7 @@ public sealed class NatsBridge : IAsyncDisposable
     }
 
     /// <summary>Reads the server INFO line that starts every NATS connection.</summary>
+    /// <remarks>只确认收到数据，不解析内容；读到 0 表示对端立刻关闭。</remarks>
     /// <param name="stream">Connected stream.</param>
     /// <param name="cancellationToken">Cancels the read.</param>
     private static async Task ReadInfoAsync(NetworkStream stream, CancellationToken cancellationToken)
@@ -206,6 +218,7 @@ public sealed class NatsBridge : IAsyncDisposable
     }
 
     /// <summary>Sends CONNECT so the server accepts PUB frames.</summary>
+    /// <remarks>只发最小字段；凭据随帧明文传输，因此只适合可信网络。</remarks>
     /// <param name="stream">Connected stream.</param>
     /// <param name="cancellationToken">Cancels the write.</param>
     private async Task SendConnectAsync(NetworkStream stream, CancellationToken cancellationToken)
@@ -230,6 +243,7 @@ public sealed class NatsBridge : IAsyncDisposable
     }
 
     /// <summary>Splits a <c>nats://host:port</c> address.</summary>
+    /// <remarks>没有端口时用 4222；不支持 IPv6 字面量。</remarks>
     /// <param name="url">Configured URL.</param>
     /// <returns>Host and port, defaulting to 4222.</returns>
     private static (string Host, int Port) ParseAddress(string url)

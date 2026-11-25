@@ -16,6 +16,7 @@ namespace NextMqtt.Broker.Integrations;
 public sealed class WebhookDispatcher : IAsyncDisposable
 {
     /// <summary>Attempts per event before it counts as failed.</summary>
+    /// <remarks>共 3 次，含首次；间隔按 200 毫秒线性增长。</remarks>
     private const int MaxAttempts = 3;
 
     private readonly List<Target> _targets;
@@ -28,6 +29,7 @@ public sealed class WebhookDispatcher : IAsyncDisposable
     private long _dropped;
 
     /// <summary>Builds one target per valid webhook rule and starts its worker.</summary>
+    /// <remarks>URL 或过滤器非法的规则被跳过，其余照常启动。</remarks>
     /// <param name="options">Webhook rules from configuration.</param>
     /// <param name="httpClient">Client used for POSTs; timeouts are applied per rule.</param>
     /// <param name="logger">Logger for delivery failures.</param>
@@ -66,18 +68,23 @@ public sealed class WebhookDispatcher : IAsyncDisposable
     }
 
     /// <summary>Number of active webhook rules.</summary>
+    /// <remarks>被跳过的规则不计入。</remarks>
     public int TargetCount => _targets.Count;
 
     /// <summary>Events accepted by the endpoint since start.</summary>
+    /// <remarks>以 2xx 为准；3xx 与 4xx 都按失败处理。</remarks>
     public long Delivered => Interlocked.Read(ref _delivered);
 
     /// <summary>Events that exhausted their retries.</summary>
+    /// <remarks>每条事件只计一次失败。</remarks>
     public long Failed => Interlocked.Read(ref _failed);
 
     /// <summary>Events dropped because a queue was full.</summary>
+    /// <remarks>丢弃发生在入队时，而不是投递时。</remarks>
     public long Dropped => Interlocked.Read(ref _dropped);
 
     /// <summary>Queues the event for every matching webhook without blocking.</summary>
+    /// <remarks>同时命中多条规则就会发出多份，这是有意为之。</remarks>
     /// <param name="publish">Message that was routed locally.</param>
     public void Publish(PublishPacket publish)
     {
@@ -104,6 +111,7 @@ public sealed class WebhookDispatcher : IAsyncDisposable
     }
 
     /// <summary>Stops the workers and waits for in-flight posts.</summary>
+    /// <remarks>先取消再排空，正在发送的那一次不会被打断成半条。</remarks>
     public async ValueTask DisposeAsync()
     {
         _lifetime.Cancel();
@@ -126,6 +134,7 @@ public sealed class WebhookDispatcher : IAsyncDisposable
     }
 
     /// <summary>Drains one target's queue and posts every event.</summary>
+    /// <remarks>单消费者串行投递，保证同一 webhook 的事件顺序。</remarks>
     /// <param name="target">Webhook rule and its queue.</param>
     /// <param name="cancellationToken">Stops the worker.</param>
     private async Task RunAsync(Target target, CancellationToken cancellationToken)
@@ -144,6 +153,7 @@ public sealed class WebhookDispatcher : IAsyncDisposable
     }
 
     /// <summary>Posts one event with bounded retries and exponential backoff.</summary>
+    /// <remarks>取消时直接失败，不再重试。</remarks>
     /// <param name="target">Webhook rule.</param>
     /// <param name="message">Event to deliver.</param>
     /// <param name="cancellationToken">Stops retrying.</param>
@@ -214,6 +224,7 @@ public sealed class WebhookDispatcher : IAsyncDisposable
     }
 
     /// <summary>Event body sent to a webhook endpoint.</summary>
+    /// <remarks>字段名是外部契约，改动会影响已接入的接收方。</remarks>
     /// <param name="Name">Webhook name.</param>
     /// <param name="Topic">Published topic.</param>
     /// <param name="QoS">QoS of the publish.</param>
@@ -229,6 +240,7 @@ public sealed class WebhookDispatcher : IAsyncDisposable
         string? Payload);
 
     /// <summary>One rule plus its queue.</summary>
+    /// <remarks>队列容量来自该规则的 MaxQueue，至少为 1。</remarks>
     /// <param name="Options">Configured rule.</param>
     /// <param name="Filter">Parsed filter.</param>
     /// <param name="Queue">Bounded event queue.</param>

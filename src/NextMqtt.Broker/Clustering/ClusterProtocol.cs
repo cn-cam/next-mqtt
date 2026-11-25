@@ -6,6 +6,7 @@ using System.Text.Json.Serialization;
 namespace NextMqtt.Broker.Clustering;
 
 /// <summary>JSON contracts for the signed node-to-node API.</summary>
+/// <remarks>只用于节点间通信，不是给客户端或第三方集成的公共 API。</remarks>
 public static class ClusterJson
 {
     /// <summary>Serializer options shared by every cluster request and response.</summary>
@@ -18,6 +19,7 @@ public static class ClusterJson
 }
 
 /// <summary>Heartbeat sent by every node on each gossip round.</summary>
+/// <remarks>同时携带自己的订阅过滤器，对端据此决定要不要转发。</remarks>
 /// <param name="NodeId">Sender identifier.</param>
 /// <param name="AdvertiseUrl">URL peers should call back.</param>
 /// <param name="Timestamp">Unix seconds; must fall inside the skew window.</param>
@@ -29,6 +31,7 @@ public sealed record ClusterHeartbeatRequest(
     string[] Filters);
 
 /// <summary>Heartbeat answer carrying the receiver's membership view.</summary>
+/// <remarks>响应体同样签名，避免伪造成员表。</remarks>
 /// <param name="NodeId">Receiver identifier.</param>
 /// <param name="Timestamp">Receiver clock in Unix seconds.</param>
 /// <param name="Members">Membership table the sender merges into its own.</param>
@@ -38,6 +41,7 @@ public sealed record ClusterHeartbeatResponse(
     ClusterMemberDto[] Members);
 
 /// <summary>One membership row exchanged between nodes.</summary>
+/// <remarks>状态由接收方按 lastSeen 重算，不直接信任对端标注的状态。</remarks>
 /// <param name="NodeId">Member identifier.</param>
 /// <param name="AdvertiseUrl">Base URL for heartbeats and forwarding.</param>
 /// <param name="Status">alive, suspect or dead.</param>
@@ -51,6 +55,7 @@ public sealed record ClusterMemberDto(
     string[] Filters);
 
 /// <summary>Serializable form of one MQTT 5 property inside a forwarded publish.</summary>
+/// <remarks>属性种类决定用哪个字段，其余为 null。</remarks>
 /// <param name="Id">Property identifier.</param>
 /// <param name="Text">String value, when the property is textual.</param>
 /// <param name="Number">Numeric value, when the property is numeric.</param>
@@ -64,6 +69,7 @@ public sealed record ClusterPropertyDto(
     string? UserValue);
 
 /// <summary>Publish forwarded to peers that have matching subscriptions.</summary>
+/// <remarks>payload 用 base64 承载二进制；唯一 ID 让接收端能去重，也用于挑选共享组的所有者。</remarks>
 /// <param name="MessageId">Identifier used for loop and duplicate suppression.</param>
 /// <param name="OriginNodeId">Node that first accepted the message.</param>
 /// <param name="Hops">Forwarding count; used to bound fan-out.</param>
@@ -89,18 +95,22 @@ public sealed record ClusterPublishMessage(
     long? RetainedAtUnix = null);
 
 /// <summary>HMAC-SHA256 request signing with a five minute clock skew window.</summary>
+/// <remarks>时间戳超出窗口直接拒绝，用来挡住重放。</remarks>
 public static class ClusterSignature
 {
     /// <summary>Header carrying the Unix timestamp used in the signature.</summary>
+    /// <remarks>与签名一起计算，改时间戳等于改签名内容。</remarks>
     public const string TimestampHeader = "X-NextMQTT-Timestamp";
 
     /// <summary>Header carrying the hex HMAC-SHA256 signature.</summary>
+    /// <remarks>大写十六进制；校验时按固定时间比较。</remarks>
     public const string SignatureHeader = "X-NextMQTT-Signature";
 
     /// <summary>Largest accepted difference between node clocks.</summary>
+    /// <remarks>节点之间需要基本的时间同步，偏差超过 5 分钟的全部请求都会被拒。</remarks>
     private static readonly TimeSpan AllowedSkew = TimeSpan.FromMinutes(5);
 
-    /// <summary>Computes the lowercase hex HMAC over <c>timestamp.body</c>.</summary>
+    /// <summary>Computes the uppercase hex HMAC over <c>timestamp.body</c>.</summary>
     /// <remarks>签名不包含密钥本身；密钥只在本机参与计算，绝不上线传输。</remarks>
     /// <param name="secret">Shared cluster secret.</param>
     /// <param name="timestamp">Unix seconds as sent in the header.</param>

@@ -5,6 +5,7 @@ namespace NextMqtt.Broker.Integrations;
 public sealed class IntegrationsOptions
 {
     /// <summary>Configuration section name (<c>Integrations</c>).</summary>
+    /// <remarks>环境变量前缀 NEXTMQTT_INTEGRATIONS__，四个子段可以各自单独开启。</remarks>
     public const string SectionName = "Integrations";
 
     /// <summary>HTTP webhooks fed by published messages.</summary>
@@ -24,7 +25,7 @@ public sealed class IntegrationsOptions
     public KafkaOptions Kafka { get; set; } = new();
 
     /// <summary>Optional RabbitMQ forwarding (ADR 0008).</summary>
-/// <remarks>需要 RabbitMQ.Client；使用 publisher confirm。</remarks>
+    /// <remarks>需要 RabbitMQ.Client；使用 publisher confirm。</remarks>
     public RabbitOptions Rabbit { get; set; } = new();
 }
 
@@ -37,9 +38,11 @@ public sealed class RuleOptions
     public string Filter { get; set; } = string.Empty;
 
     /// <summary>Action to take: <c>drop</c> or <c>rewrite</c>.</summary>
+    /// <remarks>大小写不敏感；无法识别的动作只记警告并跳过这一条规则。</remarks>
     public string Action { get; set; } = "drop";
 
     /// <summary>Target prefix or full topic for <c>rewrite</c> rules.</summary>
+    /// <remarks>过滤器含通配符时，通配符之后的部分会拼到目标后面；不含通配符时整体替换。</remarks>
     public string? Target { get; set; }
 }
 

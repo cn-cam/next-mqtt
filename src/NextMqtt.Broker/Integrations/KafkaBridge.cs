@@ -8,6 +8,7 @@ using NextMqtt.Core.Topics;
 namespace NextMqtt.Broker.Integrations;
 
 /// <summary>Kafka bridge settings (ADR 0007).</summary>
+/// <remarks>默认关闭；开启后仍需要可达的 bootstrap 才能投递。</remarks>
 public sealed class KafkaOptions
 {
     /// <summary>Forward publishes to Kafka.</summary>
@@ -23,6 +24,7 @@ public sealed class KafkaOptions
     public string TopicPrefix { get; set; } = "mqtt.";
 
     /// <summary>Topic filter that selects messages to forward.</summary>
+    /// <remarks>先在本地用 MQTT 过滤器筛一遍，避免把全量流量灌进 Kafka。</remarks>
     public string Filter { get; set; } = "#";
 
     /// <summary>Buffered messages before new ones are dropped.</summary>
@@ -63,6 +65,7 @@ public sealed class KafkaBridge : IAsyncDisposable
     private long _failed;
 
     /// <summary>Builds the producer and starts the delivery worker.</summary>
+    /// <remarks>producer 建不起来时只禁用桥，不影响 Broker 启动。</remarks>
     /// <param name="options">Bridge settings.</param>
     /// <param name="logger">Logger for delivery failures.</param>
     public KafkaBridge(KafkaOptions options, ILogger<KafkaBridge> logger)
@@ -100,12 +103,15 @@ public sealed class KafkaBridge : IAsyncDisposable
     }
 
     /// <summary>Messages acknowledged by Kafka.</summary>
+    /// <remarks>只统计 produce 成功返回的，未被确认的不计。</remarks>
     public long Forwarded => Interlocked.Read(ref _forwarded);
 
     /// <summary>Messages dropped because the queue was full.</summary>
+    /// <remarks>队列满时丢新消息，不阻塞发布路径。</remarks>
     public long Dropped => Interlocked.Read(ref _dropped);
 
     /// <summary>Messages that failed after the client library gave up.</summary>
+    /// <remarks>与丢弃分开计数：失败是投递尝试过但报错。</remarks>
     public long Failed => Interlocked.Read(ref _failed);
 
     /// <summary>Maps an MQTT topic to a Kafka topic name.</summary>
@@ -131,6 +137,7 @@ public sealed class KafkaBridge : IAsyncDisposable
     }
 
     /// <summary>Queues a message when it matches the filter.</summary>
+    /// <remarks>只做同步入队，不做网络 IO；producer 未就绪时直接返回。</remarks>
     /// <param name="publish">Message accepted by the broker.</param>
     public void Publish(PublishPacket publish)
     {
@@ -146,6 +153,7 @@ public sealed class KafkaBridge : IAsyncDisposable
     }
 
     /// <summary>Flushes the producer and stops the worker.</summary>
+    /// <remarks>先停循环再 flush，最多等两秒，避免关闭时卡住。</remarks>
     public async ValueTask DisposeAsync()
     {
         _lifetime.Cancel();
@@ -173,6 +181,7 @@ public sealed class KafkaBridge : IAsyncDisposable
     }
 
     /// <summary>Produces queued messages until the queue closes.</summary>
+    /// <remarks>单消费者顺序投递，同一主题的顺序因此得以保持。</remarks>
     /// <param name="cancellationToken">Stops the loop.</param>
     private async Task RunAsync(CancellationToken cancellationToken)
     {
@@ -199,6 +208,7 @@ public sealed class KafkaBridge : IAsyncDisposable
     }
 
     /// <summary>Parses the configured compression name.</summary>
+    /// <remarks>未知取值退化为 none，不阻止启动。</remarks>
     /// <param name="value">none, gzip, snappy, lz4 or zstd.</param>
     private static CompressionType ParseCompression(string value)
         => value.Trim().ToLowerInvariant() switch

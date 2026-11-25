@@ -35,6 +35,7 @@ public sealed class ClusterRouter : IClusterRouter
     private int _stopped;
 
     /// <summary>Creates the router; it stays idle until <see cref="StartAsync"/> is called.</summary>
+    /// <remarks>构造只保存配置，不发起任何网络请求。</remarks>
     /// <param name="options">Cluster settings including node id, seeds and secret.</param>
     /// <param name="logger">Logger for heartbeat and forwarding failures.</param>
     /// <param name="httpClient">Client used for heartbeats and publish forwarding.</param>

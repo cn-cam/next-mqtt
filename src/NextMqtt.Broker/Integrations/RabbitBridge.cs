@@ -8,6 +8,7 @@ using RabbitMQ.Client;
 namespace NextMqtt.Broker.Integrations;
 
 /// <summary>RabbitMQ bridge settings (ADR 0008).</summary>
+/// <remarks>默认关闭；开启后只有 confirm 成功才计入转发。</remarks>
 public sealed class RabbitOptions
 {
     /// <summary>Forward publishes to RabbitMQ.</summary>
@@ -43,6 +44,7 @@ public sealed class RabbitOptions
     public string RoutingKeyPrefix { get; set; } = "mqtt.";
 
     /// <summary>Topic filter that selects messages to forward.</summary>
+    /// <remarks>先在本地筛，再转换成 routing key。</remarks>
     public string Filter { get; set; } = "#";
 
     /// <summary>Buffered messages before new ones are dropped.</summary>
@@ -71,6 +73,7 @@ public sealed class RabbitBridge : IAsyncDisposable
     private long _failed;
 
     /// <summary>Validates the filter and starts the delivery worker.</summary>
+    /// <remarks>过滤器在构造时解析，非法直接抛出。</remarks>
     /// <param name="options">Bridge settings.</param>
     /// <param name="logger">Logger for connection and publish failures.</param>
     public RabbitBridge(RabbitOptions options, ILogger<RabbitBridge> logger)
@@ -88,12 +91,15 @@ public sealed class RabbitBridge : IAsyncDisposable
     }
 
     /// <summary>Messages confirmed by RabbitMQ.</summary>
+    /// <remarks>只统计 confirm 成功的；已写入但未确认的不算。</remarks>
     public long Forwarded => Interlocked.Read(ref _forwarded);
 
     /// <summary>Messages dropped because the queue was full.</summary>
+    /// <remarks>队列满丢新消息，不阻塞发布。</remarks>
     public long Dropped => Interlocked.Read(ref _dropped);
 
     /// <summary>Messages that could not be published.</summary>
+    /// <remarks>与丢弃区分：这里是发布尝试失败。</remarks>
     public long Failed => Interlocked.Read(ref _failed);
 
     /// <summary>Maps an MQTT topic to a dotted routing key.</summary>
@@ -119,6 +125,7 @@ public sealed class RabbitBridge : IAsyncDisposable
     }
 
     /// <summary>Queues a message when it matches the filter.</summary>
+    /// <remarks>入队前就完成 routing key 转换，转换失败不会占用队列。</remarks>
     /// <param name="publish">Message accepted by the broker.</param>
     public void Publish(PublishPacket publish)
     {
@@ -134,6 +141,7 @@ public sealed class RabbitBridge : IAsyncDisposable
     }
 
     /// <summary>Stops the worker and closes the AMQP connection.</summary>
+    /// <remarks>取消后等循环退出，连接与通道在 finally 里释放。</remarks>
     public async ValueTask DisposeAsync()
     {
         _lifetime.Cancel();
@@ -152,6 +160,7 @@ public sealed class RabbitBridge : IAsyncDisposable
     }
 
     /// <summary>Keeps one confirmed channel alive and publishes queued messages.</summary>
+    /// <remarks>每次重连都重新声明交换机，保证类型一致。</remarks>
     /// <param name="cancellationToken">Stops the loop.</param>
     private async Task RunAsync(CancellationToken cancellationToken)
     {
@@ -224,6 +233,7 @@ public sealed class RabbitBridge : IAsyncDisposable
     }
 
     /// <summary>Publishes queued messages on an established channel.</summary>
+    /// <remarks>确认失败会抛出并触发重连；已出队的消息不重试，避免重复投递。</remarks>
     /// <param name="channel">Confirmed channel.</param>
     /// <param name="cancellationToken">Stops the pump.</param>
     private async Task PumpAsync(IChannel channel, CancellationToken cancellationToken)

@@ -8,9 +8,11 @@ namespace NextMqtt.Broker.Clustering;
 public interface IClusterRouter
 {
     /// <summary>True when clustering is configured and running.</summary>
+    /// <remarks>开启后仍可能因密钥或地址错误停在未启动状态。</remarks>
     bool Enabled { get; }
 
     /// <summary>Membership as last observed by the local node.</summary>
+    /// <remarks>读的是本地视图，不发起网络请求。</remarks>
     /// <returns>Snapshot including the local node and every known peer.</returns>
     ClusterSnapshot GetSnapshot();
 
@@ -31,26 +33,33 @@ public interface IClusterRouter
     bool OwnsSharedGroup(string topic, string group, string messageId);
 
     /// <summary>Starts the heartbeat loop and joins the cluster.</summary>
+    /// <remarks>幂等；重复调用不会起第二个循环。</remarks>
     /// <param name="cancellationToken">Stops the startup handshake.</param>
     ValueTask StartAsync(CancellationToken cancellationToken = default);
 
     /// <summary>Stops heartbeats and leaves the cluster.</summary>
+    /// <remarks>尽力广播离开消息，失败只记日志。</remarks>
     ValueTask StopAsync();
 }
 
 /// <summary>Single-node cluster router used when clustering is disabled.</summary>
+/// <remarks>所有调用都被接受，但不产生任何网络活动。</remarks>
 public sealed class NullClusterRouter : IClusterRouter
 {
     /// <summary>Shared stateless instance.</summary>
+    /// <remarks>无状态，可以全进程共用一个。</remarks>
     public static NullClusterRouter Instance { get; } = new();
 
     /// <summary>Always false: there are no peers.</summary>
+    /// <remarks>Broker 用它跳过集群路径。</remarks>
     public bool Enabled => false;
 
     /// <summary>Returns an empty standalone membership view.</summary>
+    /// <remarks>状态固定为 standalone，节点列表为空。</remarks>
     public ClusterSnapshot GetSnapshot() => new("standalone", "standalone", []);
 
     /// <summary>Discards the publish; nothing to forward to.</summary>
+    /// <remarks>直接完成，不产生等待。</remarks>
     /// <param name="publish">Ignored.</param>
     /// <param name="messageId">Ignored.</param>
     /// <param name="cancellationToken">Ignored.</param>
@@ -58,16 +67,19 @@ public sealed class NullClusterRouter : IClusterRouter
         => ValueTask.CompletedTask;
 
     /// <summary>Always owns the group: single node means local delivery.</summary>
+    /// <remarks>保证共享订阅在单机模式下照常投递。</remarks>
     /// <param name="topic">Ignored.</param>
     /// <param name="group">Ignored.</param>
     /// <param name="messageId">Ignored.</param>
     public bool OwnsSharedGroup(string topic, string group, string messageId) => true;
 
     /// <summary>No-op start.</summary>
+    /// <remarks>返回已完成的任务。</remarks>
     /// <param name="cancellationToken">Ignored.</param>
     public ValueTask StartAsync(CancellationToken cancellationToken = default)
         => ValueTask.CompletedTask;
 
     /// <summary>No-op stop.</summary>
+    /// <remarks>同上。</remarks>
     public ValueTask StopAsync() => ValueTask.CompletedTask;
 }

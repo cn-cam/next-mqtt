@@ -14,6 +14,7 @@ public sealed class RuleEngine
     private readonly List<RewriteRule> _rewriteRules;
 
     /// <summary>Compiles the configured rules once at startup.</summary>
+    /// <remarks>非法过滤器与未知动作只跳过那一条，其余规则照常生效。</remarks>
     /// <param name="options">Rules from configuration; invalid rules are skipped with a warning.</param>
     /// <param name="logger">Logger for skipped rules.</param>
     public RuleEngine(IntegrationsOptions options, ILogger logger)
@@ -65,12 +66,15 @@ public sealed class RuleEngine
     }
 
     /// <summary>Number of compiled drop rules.</summary>
+    /// <remarks>配置里被跳过的规则不计入。</remarks>
     public int DropRuleCount => _dropFilters.Count;
 
     /// <summary>Number of compiled rewrite rules.</summary>
+    /// <remarks>同上；用于启动日志与后台展示。</remarks>
     public int RewriteRuleCount => _rewriteRules.Count;
 
     /// <summary>True when a rule discards messages for this topic.</summary>
+    /// <remarks>逐条匹配，命中即返回，不做优先级排序。</remarks>
     /// <param name="topic">Concrete topic name.</param>
     public bool ShouldDrop(string topic)
     {
@@ -86,6 +90,7 @@ public sealed class RuleEngine
     }
 
     /// <summary>Applies the first matching rewrite rule.</summary>
+    /// <remarks>只应用一条，避免多次改写叠加出意外主题。</remarks>
     /// <param name="topic">Original topic name.</param>
     /// <param name="rewritten">New topic when a rule matched.</param>
     /// <returns><c>true</c> when the topic must be replaced.</returns>
@@ -114,6 +119,7 @@ public sealed class RuleEngine
     }
 
     /// <summary>Returns the literal part of a filter before the first wildcard level.</summary>
+    /// <remarks>用于保留通配符之后的部分，再拼到目标主题后面。</remarks>
     /// <param name="filter">Validated filter text.</param>
     /// <returns>Prefix including its trailing slash, or null when the filter starts with a wildcard.</returns>
     private static string? LiteralPrefix(string filter)
@@ -141,6 +147,7 @@ public sealed class RuleEngine
     }
 
     /// <summary>One rewrite rule with its precomputed literal prefix.</summary>
+    /// <remarks>前缀在启动时算好，匹配时不再拆字符串。</remarks>
     /// <param name="Filter">Filter that selects messages.</param>
     /// <param name="Target">Replacement prefix or full topic.</param>
     /// <param name="Prefix">Literal prefix to strip, or null for a full replacement.</param>
