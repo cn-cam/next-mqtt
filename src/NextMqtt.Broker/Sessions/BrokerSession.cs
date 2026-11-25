@@ -21,6 +21,10 @@ public sealed class BrokerSession : IDisposable
     private ushort _nextPacketId;
     private bool _disposed;
 
+    /// <summary>Creates an empty session; state is filled by <see cref="Bind"/> or <see cref="Restore"/>.</summary>
+    /// <param name="clientId">Identifier that owns the session.</param>
+    /// <param name="options">Broker limits used for inflight and queue bounds.</param>
+    /// <param name="metrics">Counters updated when messages are dropped.</param>
     public BrokerSession(string clientId, BrokerOptions options, BrokerMetrics metrics)
     {
         ClientId = clientId;
@@ -28,26 +32,37 @@ public sealed class BrokerSession : IDisposable
         _metrics = metrics;
     }
 
+    /// <summary>Client identifier this session belongs to.</summary>
     public string ClientId { get; }
 
+    /// <summary>Protocol level negotiated by the last CONNECT.</summary>
     public MqttProtocolVersion ProtocolVersion { get; private set; } = MqttProtocolVersion.V311;
 
+    /// <summary>Authenticated identity, or the anonymous placeholder.</summary>
     public ClientPrincipal Principal { get; private set; } = ClientPrincipal.Anonymous(string.Empty);
 
+    /// <summary>Username of the current principal, when there is one.</summary>
     public string? Username => Principal.Username;
 
+    /// <summary>True when the session outlives the connection.</summary>
     public bool Persistent { get; private set; }
 
+    /// <summary>Session expiry in seconds; zero means the session ends with the connection.</summary>
     public uint SessionExpiryInterval { get; private set; }
 
+    /// <summary>Absolute expiry while offline; null while connected or non-persistent.</summary>
     public DateTimeOffset? ExpiresAt { get; set; }
 
+    /// <summary>When the current connection was established.</summary>
     public DateTimeOffset ConnectedAt { get; private set; } = DateTimeOffset.UtcNow;
 
+    /// <summary>Timestamp of the last packet or disconnect.</summary>
     public DateTimeOffset LastSeen { get; private set; } = DateTimeOffset.UtcNow;
 
+    /// <summary>Will message registered by the current connection.</summary>
     public MqttWill? Will { get; private set; }
 
+    /// <summary>Attached connection, or null when the session is offline.</summary>
     public IClientConnection? Connection
     {
         get
@@ -59,8 +74,10 @@ public sealed class BrokerSession : IDisposable
         }
     }
 
+    /// <summary>True while a connection is attached.</summary>
     public bool IsOnline => Connection is not null;
 
+    /// <summary>Number of unacknowledged outbound QoS 1/2 messages.</summary>
     public int InflightCount
     {
         get
@@ -72,6 +89,7 @@ public sealed class BrokerSession : IDisposable
         }
     }
 
+    /// <summary>Number of messages waiting in the offline queue.</summary>
     public int QueuedCount
     {
         get
@@ -83,6 +101,7 @@ public sealed class BrokerSession : IDisposable
         }
     }
 
+    /// <summary>Inbound QoS 2 publishes received but not yet released by PUBREL.</summary>
     public int PendingQos2Count
     {
         get
@@ -94,8 +113,11 @@ public sealed class BrokerSession : IDisposable
         }
     }
 
+    /// <summary>Peer address of the current connection, when online.</summary>
     public string? RemoteAddress => Connection?.RemoteAddress;
 
+    /// <summary>Attaches a connection and applies the CONNECT state.</summary>
+    /// <remarks>绑定后清空过期时间；会话在断开时才重新计算 ExpiresAt。</remarks>
     public void Bind(
         IClientConnection connection,
         ConnectPacket connect,
@@ -133,6 +155,8 @@ public sealed class BrokerSession : IDisposable
         }
     }
 
+    /// <summary>Applies an expiry requested by an MQTT 5 DISCONNECT.</summary>
+    /// <param name="seconds">New session expiry in seconds; 0 makes it non-persistent.</param>
     public void UpdateSessionExpiry(uint seconds)
     {
         lock (_gate)
@@ -142,6 +166,7 @@ public sealed class BrokerSession : IDisposable
         }
     }
 
+    /// <summary>Drops the will, for example after a clean DISCONNECT.</summary>
     public void ClearWill()
     {
         lock (_gate)
@@ -150,6 +175,7 @@ public sealed class BrokerSession : IDisposable
         }
     }
 
+    /// <summary>Clears queued and inflight state when a session is reset.</summary>
     public void ClearQueues()
     {
         lock (_gate)
@@ -319,6 +345,8 @@ public sealed class BrokerSession : IDisposable
         }
     }
 
+    /// <summary>Completes an outbound QoS 1 message.</summary>
+    /// <param name="packetId">Identifier acknowledged by the client.</param>
     public void OnPubAck(ushort packetId)
     {
         lock (_gate)
@@ -330,6 +358,8 @@ public sealed class BrokerSession : IDisposable
         }
     }
 
+    /// <summary>Starts the QoS 2 release when the client answers PUBREC.</summary>
+    /// <param name="packetId">Identifier acknowledged by the client.</param>
     public void OnPubRec(ushort packetId)
     {
         PubRelPacket? pubRel = null;
@@ -362,6 +392,8 @@ public sealed class BrokerSession : IDisposable
         }
     }
 
+    /// <summary>Completes an outbound QoS 2 message.</summary>
+    /// <param name="packetId">Identifier acknowledged by the client.</param>
     public void OnPubComp(ushort packetId)
     {
         lock (_gate)
@@ -393,6 +425,10 @@ public sealed class BrokerSession : IDisposable
         }
     }
 
+    /// <summary>Completes an inbound QoS 2 publish on PUBREL.</summary>
+    /// <param name="packetId">Identifier from PUBREL.</param>
+    /// <param name="publish">Stored publish when the handshake completes.</param>
+    /// <returns><c>true</c> when a stored publish existed.</returns>
     public bool TryCompleteInboundQos2(ushort packetId, out PublishPacket? publish)
     {
         lock (_gate)
@@ -401,6 +437,8 @@ public sealed class BrokerSession : IDisposable
         }
     }
 
+    /// <summary>True when an inbound QoS 2 publish is awaiting PUBREL.</summary>
+    /// <param name="packetId">Identifier to test.</param>
     public bool HasInboundQos2(ushort packetId)
     {
         lock (_gate)
@@ -409,6 +447,8 @@ public sealed class BrokerSession : IDisposable
         }
     }
 
+    /// <summary>Retransmits unacknowledged messages whose timer elapsed.</summary>
+    /// <param name="now">Current time, used against RetransmitInterval.</param>
     public void RetransmitDue(DateTimeOffset now)
     {
         IClientConnection? connection;
@@ -445,6 +485,8 @@ public sealed class BrokerSession : IDisposable
         }
     }
 
+    /// <summary>Projects this session into the clients table.</summary>
+    /// <param name="subscriptionCount">Subscriptions indexed for this client.</param>
     public ClientSnapshot Snapshot(int subscriptionCount)
     {
         lock (_gate)
@@ -465,6 +507,7 @@ public sealed class BrokerSession : IDisposable
         }
     }
 
+    /// <summary>Releases the connection and pending timers.</summary>
     public void Dispose()
     {
         lock (_gate)
