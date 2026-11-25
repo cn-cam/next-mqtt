@@ -58,6 +58,18 @@ const router = createRouter({
           meta: { title: 'nav.cluster' },
         },
         {
+          path: 'plugins',
+          name: 'plugins',
+          component: () => import('../views/PluginsView.vue'),
+          meta: { title: 'nav.plugins' },
+        },
+        {
+          path: 'logs',
+          name: 'logs',
+          component: () => import('../views/LogsView.vue'),
+          meta: { title: 'nav.logs' },
+        },
+        {
           path: 'settings',
           name: 'settings',
           component: () => import('../views/SettingsView.vue'),

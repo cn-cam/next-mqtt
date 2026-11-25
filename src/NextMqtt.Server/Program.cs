@@ -11,6 +11,7 @@ using NextMqtt.Broker.Integrations;
 using Microsoft.Extensions.Logging;
 using NextMqtt.Broker.Storage;
 using NextMqtt.Server.Api;
+using NextMqtt.Server.Diagnostics;
 using NextMqtt.Server.Hosting;
 using NextMqtt.Server.Networking;
 using NextMqtt.Server.Options;
@@ -96,6 +97,11 @@ builder.Services.AddCors(options =>
 builder.Services.AddSingleton(serverOptions);
 builder.Services.AddSingleton(brokerOptions);
 builder.Services.AddSingleton(adminOptions);
+
+var logBuffer = new LogBuffer(2000);
+builder.Logging.AddProvider(new LogBufferProvider(logBuffer));
+builder.Services.AddSingleton(logBuffer);
+
 var pluginOptions = builder.Configuration.GetSection(PluginOptions.SectionName).Get<PluginOptions>()
     ?? new PluginOptions();
 var pluginHost = PluginHost.Load(
@@ -103,6 +109,9 @@ var pluginHost = PluginHost.Load(
     LoggerFactory.Create(logging => logging.AddSimpleConsole()).CreateLogger<PluginHost>());
 var pluginAuthenticator = pluginHost.FindAuthenticator(pluginOptions.Authenticator);
 var pluginAuthorizer = pluginHost.FindAuthorizer(pluginOptions.Authorizer);
+
+builder.Services.AddSingleton(pluginOptions);
+builder.Services.AddSingleton(pluginHost);
 
 builder.Services.AddSingleton<IClientAuthenticator>(_ => pluginAuthenticator ?? new ClientAuthenticator(authenticationOptions));
 builder.Services.AddSingleton<ITopicAuthorizer>(_ => pluginAuthorizer ?? new TopicAuthorizer(aclOptions));
@@ -493,6 +502,51 @@ api.MapPost("/publish", async (PublishRequest request, MqttBroker b, Cancellatio
 
 api.MapGet("/cluster", (MqttBroker b) => Results.Ok(b.GetCluster()));
 
+api.MapGet("/logs", (LogBuffer buffer, string? level, string? search, int limit = 200) =>
+{
+    var floor = LogBuffer.ParseLevel(level);
+    var entries = buffer.Snapshot(floor, search, limit);
+
+    return Results.Ok(new
+    {
+        entries,
+        total = buffer.Total,
+        capacity = buffer.Capacity,
+        level = floor ?? "Trace",
+    });
+});
+
+api.MapGet("/plugins", (PluginHost host, PluginOptions options) =>
+{
+    var authenticatorLoaded = options.Authenticator is null
+        ? host.Instances.OfType<IClientAuthenticator>().Any()
+        : host.Instances.Any(instance => instance is IClientAuthenticator
+            && string.Equals(instance.GetType().FullName, options.Authenticator, StringComparison.Ordinal));
+
+    var authorizerLoaded = options.Authorizer is null
+        ? host.Instances.OfType<ITopicAuthorizer>().Any()
+        : host.Instances.Any(instance => instance is ITopicAuthorizer
+            && string.Equals(instance.GetType().FullName, options.Authorizer, StringComparison.Ordinal));
+
+    return Results.Ok(new
+    {
+        enabled = options.Enabled,
+        directory = options.Directory,
+        contractVersion = PluginHost.ContractVersion,
+        authenticator = options.Authenticator,
+        authorizer = options.Authorizer,
+        authenticatorLoaded,
+        authorizerLoaded,
+        instances = host.Instances.Count,
+        plugins = host.Plugins.Select(plugin => new
+        {
+            name = plugin.Name,
+            version = plugin.Version,
+            directory = plugin.Directory,
+            assembly = plugin.Assembly.GetName().Name,
+        }),
+    });
+});
 api.MapGet("/backup", (MqttBroker b) => Results.Ok(b.CreateBackup()));
 
 api.MapPost("/backup", (MqttBroker b, BrokerBackup backup) =>

@@ -118,3 +118,37 @@ export interface VersionInfo {
   runtime: string
   environment: string
 }
+
+export interface PluginInfo {
+  name: string
+  version: string
+  directory: string
+  assembly?: string
+}
+
+export interface PluginsInfo {
+  enabled: boolean
+  directory: string
+  contractVersion: number
+  authenticator?: string
+  authorizer?: string
+  authenticatorLoaded: boolean
+  authorizerLoaded: boolean
+  instances: number
+  plugins: PluginInfo[]
+}
+
+export interface LogEntry {
+  timestamp: string
+  level: string
+  category: string
+  message: string
+  exception?: string
+}
+
+export interface LogsInfo {
+  entries: LogEntry[]
+  total: number
+  capacity: number
+  level: string
+}

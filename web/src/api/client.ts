@@ -4,7 +4,9 @@ import type {
   ClusterInfo,
   ConfigInfo,
   LoginResponse,
+  LogsInfo,
   Paged,
+  PluginsInfo,
   PublishRequest,
   PublishResult,
   RetainedInfo,
@@ -155,6 +157,14 @@ export const api = {
 
   version(): Promise<VersionInfo> {
     return request('/api/v1/version', {}, false)
+  },
+
+  plugins(): Promise<PluginsInfo> {
+    return request('/api/v1/plugins')
+  },
+
+  logs(params: { level?: string; search?: string; limit?: number } = {}): Promise<LogsInfo> {
+    return request(`/api/v1/logs${query(params)}`)
   },
 
   config(): Promise<ConfigInfo> {
