@@ -30,6 +30,7 @@ public sealed class AdminAuthService
     /// <summary>Logger for bootstrap warnings.</summary>
     private readonly ILogger _logger;
 
+    /// <summary>Stores the resolved settings and builds the token validator.</summary>
     private AdminAuthService(
         string username,
         string passwordHash,

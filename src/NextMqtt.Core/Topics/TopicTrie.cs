@@ -18,8 +18,7 @@ public sealed class TopicTrie<TValue>
     public int Count { get; private set; }
 
     /// <summary>Stores a value under the given filter (topic or wildcard).</summary>
-    /// <remarks>同一路径可挂多个值，查找时按插入顺序返回。</remarks>
-    /// <remarks>同一过滤器可存多个值；查找时按插入顺序返回。</remarks>
+    /// <remarks>同一过滤器可挂多个值，查找时按插入顺序返回。</remarks>
     /// <param name="filter">Topic name or filter whose levels form the path.</param>
     /// <param name="value">Value to attach to that path.</param>
     public void Add(string filter, TValue value)
@@ -38,8 +37,7 @@ public sealed class TopicTrie<TValue>
     }
 
     /// <summary>Removes one value from the given filter's path.</summary>
-    /// <remarks>只删指定值，节点空了就剪掉，避免内存里堆积空路径。</remarks>
-    /// <remarks>只移除匹配到的那一个值，空节点会被剪掉以保持内存有界。</remarks>
+    /// <remarks>只移除匹配到的那一个值，节点空了就剪掉，避免内存里堆积空路径。</remarks>
     /// <param name="filter">Path that was used by <see cref="Add"/>.</param>
     /// <param name="value">Value to remove.</param>
     /// <returns><c>true</c> when a value was removed.</returns>
@@ -285,17 +283,18 @@ public sealed class TopicTrie<TValue>
     private sealed class Node
     {
         /// <summary>Child nodes by topic level; null when the node has no children.</summary>
-    /// <remarks>字典按层名索引，用 ordinal 比较保证大小写敏感。</remarks>
+        /// <remarks>字典按层名索引，用 ordinal 比较保证大小写敏感。</remarks>
         public Dictionary<string, Node>? Children { get; set; }
 
         /// <summary>Values stored exactly at this node; null when empty.</summary>
-    /// <remarks>只有在路径末端才会有值。</remarks>
+        /// <remarks>只有在路径末端才会有值。</remarks>
         public List<TValue>? Values { get; set; }
 
         /// <summary>True when the node holds neither values nor children.</summary>
-    /// <remarks>用于删除后剪枝。</remarks>
+        /// <remarks>用于删除后剪枝。</remarks>
         public bool IsEmpty => Values is null && (Children is null || Children.Count == 0);
 
+        /// <summary>Returns the child for a level, creating it on first use.</summary>
         public Node GetOrAddChild(string level)
         {
             Children ??= new Dictionary<string, Node>(StringComparer.Ordinal);
@@ -309,6 +308,7 @@ public sealed class TopicTrie<TValue>
             return child;
         }
 
+        /// <summary>Looks up a child without allocating a new node.</summary>
         public bool TryGetChild(string level, out Node child)
         {
             child = null!;

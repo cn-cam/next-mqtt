@@ -107,8 +107,7 @@ public static class MqttTopic
     }
 
     /// <summary>Splits a topic or filter into levels on '/'.</summary>
-    /// <remarks>按 `/` 切层，保留空层：`a//b` 合法，和订阅匹配语义一致。</remarks>
-    /// <remarks>保留空层，<c>a//b</c> 合法且与订阅匹配语义一致。</remarks>
+    /// <remarks>按 `/` 切层并保留空层：<c>a//b</c> 合法，与订阅匹配语义一致。</remarks>
     /// <param name="value">Topic name or filter.</param>
     /// <returns>Levels in order; empty entries represent empty levels.</returns>
     public static string[] SplitLevels(string value) => value.Split('/');
@@ -158,8 +157,7 @@ public sealed class TopicFilter
     public string[] Levels { get; }
 
     /// <summary>Parses a filter, throwing when it is invalid.</summary>
-    /// <remarks>解析失败直接抛，适合启动期配置；运行时请用 TryParse 拿原因。</remarks>
-    /// <remarks>解析失败时抛出 <see cref="ArgumentException"/>，消息包含具体原因。</remarks>
+    /// <remarks>解析失败抛出 <see cref="ArgumentException"/> 并带具体原因；运行时想自己处理请用 <see cref="TryParse"/>。</remarks>
     /// <param name="value">Filter text, optionally starting with <c>$share/{group}/</c>.</param>
     /// <returns>The parsed filter.</returns>
     public static TopicFilter Parse(string value)

@@ -309,26 +309,37 @@ public sealed class FileRetainedJournal : IRetainedJournal, IDisposable
         return lines;
     }
 
+    /// <summary>One journal line: a retained write or a removal, stored as JSON.</summary>
     private sealed class RetainedRecord
     {
+        /// <summary>Operation tag that marks a removal line.</summary>
         public const string RemoveOperation = "remove";
 
+        /// <summary>Operation tag; anything other than remove replays as a write.</summary>
         public string Op { get; set; } = "set";
 
+        /// <summary>Topic the operation applies to.</summary>
         public string Topic { get; set; } = string.Empty;
 
+        /// <summary>Base64 payload for a write; null for a removal.</summary>
         public string? Payload { get; set; }
 
+        /// <summary>QoS stored with the retained message.</summary>
         public int QoS { get; set; }
 
+        /// <summary>When the message was retained, preserved across restarts.</summary>
         public DateTimeOffset StoredAt { get; set; }
 
+        /// <summary>Removal timestamp used by the tombstone on replay.</summary>
         public DateTimeOffset? At { get; set; }
 
+        /// <summary>Absolute expiry, or null when it never expires.</summary>
         public DateTimeOffset? ExpiresAt { get; set; }
 
+        /// <summary>MQTT 5 properties carried by the retained message.</summary>
         public List<PropertyRecord>? Properties { get; set; }
 
+        /// <summary>Projects a retained message into its journal line.</summary>
         public static RetainedRecord FromMessage(RetainedMessage message) => new()
         {
             Op = "set",
@@ -340,6 +351,7 @@ public sealed class FileRetainedJournal : IRetainedJournal, IDisposable
             Properties = PropertyRecord.FromProperties(message.Properties),
         };
 
+        /// <summary>Rebuilds the message, returning null when its properties no longer validate.</summary>
         public RetainedMessage? ToMessage()
         {
             MqttProperties properties;

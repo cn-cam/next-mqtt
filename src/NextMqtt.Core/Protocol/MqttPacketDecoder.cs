@@ -226,6 +226,7 @@ internal static class MqttPacketDecoder
         };
     }
 
+    /// <summary>Reads PUBACK, PUBREC, PUBREL or PUBCOMP; 3.1.1 carries no reason code.</summary>
     private static TPacket DecodeAck<TPacket>(
         ref MqttSpanReader reader,
         byte flags,

@@ -16,6 +16,9 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- `scripts/docs-coverage.ps1` enforces the documentation rule in CI: every
+  member under `src` needs a `<summary>`, members of publicly visible types
+  also need `<remarks>`, and a member cannot carry two stacked doc blocks.
 - Outbound topic aliases: the server assigns aliases per connection inside the
   client's Topic Alias Maximum and sends later PUBLISH packets with an empty
   topic.

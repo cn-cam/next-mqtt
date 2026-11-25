@@ -858,29 +858,31 @@ public sealed class ClusterRouter : IClusterRouter
         long LastSeenUnix,
         string[] Filters);
 
+    /// <summary>One membership row: where to reach a peer and which filters it hosts.</summary>
     private sealed record Member(
         string NodeId,
         string AdvertiseUrl,
         DateTimeOffset LastSeen,
         string[] RawFilters)
     {
+        /// <summary>Parsed filters, built on first use and reused for every message.</summary>
         private TopicFilter[]? _parsed;
 
         /// <summary>Parsed filters, computed once per member.</summary>
-    /// <remarks>每个成员只解析一次，心跳很频繁。</remarks>
+        /// <remarks>每个成员只解析一次，心跳很频繁。</remarks>
         private TopicFilter[] Parsed => _parsed ??= RawFilters
             .Select(filter => TopicFilter.TryParse(filter, out var parsed, out _) ? parsed : null)
             .Where(filter => filter is not null)
             .ToArray()!;
 
         /// <summary>True when a non-shared filter matches the topic.</summary>
-    /// <remarks>共享过滤器不参与普通扇出，否则同一组被多个节点投递。</remarks>
+        /// <remarks>共享过滤器不参与普通扇出，否则同一组被多个节点投递。</remarks>
         /// <param name="topic">Concrete topic name.</param>
         public bool MatchesNormal(string topic)
             => Parsed.Any(filter => !filter.IsShared && filter.Matches(topic));
 
         /// <summary>Shared groups this member hosts for the topic.</summary>
-    /// <remarks>源节点据此计算候选节点。</remarks>
+        /// <remarks>源节点据此计算候选节点。</remarks>
         /// <param name="topic">Concrete topic name.</param>
         public IEnumerable<string> SharedGroups(string topic)
             => Parsed
@@ -889,7 +891,7 @@ public sealed class ClusterRouter : IClusterRouter
                 .Distinct(StringComparer.Ordinal);
 
         /// <summary>True when this node hosts the shared group for the topic.</summary>
-    /// <remarks>有一个匹配的共享过滤器即可。</remarks>
+        /// <remarks>有一个匹配的共享过滤器即可。</remarks>
         /// <param name="topic">Concrete topic name.</param>
         /// <param name="group">Shared group name.</param>
         public bool HasShared(string topic, string group)
@@ -897,6 +899,7 @@ public sealed class ClusterRouter : IClusterRouter
                 && string.Equals(filter.SharedGroup, group, StringComparison.Ordinal)
                 && filter.Matches(topic));
 
+        /// <summary>Classifies the peer as alive, suspect or dead from its last contact time.</summary>
         public string Status(DateTimeOffset now, TimeSpan timeout)
         {
             var age = now - LastSeen;

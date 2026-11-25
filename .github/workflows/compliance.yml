@@ -22,6 +22,10 @@ jobs:
       - name: Scan repository for forbidden brand tokens
         run: bash scripts/compliance-check.sh
 
+      - name: Check C# documentation coverage
+        shell: pwsh
+        run: ./scripts/docs-coverage.ps1
+
       - name: Verify licence and notice files exist
         run: |
           test -s LICENSE

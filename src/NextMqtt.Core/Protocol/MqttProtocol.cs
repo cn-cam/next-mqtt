@@ -108,7 +108,7 @@ public enum MqttRetainHandling : byte
     SendAtSubscribeIfNew = 1,
 
     /// <summary>Never send retained messages for this subscription.</summary>
-/// <remarks>只收后续发布，忽略已保存的保留值。</remarks>
+    /// <remarks>只收后续发布，忽略已保存的保留值。</remarks>
     DoNotSend = 2,
 }
 
@@ -297,15 +297,15 @@ public static class MqttReasonCodes
 public static class MqttLimits
 {
     /// <summary>Maximum encodable remaining length (268,435,455 bytes).</summary>
-/// <remarks>变长整数 4 字节的上限，超过无法编码。</remarks>
+    /// <remarks>变长整数 4 字节的上限，超过无法编码。</remarks>
     public const int MaxRemainingLength = 268_435_455;
 
     /// <summary>Default maximum packet size accepted by a listener (1 MiB).</summary>
-/// <remarks>可按部署调整；超过直接断开，不缓冲。</remarks>
+    /// <remarks>可按部署调整；超过直接断开，不缓冲。</remarks>
     public const int DefaultMaxPacketSize = 1024 * 1024;
 
     /// <summary>Maximum size of a UTF-8 encoded string or binary field.</summary>
-/// <remarks>长度前缀 2 字节，所以字段上限是 65535。</remarks>
+    /// <remarks>长度前缀 2 字节，所以字段上限是 65535。</remarks>
     public const int MaxFieldLength = 65_535;
 }
 
@@ -314,7 +314,7 @@ public static class MqttLimits
 public sealed class MqttProtocolException : Exception
 {
     /// <summary>Creates the exception with the DISCONNECT reason code to report.</summary>
-/// <remarks>原因码写进 DISCONNECT；3.1.1 只记日志。</remarks>
+    /// <remarks>原因码写进 DISCONNECT；3.1.1 只记日志。</remarks>
     /// <param name="reasonCode">MQTT 5 reason code, sent to the peer when possible.</param>
     /// <param name="message">Operator-facing explanation.</param>
     public MqttProtocolException(byte reasonCode, string message)
@@ -324,25 +324,25 @@ public sealed class MqttProtocolException : Exception
     }
 
     /// <summary>Reason code that should accompany the DISCONNECT.</summary>
-/// <remarks>连接层据此决定关闭原因。</remarks>
+    /// <remarks>连接层据此决定关闭原因。</remarks>
     public byte ReasonCode { get; }
 
     /// <summary>Creates an exception for a packet that does not parse.</summary>
-/// <remarks>固定 0x81，表示报文格式错误。</remarks>
+    /// <remarks>固定 0x81，表示报文格式错误。</remarks>
     /// <param name="message">What the decoder rejected.</param>
     /// <returns>Exception carrying 0x81.</returns>
     public static MqttProtocolException Malformed(string message)
         => new(MqttReasonCodes.MalformedPacket, message);
 
     /// <summary>Creates an exception for a state-machine violation.</summary>
-/// <remarks>固定 0x82，表示顺序或保留位错误。</remarks>
+    /// <remarks>固定 0x82，表示顺序或保留位错误。</remarks>
     /// <param name="message">What the peer did out of order.</param>
     /// <returns>Exception carrying 0x82.</returns>
     public static MqttProtocolException Protocol(string message)
         => new(MqttReasonCodes.ProtocolError, message);
 
     /// <summary>Creates an exception for a packet above the size limit.</summary>
-/// <remarks>固定 0x95，超过最大报文长度。</remarks>
+    /// <remarks>固定 0x95，超过最大报文长度。</remarks>
     /// <param name="message">Which limit was exceeded.</param>
     /// <returns>Exception carrying 0x95.</returns>
     public static MqttProtocolException TooLarge(string message)
@@ -358,7 +358,7 @@ public readonly record struct MqttSubscriptionOptions(
     MqttRetainHandling RetainHandling = MqttRetainHandling.SendAtSubscribe)
 {
     /// <summary>Packs the options into the single subscription-options byte.</summary>
-/// <remarks>位布局见 MQTT 5 规范 3.8.3.1。</remarks>
+    /// <remarks>位布局见 MQTT 5 规范 3.8.3.1。</remarks>
     /// <returns>Bits 0-1 QoS, 2 noLocal, 3 RAP, 4-5 retain handling.</returns>
     public byte Encode()
     {

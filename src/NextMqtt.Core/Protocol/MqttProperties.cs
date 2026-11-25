@@ -199,49 +199,49 @@ public sealed class MqttProperties
     }
 
     /// <summary>Adds a byte-valued property.</summary>
-/// <remarks>单字节属性，例如 Payload Format Indicator；值域 0–255。</remarks>
+    /// <remarks>单字节属性，例如 Payload Format Indicator；值域 0–255。</remarks>
     /// <param name="id">Property identifier.</param>
     /// <param name="value">Value in the range 0-255.</param>
     /// <returns>The same bag, for chaining.</returns>
     public MqttProperties AddByte(MqttPropertyId id, byte value) => Add(id, value);
 
     /// <summary>Adds a two-byte unsigned property.</summary>
-/// <remarks>两字节属性，例如 Receive Maximum 与 Topic Alias。</remarks>
+    /// <remarks>两字节属性，例如 Receive Maximum 与 Topic Alias。</remarks>
     /// <param name="id">Property identifier.</param>
     /// <param name="value">Value in the range 0-65535.</param>
     /// <returns>The same bag, for chaining.</returns>
     public MqttProperties AddUInt16(MqttPropertyId id, ushort value) => Add(id, value);
 
     /// <summary>Adds a four-byte unsigned property.</summary>
-/// <remarks>四字节属性，例如消息过期与会话过期秒数。</remarks>
+    /// <remarks>四字节属性，例如消息过期与会话过期秒数。</remarks>
     /// <param name="id">Property identifier.</param>
     /// <param name="value">Value in the range 0-4294967295.</param>
     /// <returns>The same bag, for chaining.</returns>
     public MqttProperties AddUInt32(MqttPropertyId id, uint value) => Add(id, value);
 
     /// <summary>Adds a variable byte integer property.</summary>
-/// <remarks>变长整数属性，目前只用于订阅标识。</remarks>
+    /// <remarks>变长整数属性，目前只用于订阅标识。</remarks>
     /// <param name="id">Property identifier.</param>
     /// <param name="value">Value in the range 0-268435455.</param>
     /// <returns>The same bag, for chaining.</returns>
     public MqttProperties AddVariableByteInteger(MqttPropertyId id, int value) => Add(id, value);
 
     /// <summary>Adds a UTF-8 string property.</summary>
-/// <remarks>字符串属性；超过 65535 字节会在编码前被拒绝。</remarks>
+    /// <remarks>字符串属性；超过 65535 字节会在编码前被拒绝。</remarks>
     /// <param name="id">Property identifier.</param>
     /// <param name="value">String value; must fit the 65535-byte field limit.</param>
     /// <returns>The same bag, for chaining.</returns>
     public MqttProperties AddString(MqttPropertyId id, string value) => Add(id, value);
 
     /// <summary>Adds a binary property, copying the span.</summary>
-/// <remarks>二进制属性；复制一份，调用方可以复用缓冲区。</remarks>
+    /// <remarks>二进制属性；复制一份，调用方可以复用缓冲区。</remarks>
     /// <param name="id">Property identifier.</param>
     /// <param name="value">Bytes; must fit the 65535-byte field limit.</param>
     /// <returns>The same bag, for chaining.</returns>
     public MqttProperties AddBinary(MqttPropertyId id, ReadOnlySpan<byte> value) => Add(id, value.ToArray());
 
     /// <summary>Adds one application-defined user property.</summary>
-/// <remarks>用户属性可重复，键值都原样透传，顺序保留。</remarks>
+    /// <remarks>用户属性可重复，键值都原样透传，顺序保留。</remarks>
     /// <param name="name">Key; may repeat with different values.</param>
     /// <param name="value">Value paired with the key.</param>
     /// <returns>The same bag, for chaining.</returns>
@@ -329,8 +329,7 @@ public sealed class MqttProperties
     }
 
     /// <summary>Reads a binary property, or null when absent.</summary>
-    /// <remarks>返回内部数组，不要原地修改。</remarks>
-    /// <remarks>返回内部数组，不要修改；需要写入时请复制。</remarks>
+    /// <remarks>返回内部数组，不要原地修改；需要写入时先复制一份。</remarks>
     /// <param name="id">Property identifier.</param>
     public byte[]? GetBinary(MqttPropertyId id)
     {
@@ -483,6 +482,7 @@ public sealed class MqttProperties
 /// <remarks>属性出现在不允许的报文里按 0x81 拒绝；每种报文的允许集合是一张静态表。</remarks>
 public static class MqttPropertyValidation
 {
+    /// <summary>Properties a CONNECT packet may carry.</summary>
     private static readonly HashSet<MqttPropertyId> ConnectProperties =
     [
         MqttPropertyId.SessionExpiryInterval,
@@ -496,6 +496,7 @@ public static class MqttPropertyValidation
         MqttPropertyId.AuthenticationData,
     ];
 
+    /// <summary>Properties a CONNACK packet may carry.</summary>
     private static readonly HashSet<MqttPropertyId> ConnAckProperties =
     [
         MqttPropertyId.SessionExpiryInterval,
@@ -517,6 +518,7 @@ public static class MqttPropertyValidation
         MqttPropertyId.AuthenticationData,
     ];
 
+    /// <summary>Properties a PUBLISH packet may carry.</summary>
     private static readonly HashSet<MqttPropertyId> PublishProperties =
     [
         MqttPropertyId.PayloadFormatIndicator,
@@ -529,23 +531,27 @@ public static class MqttPropertyValidation
         MqttPropertyId.ContentType,
     ];
 
+    /// <summary>Properties the four acknowledgement packets may carry.</summary>
     private static readonly HashSet<MqttPropertyId> AckProperties =
     [
         MqttPropertyId.ReasonString,
         MqttPropertyId.UserProperty,
     ];
 
+    /// <summary>Properties a SUBSCRIBE packet may carry.</summary>
     private static readonly HashSet<MqttPropertyId> SubscribeProperties =
     [
         MqttPropertyId.SubscriptionIdentifier,
         MqttPropertyId.UserProperty,
     ];
 
+    /// <summary>Properties an UNSUBSCRIBE packet may carry.</summary>
     private static readonly HashSet<MqttPropertyId> UnsubscribeProperties =
     [
         MqttPropertyId.UserProperty,
     ];
 
+    /// <summary>Properties a DISCONNECT packet may carry.</summary>
     private static readonly HashSet<MqttPropertyId> DisconnectProperties =
     [
         MqttPropertyId.SessionExpiryInterval,
@@ -554,6 +560,7 @@ public static class MqttPropertyValidation
         MqttPropertyId.ServerReference,
     ];
 
+    /// <summary>Properties an AUTH packet may carry.</summary>
     private static readonly HashSet<MqttPropertyId> AuthProperties =
     [
         MqttPropertyId.AuthenticationMethod,
@@ -614,8 +621,7 @@ public static class MqttPropertyValidation
     }
 
     /// <summary>Rejects properties that are illegal for the packet type.</summary>
-    /// <remarks>3.1.1 带属性、或属性用错报文，都会按 0x82 拒绝。</remarks>
-    /// <remarks>MQTT 3.1.1 报文携带属性、或属性不属于该报文时抛出 0x82。</remarks>
+    /// <remarks>3.1.1 报文携带属性、或属性不属于该报文，都会按 0x82 拒绝。</remarks>
     /// <param name="packetType">Packet whose property set is being checked.</param>
     /// <param name="properties">Properties decoded from the wire.</param>
     /// <param name="version">Protocol level of the connection.</param>

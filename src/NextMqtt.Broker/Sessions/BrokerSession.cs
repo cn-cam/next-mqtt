@@ -644,6 +644,7 @@ public sealed class BrokerSession : IDisposable
     /// <summary>One unacknowledged outbound message and its retry bookkeeping.</summary>
     private sealed class OutboundInflight
     {
+        /// <summary>Starts tracking a message and picks the handshake step from its QoS.</summary>
         public OutboundInflight(PublishPacket packet, MqttQoS qos)
         {
             Packet = packet;

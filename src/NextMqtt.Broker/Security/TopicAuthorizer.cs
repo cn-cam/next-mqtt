@@ -215,6 +215,7 @@ public sealed class TopicAuthorizer : ITopicAuthorizer
             || (allowed.Length == requested.Length + 1 && allowed[^1] == "#");
     }
 
+    /// <summary>One ACL rule with its globs compiled once at startup.</summary>
     private sealed record CompiledRule(
         string TopicPattern,
         AclEffect Effect,

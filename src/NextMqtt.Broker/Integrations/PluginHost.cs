@@ -252,7 +252,9 @@ public sealed class PluginHost : IDisposable
     /// <remarks>只共享契约与核心协议两个程序集；其余依赖从插件目录解析，各插件之间互不干扰。</remarks>
     private sealed class PluginLoadContext : AssemblyLoadContext
     {
+        /// <summary>Resolves plugin dependencies from its .deps.json, or null when there is none.</summary>
         private readonly AssemblyDependencyResolver? _resolver;
+        /// <summary>Assemblies that must resolve to the host copy instead of the plugin folder.</summary>
         private readonly Assembly[] _shared;
 
         /// <summary>Creates a collectible context for one plugin assembly.</summary>

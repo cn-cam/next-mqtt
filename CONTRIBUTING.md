@@ -94,24 +94,27 @@ exclusions for prose, comments or tests.
 - No force-push to `main`; use pull requests.
 - Keep the commit history readable; squash fixup commits before merge.
 
-## C# documentation backlog
+## C# documentation gate
 
 GenerateDocumentationFile is enabled for the shipping projects, so the
 compiler reports every public member that has no XML documentation (CS1591).
-Test projects opt out. Comments are required for private members too, but that
-is reviewed by hand; see .opencode/skill/csharp-documentation/SKILL.md.
+Test projects opt out.
 
-Current backlog (2026-11-25, `dotnet build -t:Rebuild` and count CS1591):
+Public members alone are not the whole rule. AGENTS.md section 5.1 also
+requires a comment on every private field, helper and nested type, and a
+`<remarks>` paragraph on members of publicly visible types. The compiler cannot
+check either, so `scripts/docs-coverage.ps1` does:
 
-| Project | Undocumented public members |
-| --- | --- |
-| `NextMqtt.Broker` | 802 |
-| `NextMqtt.Core` | 388 |
-| `NextMqtt.Server` | 176 |
-| `NextMqtt.Cli` | 22 |
+```bash
+pwsh -File scripts/docs-coverage.ps1
+```
 
-Work through them one namespace at a time, from the inside out: `Core` first,
-then `Broker`, then `Server`, then `Cli`. Do not paste signature
-restatements; say what the member guarantees, its units, its locking and its
-failure modes. When the count reaches zero, add `CS1591` to
-`WarningsAsErrors` so the backlog cannot grow again.
+The script scans `src/**/*.cs`, ignoring comments and string literals, and
+fails when a member has no `<summary>`, when a member of a public type has no
+`<remarks>`, or when a member carries two stacked documentation blocks. CI runs
+it as part of the compliance workflow.
+
+The backlog is at zero. Keep it there: write the comment in the same commit as
+the code, and do not paste signature restatements. Say what the member
+guarantees, its units, its locking and its failure modes. The bilingual style
+is described in `.opencode/skill/csharp-documentation/SKILL.md`.

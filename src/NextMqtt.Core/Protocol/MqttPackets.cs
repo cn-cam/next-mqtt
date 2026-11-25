@@ -191,10 +191,9 @@ public sealed class PubCompPacket : MqttAcknowledgementPacket
 }
 
 /// <summary>A single topic filter and its options inside SUBSCRIBE.</summary>
-/// <remarks>SUBSCRIBE 中的一项；同一报文可带多个过滤器。</remarks>
+/// <remarks>一个 SUBSCRIBE 可以带多个过滤器，SUBACK 按同样顺序返回每个的结果。</remarks>
 /// <param name="Filter">Filter text, possibly a shared-subscription filter.</param>
 /// <param name="Options">QoS, noLocal, retain-as-published and retain handling.</param>
-/// <remarks>一个 SUBSCRIBE 可以带多个过滤器，SUBACK 按同样顺序返回结果。</remarks>
 public readonly record struct MqttSubscriptionRequest(string Filter, MqttSubscriptionOptions Options);
 
 /// <summary>SUBSCRIBE packet.</summary>
