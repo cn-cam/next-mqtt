@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using NextMqtt.Core.Protocol;
 
 namespace NextMqtt.Broker.Clustering;
 
@@ -54,8 +55,7 @@ public sealed record ClusterMemberDto(
     long LastSeenUnix,
     string[] Filters);
 
-/// <summary>Serializable form of one MQTT 5 property inside a forwarded publish.</summary>
-/// <remarks>属性种类决定用哪个字段，其余为 null。</remarks>
+/// <summary>Serializable form of one MQTT 5 property inside a forwarded publish.</summary>/// <remarks>属性种类决定用哪个字段，其余为 null。</remarks>
 /// <param name="Id">Property identifier.</param>
 /// <param name="Text">String value, when the property is textual.</param>
 /// <param name="Number">Numeric value, when the property is numeric.</param>
@@ -66,7 +66,86 @@ public sealed record ClusterPropertyDto(
     string? Text,
     long? Number,
     string? Binary,
-    string? UserValue);
+    string? UserValue)
+{
+    /// <summary>Packs every property of a publish for the wire.</summary>
+    /// <remarks>属性种类决定用哪个字段，其余字段为 null。</remarks>
+    /// <param name="properties">Properties to encode.</param>
+    public static ClusterPropertyDto[] FromProperties(MqttProperties properties)
+        => properties.Items.Select(Encode).ToArray();
+
+    /// <summary>Packs one property for the wire.</summary>
+    /// <remarks>供逐个属性编码时使用，语义与 <see cref="FromProperties"/> 相同。</remarks>
+    /// <param name="property">Property to encode.</param>
+    public static ClusterPropertyDto FromProperty(MqttProperty property) => Encode(property);
+
+    /// <summary>Rebuilds a property bag from the wire form.</summary>
+    /// <remarks>无法识别的属性会被跳过：主题与载荷仍然有效，不该因一个属性丢掉整条消息。</remarks>
+    /// <param name="items">Encoded properties, or null.</param>
+    public static MqttProperties ToProperties(ClusterPropertyDto[]? items)
+    {
+        var bag = new MqttProperties();
+
+        if (items is null)
+        {
+            return bag;
+        }
+
+        foreach (var item in items)
+        {
+            try
+            {
+                bag.Add((MqttPropertyId)item.Id, Decode(item));
+            }
+            catch (Exception ex) when (ex is ArgumentException or FormatException or MqttProtocolException)
+            {
+                // Skip a property this build cannot represent.
+            }
+        }
+
+        return bag;
+    }
+
+    /// <summary>Chooses the wire field that matches the property's data type.</summary>
+    private static ClusterPropertyDto Encode(MqttProperty property)
+        => MqttProperties.GetDataType(property.Id) switch
+        {
+            MqttPropertyDataType.Byte => new ClusterPropertyDto((int)property.Id, null, (byte)property.Value, null, null),
+            MqttPropertyDataType.UInt16 => new ClusterPropertyDto((int)property.Id, null, (ushort)property.Value, null, null),
+            MqttPropertyDataType.UInt32 => new ClusterPropertyDto((int)property.Id, null, (uint)property.Value, null, null),
+            MqttPropertyDataType.VariableByteInteger => new ClusterPropertyDto((int)property.Id, null, (int)property.Value, null, null),
+            MqttPropertyDataType.String => new ClusterPropertyDto((int)property.Id, (string)property.Value, null, null, null),
+            MqttPropertyDataType.Binary => new ClusterPropertyDto(
+                (int)property.Id,
+                null,
+                null,
+                Convert.ToBase64String((byte[])property.Value),
+                null),
+            MqttPropertyDataType.StringPair => new ClusterPropertyDto(
+                (int)property.Id,
+                ((KeyValuePair<string, string>)property.Value).Key,
+                null,
+                null,
+                ((KeyValuePair<string, string>)property.Value).Value),
+            _ => throw new ArgumentOutOfRangeException(nameof(property)),
+        };
+
+    /// <summary>Turns the stored text back into the value the property expects.</summary>
+    private static object Decode(ClusterPropertyDto property)
+        => MqttProperties.GetDataType((MqttPropertyId)property.Id) switch
+        {
+            MqttPropertyDataType.Byte => (byte)(property.Number ?? 0),
+            MqttPropertyDataType.UInt16 => (ushort)(property.Number ?? 0),
+            MqttPropertyDataType.UInt32 => (uint)(property.Number ?? 0),
+            MqttPropertyDataType.VariableByteInteger => (int)(property.Number ?? 0),
+            MqttPropertyDataType.String => property.Text ?? string.Empty,
+            MqttPropertyDataType.Binary => Convert.FromBase64String(property.Binary ?? string.Empty),
+            MqttPropertyDataType.StringPair => new KeyValuePair<string, string>(
+                property.Text ?? string.Empty,
+                property.UserValue ?? string.Empty),
+            _ => throw new ArgumentOutOfRangeException(nameof(property)),
+        };
+}
 
 /// <summary>Publish forwarded to peers that have matching subscriptions.</summary>
 /// <remarks>payload 用 base64 承载二进制；唯一 ID 让接收端能去重，也用于挑选共享组的所有者。</remarks>
@@ -93,6 +172,22 @@ public sealed record ClusterPublishMessage(
     ClusterPropertyDto[] Properties,
     string? SharedGroup = null,
     long? RetainedAtUnix = null);
+
+/// <summary>One retained message sent to a node that just joined.</summary>
+/// <remarks>用于新节点补齐保留消息；时间戳原样保留，才能继续按 last-write-wins 合并。</remarks>
+/// <param name="Topic">Topic the value is stored under.</param>
+/// <param name="Payload">Base64 payload.</param>
+/// <param name="Qos">QoS stored with the message.</param>
+/// <param name="StoredAtUnix">When the origin node retained it.</param>
+/// <param name="ExpiresAtUnix">Absolute expiry, or null when it never expires.</param>
+/// <param name="Properties">MQTT 5 properties to restore.</param>
+public sealed record ClusterRetainedMessage(
+    string Topic,
+    string Payload,
+    int Qos,
+    long StoredAtUnix,
+    long? ExpiresAtUnix,
+    ClusterPropertyDto[] Properties);
 
 /// <summary>HMAC-SHA256 request signing with a five minute clock skew window.</summary>
 /// <remarks>时间戳超出窗口直接拒绝，用来挡住重放。</remarks>

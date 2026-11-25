@@ -62,6 +62,14 @@ public sealed class TlsListenerOptions : TcpListenerOptions
     /// <remarks>.pem 会尝试加载同目录同名的 .key 作为私钥。</remarks>
     public string? CertificatePath { get; set; }
 
+    /// <summary>PEM private key path; defaults to a sibling .key file.</summary>
+    /// <remarks>PFX 不需要此项，证书与私钥在同一个文件里。</remarks>
+    public string? CertificateKeyPath { get; set; }
+
+    /// <summary>Host name the certificate is expected to serve, for a startup check.</summary>
+    /// <remarks>只做校验与日志，不限制客户端连接；证书不覆盖该域名时会打警告。</remarks>
+    public string? Domain { get; set; }
+
     /// <summary>Password of the PFX file, when it has one.</summary>
     /// <remarks>PEM 不需要；应放环境变量而不是配置文件。</remarks>
     public string? CertificatePassword { get; set; }
@@ -103,6 +111,14 @@ public sealed class HttpListenerOptions
     /// <summary>Certificate path for HTTPS.</summary>
     /// <remarks>与 MQTT TLS 证书相互独立，可以各用一套。</remarks>
     public string? CertificatePath { get; set; }
+
+    /// <summary>PEM private key path for HTTPS; defaults to a sibling .key file.</summary>
+    /// <remarks>PFX 不需要此项。</remarks>
+    public string? CertificateKeyPath { get; set; }
+
+    /// <summary>Host name the dashboard certificate is expected to serve.</summary>
+    /// <remarks>只做启动校验与日志，不影响客户端连接。</remarks>
+    public string? Domain { get; set; }
 
     /// <summary>Password of the HTTPS PFX file.</summary>
     /// <remarks>只有 PFX 需要，PEM 忽略此项。</remarks>

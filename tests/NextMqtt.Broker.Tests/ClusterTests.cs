@@ -179,6 +179,71 @@ public class ClusterTests
         }
     }
 
+    /// <summary>Returns one canned heartbeat response for every request.</summary>
+    private sealed class CannedHeartbeatHandler : HttpMessageHandler
+    {
+        private readonly ClusterHeartbeatResponse _response;
+
+        public CannedHeartbeatHandler(ClusterHeartbeatResponse response) => _response = response;
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            var json = JsonSerializer.SerializeToUtf8Bytes(_response, ClusterJson.Options);
+
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new ByteArrayContent(json),
+            });
+        }
+    }
+
+    [Fact]
+    public async Task Relayed_member_does_not_refresh_a_dead_node()
+    {
+        const string secret = "cluster-test-secret-1234567890";
+
+        // A peer keeps reporting a node that has been silent for a long time.
+        var response = new ClusterHeartbeatResponse(
+            "node-b",
+            DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+            [new ClusterMemberDto("ghost", "http://ghost", "alive", 1, [])]);
+
+        var options = new NextMqtt.Broker.Options.ClusterOptions
+        {
+            Enabled = true,
+            NodeId = "node-a",
+            AdvertiseUrl = "http://node-a",
+            Secret = secret,
+            Seeds = ["http://node-b"],
+            HeartbeatSeconds = 1,
+            NodeTimeoutSeconds = 1,
+        };
+
+        var router = new ClusterRouter(
+            options,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<ClusterRouter>.Instance,
+            new HttpClient(new CannedHeartbeatHandler(response)));
+
+        var broker = TestBroker.Create(cluster: router);
+        router.AttachBroker(broker);
+
+        await router.StartAsync();
+
+        try
+        {
+            await Task.Delay(1500);
+
+            Assert.DoesNotContain(router.GetSnapshot().Nodes, node => node.NodeId == "ghost");
+        }
+        finally
+        {
+            await router.StopAsync();
+            await broker.DisposeAsync();
+        }
+    }
+
     [Fact]
     public async Task Unresolvable_seed_does_not_stop_heartbeats()
     {

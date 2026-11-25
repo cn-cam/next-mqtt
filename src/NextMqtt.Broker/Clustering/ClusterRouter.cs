@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using NextMqtt.Broker.Diagnostics;
+using NextMqtt.Broker.Messaging;
 using NextMqtt.Broker.Options;
 using NextMqtt.Core.Protocol;
 using NextMqtt.Core.Topics;
@@ -33,6 +34,9 @@ public sealed class ClusterRouter : IClusterRouter
     private readonly ConcurrentDictionary<string, DateTimeOffset> _seenMessages = new(StringComparer.Ordinal);
     /// <summary>Cancelled on stop; ends the heartbeat loop.</summary>
     private readonly CancellationTokenSource _lifetime = new();
+    /// <summary>Set once the retained snapshot has been pulled from a peer.</summary>
+    /// <remarks>只在首次加入时拉一次；之后靠正常的保留消息复制保持同步。</remarks>
+    private int _retainedSynced;
     /// <summary>Heartbeat loop task, awaited during stop.</summary>
     private Task? _loop;
     /// <summary>Broker used to route inbound forwards and read local filters.</summary>
@@ -229,7 +233,7 @@ public sealed class ClusterRouter : IClusterRouter
             (int)publish.QoS,
             publish.Retain,
             publish.Duplicate,
-            publish.Properties.Items.Select(EncodeProperty).ToArray(),
+            ClusterPropertyDto.FromProperties(publish.Properties),
             null,
             publish.Retain ? DateTimeOffset.UtcNow.ToUnixTimeSeconds() : null);
 
@@ -342,20 +346,7 @@ public sealed class ClusterRouter : IClusterRouter
             return false;
         }
 
-        var properties = new MqttProperties();
-
-        foreach (var property in message.Properties)
-        {
-            try
-            {
-                properties.Add((MqttPropertyId)property.Id, DecodeProperty(property));
-            }
-            catch (Exception)
-            {
-                // Ignore properties that cannot be represented; the payload and
-                // topic remain authoritative.
-            }
-        }
+        var properties = ClusterPropertyDto.ToProperties(message.Properties);
 
         var publish = new PublishPacket
         {
@@ -592,7 +583,88 @@ public sealed class ClusterRouter : IClusterRouter
 
         PruneDeadMembers(DateTimeOffset.UtcNow);
         PruneSeenMessages(DateTimeOffset.UtcNow);
+
+        if (Volatile.Read(ref _retainedSynced) == 0
+            && _members.Count > 1
+            && Interlocked.Exchange(ref _retainedSynced, 1) == 0)
+        {
+            var source = _members.Values
+                .Where(member => member.NodeId != _self.NodeId)
+                .Select(member => member.AdvertiseUrl)
+                .FirstOrDefault();
+
+            if (source is not null)
+            {
+                _ = Task.Run(() => SyncRetainedAsync(source, _lifetime.Token), CancellationToken.None);
+            }
+        }
     }
+
+    /// <summary>Pulls the retained set from a peer once, so a joining node can serve it.</summary>
+    /// <remarks>失败只记日志：保留消息会在下一次发布时重新复制，不值得阻止节点就绪。</remarks>
+    /// <param name="baseUrl">Peer to ask for the snapshot.</param>
+    /// <param name="cancellationToken">Stops the request on shutdown.</param>
+    private async Task SyncRetainedAsync(string baseUrl, CancellationToken cancellationToken)
+    {
+        if (_broker is null || _self is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var snapshot = await PostAsync<ClusterHeartbeatRequest, ClusterRetainedMessage[]>(
+                baseUrl,
+                "/internal/cluster/retained",
+                new ClusterHeartbeatRequest(_self.NodeId, _self.AdvertiseUrl, DateTimeOffset.UtcNow.ToUnixTimeSeconds(), []),
+                cancellationToken).ConfigureAwait(false);
+
+            if (snapshot is null)
+            {
+                return;
+            }
+
+            var applied = 0;
+            var now = DateTimeOffset.UtcNow;
+
+            foreach (var item in snapshot)
+            {
+                var storedAt = DateTimeOffset.FromUnixTimeSeconds(item.StoredAtUnix);
+                var expiresAt = item.ExpiresAtUnix is { } expires ? DateTimeOffset.FromUnixTimeSeconds(expires) : (DateTimeOffset?)null;
+
+                if (expiresAt is { } expiry && expiry <= now)
+                {
+                    continue;
+                }
+
+                _broker.Retained.Publish(
+                    new PublishPacket
+                    {
+                        Topic = item.Topic,
+                        Payload = Convert.FromBase64String(item.Payload),
+                        QoS = (MqttQoS)item.Qos,
+                        Retain = true,
+                        Properties = ClusterPropertyDto.ToProperties(item.Properties),
+                    },
+                    storedAt);
+
+                applied++;
+            }
+
+            _logger.LogInformation("Synchronised {Count} retained message(s) from {Peer}", applied, baseUrl);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Shutdown.
+        }
+        catch (Exception ex) when (ex is HttpRequestException or JsonException or FormatException)
+        {
+            _logger.LogWarning(ex, "Retained snapshot from {Peer} could not be applied", baseUrl);
+        }
+    }
+
+    /// <summary>Recomputes the per-node share after a peer joins or is removed.</summary>
+    private void NotifyMembershipChanged() => _broker?.OnClusterMembershipChanged();
 
     /// <summary>Sends one heartbeat and merges the membership view it returns.</summary>
     private async Task SendHeartbeatAsync(string baseUrl, string[] filters, CancellationToken cancellationToken)
@@ -619,7 +691,19 @@ public sealed class ClusterRouter : IClusterRouter
 
         foreach (var member in response.Members)
         {
-            MergeMember(member.NodeId, member.AdvertiseUrl, member.Filters, now);
+            // Relayed rows keep the sender's observation time. Stamping them with
+            // "now" would keep a crashed node alive forever, because every peer
+            // would refresh it from its neighbours' member tables.
+            var seenAt = member.LastSeenUnix > 0
+                ? DateTimeOffset.FromUnixTimeSeconds(member.LastSeenUnix)
+                : now;
+
+            if (seenAt > now)
+            {
+                seenAt = now;
+            }
+
+            MergeMember(member.NodeId, member.AdvertiseUrl, member.Filters, seenAt);
         }
     }
 
@@ -748,6 +832,7 @@ public sealed class ClusterRouter : IClusterRouter
         if (!_members.TryGetValue(nodeId, out var previous))
         {
             _logger.LogInformation("Cluster node {NodeId} joined at {AdvertiseUrl}", nodeId, advertiseUrl);
+            NotifyMembershipChanged();
         }
         else if (!string.Equals(previous.AdvertiseUrl, advertiseUrl, StringComparison.OrdinalIgnoreCase))
         {
@@ -770,6 +855,7 @@ public sealed class ClusterRouter : IClusterRouter
         }
 
         var cutoff = now - TimeSpan.FromSeconds(_options.NodeTimeoutSeconds * 3.0);
+        var removed = false;
 
         foreach (var (nodeId, member) in _members)
         {
@@ -777,7 +863,13 @@ public sealed class ClusterRouter : IClusterRouter
             {
                 _members.TryRemove(nodeId, out _);
                 _logger.LogWarning("Cluster node {NodeId} timed out and was removed", nodeId);
+                removed = true;
             }
+        }
+
+        if (removed)
+        {
+            NotifyMembershipChanged();
         }
     }
 
@@ -801,7 +893,7 @@ public sealed class ClusterRouter : IClusterRouter
     }
 
     /// <summary>Packs one MQTT property into the JSON shape, choosing the field by data type.</summary>
-    private static ClusterPropertyDto EncodeProperty(MqttProperty property)
+    internal static ClusterPropertyDto EncodeProperty(MqttProperty property)
     {
         return MqttProperties.GetDataType(property.Id) switch
         {

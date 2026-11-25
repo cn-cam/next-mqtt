@@ -9,13 +9,28 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Rate limits rescale as soon as a node joins or is removed, instead of waiting
+  for the next maintenance sweep.
 - Routing rules now run before integrations. A message discarded by a `drop`
   rule no longer reaches a webhook or a message bridge, and a message rewritten
   by a `rewrite` rule is forwarded under its new topic. Two broker-level tests
   cover both cases.
 
+### Fixed
+
+- A crashed node could stay in the membership table forever. Gossip responses
+  relayed its row and every receiver stamped it with the current time; relayed
+  rows now keep the observation time the sender reported, so removal after three
+  timeouts actually happens. A regression test covers it.
+
 ### Added
 
+- `CertificateKeyPath` and `Domain` for MQTT/TLS and HTTPS. A PEM file may hold
+  the full chain, the intermediates are served to clients, and a `Domain` that
+  the certificate does not cover is reported at startup instead of failing
+  silently later.
+- A joining node pulls the retained set from one peer, keeping the original
+  timestamps, so retained values published while it was away are not lost.
 - `scripts/docs-coverage.ps1` enforces the documentation rule in CI: every
   member under `src` needs a `<summary>`, members of publicly visible types
   also need `<remarks>`, and a member cannot carry two stacked doc blocks.

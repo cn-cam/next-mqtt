@@ -33,6 +33,15 @@ x-node: &node
     NEXTMQTT_INTEGRATIONS__RABBIT__PASSWORD: ${NEXTMQTT_RABBIT_PASSWORD:-guest}
     NEXTMQTT_INTEGRATIONS__RABBIT__EXCHANGE: ${NEXTMQTT_RABBIT_EXCHANGE:-nextmqtt}
     NEXTMQTT_INTEGRATIONS__RABBIT__FILTER: ${NEXTMQTT_RABBIT_FILTER:-#}
+    # TLS; mount a certificate directory at /certs and set the paths below.
+    NEXTMQTT_SERVER__TLS__ENABLED: ${NEXTMQTT_TLS_ENABLED:-false}
+    NEXTMQTT_SERVER__TLS__CERTIFICATEPATH: ${NEXTMQTT_TLS_CERT:-/certs/server.pem}
+    NEXTMQTT_SERVER__TLS__CERTIFICATEKEYPATH: ${NEXTMQTT_TLS_KEY:-/certs/server.key}
+    NEXTMQTT_SERVER__TLS__DOMAIN: ${NEXTMQTT_TLS_DOMAIN:-}
+    NEXTMQTT_SERVER__HTTP__TLSPORT: ${NEXTMQTT_HTTPS_PORT:-8084}
+    NEXTMQTT_SERVER__HTTP__CERTIFICATEPATH: ${NEXTMQTT_HTTPS_CERT:-}
+    NEXTMQTT_SERVER__HTTP__CERTIFICATEKEYPATH: ${NEXTMQTT_HTTPS_KEY:-}
+    NEXTMQTT_SERVER__HTTP__DOMAIN: ${NEXTMQTT_HTTPS_DOMAIN:-}
   # Optional alias so a broker on the host (for example a local Kafka that
   # advertises kafka.local) is reachable from the containers.
   extra_hosts:
@@ -51,10 +60,12 @@ services:
     container_name: nextmqtt-node-a
     volumes:
       - node-a-data:/app/data
+      - ${NEXTMQTT_CERT_DIR:-./certs}:/certs:ro
     ports:
       - "1883:1883"
       - "8080:8080"
       - "8083:8083"
+      - "8086:8084"
       - "8883:8883"
     environment:
       <<: *node-env
@@ -68,10 +79,12 @@ services:
     container_name: nextmqtt-node-b
     volumes:
       - node-b-data:/app/data
+      - ${NEXTMQTT_CERT_DIR:-./certs}:/certs:ro
     ports:
       - "1884:1883"
       - "8081:8080"
       - "8084:8083"
+      - "8087:8084"
       - "8884:8883"
     environment:
       <<: *node-env
@@ -85,10 +98,12 @@ services:
     container_name: nextmqtt-node-c
     volumes:
       - node-c-data:/app/data
+      - ${NEXTMQTT_CERT_DIR:-./certs}:/certs:ro
     ports:
       - "1885:1883"
       - "8082:8080"
       - "8085:8083"
+      - "8088:8084"
       - "8885:8883"
     environment:
       <<: *node-env

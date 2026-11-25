@@ -59,6 +59,26 @@ become visible to the rest of the mesh automatically.
 The dashboard **Cluster** page and `GET /api/v1/cluster` expose the current
 view.
 
+## Self-healing
+
+- **Dead nodes are removed.** A peer silent for `NodeTimeoutSeconds` is shown
+  as `suspect`, then `dead`, and is dropped from the table after three
+  timeouts. Its advertised filters stop receiving forwards immediately, so a
+  crash cannot keep attracting traffic.
+- **Limits rescale at once.** Adding or losing a node recomputes the per-node
+  share of connection, publish and topic quotas immediately, rather than waiting
+  for the next sweep. The cluster total stays at the configured value.
+- **Joining at runtime is normal.** A restarted or new node only needs one
+  reachable seed. It merges the membership table from the first heartbeat
+  response, and the other nodes learn about it the same way.
+- **Retained state catches up.** On first join a node pulls the retained set
+  from one peer over the signed internal API, keeping the original timestamps so
+  last-write-wins still applies. Messages published while the node was away are
+  therefore not lost.
+
+Sessions are the exception: they live on the node that accepted the connection,
+so a client that reconnects to another node starts a fresh session.
+
 ## Routing
 
 1. A publish is delivered locally.
@@ -92,10 +112,10 @@ node receives the retained value after its SUBACK. Deleting a retained message
   delivery of the same cluster message.
 - **Session affinity.** Sessions live on the node that accepted the connection.
   Reconnecting to a different node creates a new session (`session present = 0`).
-- **Shared subscriptions are node-local.** Each node evaluates its own
-  `$share` groups. A publish may be delivered to one member per node. This is a
-  deliberate trade-off to keep the transport stateless; global coordination is
-  on the roadmap.
+- **Shared subscriptions span the cluster.** Nodes advertise their `$share`
+  groups in heartbeats; each message is assigned to exactly one node that hosts
+  the group, chosen by hashing the message id and group name, so a group member
+  on another node does not receive a duplicate copy.
 - **Filter propagation is eventual.** New filters are advertised on the next
   heartbeat. A publish immediately after subscribing may not reach a remote
   subscriber until the next heartbeat (default 5 s).
@@ -149,16 +169,17 @@ Wait at least one heartbeat after subscribing before publishing.
 | Only one node in the list | `AdvertiseUrl` reachability from peers; seeds typo; firewall on 8080 |
 | `401` in peer logs | Secrets differ, or clocks differ by more than 5 minutes |
 | Node alternates alive/dead | Heartbeat interval vs. timeout; CPU starvation |
-| Retained message missing on a peer | Peer was down during the retained publish; republish it |
+| Retained message missing on a peer | The peer joined before the sync existed; restart it or republish |
 | Remote subscribers miss messages | Filter has not propagated yet; wait one heartbeat |
 | Duplicate remote deliveries | Message-id cache pruned too early; check node clocks and load |
+| Limits look too low after a restart | The node still counts a dead peer until 3× `NodeTimeoutSeconds` |
 
 ## Limitations
 
 - No cross-node session migration or persistence.
-- No global shared-subscription coordination.
-- No cross-node retained tombstones beyond best-effort replication.
 - Filter advertisements are full snapshots, capped at 10,000 filters per
   heartbeat by default.
 - Cluster routing is at-least-once per link with a deduplication cache, not a
   transactional guarantee.
+- Retained sync happens once on join; a node that is partitioned from the mesh
+  keeps serving its own stale retained values until it reconnects.

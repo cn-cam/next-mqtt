@@ -45,6 +45,8 @@ if (bool.TryParse(Environment.GetEnvironmentVariable("NEXTMQTT_ALLOW_ANONYMOUS")
     authenticationOptions.AllowAnonymous = allowAnonymous;
 }
 
+MqttCertificateLoader.CertificateBundle? httpsBundle = null;
+
 builder.WebHost.ConfigureKestrel(kestrel =>
 {
     kestrel.AddServerHeader = false;
@@ -58,11 +60,16 @@ builder.WebHost.ConfigureKestrel(kestrel =>
 
     if (serverOptions.Http.TlsPort is { } tlsPort && !string.IsNullOrEmpty(serverOptions.Http.CertificatePath))
     {
-        var certificate = MqttCertificateLoader.Load(
+        httpsBundle = MqttCertificateLoader.Load(
             serverOptions.Http.CertificatePath,
+            serverOptions.Http.CertificateKeyPath,
             serverOptions.Http.CertificatePassword);
 
-        kestrel.ListenAnyIP(tlsPort, listen => listen.UseHttps(certificate));
+        kestrel.ListenAnyIP(tlsPort, listen => listen.UseHttps(new HttpsConnectionAdapterOptions
+        {
+            ServerCertificate = httpsBundle.Certificate,
+            ServerCertificateChain = httpsBundle.Chain,
+        }));
     }
 });
 
@@ -236,6 +243,25 @@ var adminAuth = app.Services.GetRequiredService<AdminAuthService>();
 var clusterRouter = app.Services.GetRequiredService<ClusterRouter>();
 var version = typeof(Program).Assembly.GetName().Version?.ToString(3) ?? "0.1.2";
 
+if (httpsBundle is not null)
+{
+    var httpsDomain = serverOptions.Http.Domain;
+
+    if (MqttCertificateLoader.CoversDomain(httpsBundle.Certificate, httpsDomain))
+    {
+        app.Logger.LogInformation(
+            "HTTPS certificate serves {Domain}, valid until {Expiry:u}",
+            httpsDomain,
+            httpsBundle.Certificate.NotAfter);
+    }
+    else if (!string.IsNullOrWhiteSpace(httpsDomain))
+    {
+        app.Logger.LogWarning(
+            "HTTPS certificate does not cover {Domain}; browsers will reject it unless the certificate lists that name",
+            httpsDomain);
+    }
+}
+
 app.UseWebSockets(new WebSocketOptions
 {
     KeepAliveInterval = TimeSpan.FromSeconds(20),
@@ -275,7 +301,7 @@ app.UseStaticFiles();
 
 if (clusterRouter.Enabled)
 {
-    ClusterEndpoints.Map(app, clusterRouter);
+    ClusterEndpoints.Map(app, clusterRouter, broker);
 }
 
 var dashboardDist = Path.GetFullPath(Path.Combine(app.Environment.ContentRootPath, "..", "..", "web", "dist"));
@@ -480,9 +506,15 @@ api.MapGet("/config", (MqttBroker b) => Results.Ok(new
     server = new
     {
         tcp = new { serverOptions.Tcp.Enabled, serverOptions.Tcp.Host, serverOptions.Tcp.Port },
-        tls = new { serverOptions.Tls.Enabled, serverOptions.Tls.Port },
+        tls = new { serverOptions.Tls.Enabled, serverOptions.Tls.Port, serverOptions.Tls.Domain },
         websocket = new { serverOptions.WebSocket.Enabled, serverOptions.WebSocket.Path },
-        http = new { serverOptions.Http.Port, serverOptions.Http.WebSocketPort },
+        http = new
+        {
+            serverOptions.Http.Port,
+            serverOptions.Http.WebSocketPort,
+            serverOptions.Http.TlsPort,
+            serverOptions.Http.Domain,
+        },
     },
     broker = new
     {

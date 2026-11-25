@@ -1,6 +1,8 @@
 using System.Text;
 using System.Text.Json;
+using NextMqtt.Broker;
 using NextMqtt.Broker.Clustering;
+using NextMqtt.Core.Protocol;
 
 namespace NextMqtt.Server.Api;
 
@@ -15,7 +17,8 @@ public static class ClusterEndpoints
     /// <remarks>这些端点由 HMAC 签名保护，不参与管理 API 的 Bearer 认证。</remarks>
     /// <param name="app">Application to extend.</param>
     /// <param name="router">Router that implements the handlers.</param>
-    public static void Map(WebApplication app, ClusterRouter router)
+    /// <param name="broker">Broker that owns the retained store.</param>
+    public static void Map(WebApplication app, ClusterRouter router, MqttBroker broker)
     {
         app.MapPost("/internal/cluster/heartbeat", async context =>
         {
@@ -113,6 +116,36 @@ public static class ClusterEndpoints
             }
 
             context.Response.StatusCode = StatusCodes.Status204NoContent;
+        });
+
+        app.MapPost("/internal/cluster/retained", async context =>
+        {
+            var body = await ReadBodyAsync(context);
+
+            if (body is null)
+            {
+                return;
+            }
+
+            if (!Verify(context, router.Secret, body))
+            {
+                return;
+            }
+
+            var now = DateTimeOffset.UtcNow;
+            var snapshot = broker.Retained.Snapshot()
+                .Where(message => !message.IsExpired(now))
+                .Take(10_000)
+                .Select(message => new ClusterRetainedMessage(
+                    message.Topic,
+                    Convert.ToBase64String(message.Payload),
+                    (int)message.QoS,
+                    message.StoredAt.ToUnixTimeSeconds(),
+                    message.ExpiresAt?.ToUnixTimeSeconds(),
+                    message.Properties.Items.Select(ClusterPropertyDto.FromProperty).ToArray()))
+                .ToArray();
+
+            await context.Response.WriteAsJsonAsync(snapshot, ClusterJson.Options);
         });
     }
 

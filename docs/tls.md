@@ -9,14 +9,24 @@ The same loader is used for MQTT/TLS and Kestrel HTTPS:
 
 - **PFX / PKCS#12** — set `CertificatePath` to the `.pfx`/`.p12` file and
   `CertificatePassword` if needed.
-- **PEM** — set `CertificatePath` to the certificate file. If a matching `.key`
-  file exists next to it, it is used automatically.
+- **PEM** — set `CertificatePath` to the certificate file and
+  `CertificateKeyPath` to the private key. When the key path is omitted, a
+  sibling `.key` file with the same base name is used.
+
+A PEM file may hold the full chain (leaf plus intermediates); everything after
+the leaf is sent to clients automatically, which is what public CAs such as
+Let's Encrypt require.
 
 ```text
 /certs/server.pfx
-/certs/server.pem
-/certs/server.key
+/certs/server.pem        leaf + intermediates
+/certs/server.key        private key
 ```
+
+`Domain` is optional. When set, the server checks at startup that the
+certificate actually covers that name and logs a warning when it does not. It
+never rejects a connection on its own, so a missing or extra SAN cannot take the
+listener down.
 
 ## MQTT over TLS
 
@@ -27,15 +37,16 @@ The same loader is used for MQTT/TLS and Kestrel HTTPS:
       "Enabled": true,
       "Host": "0.0.0.0",
       "Port": 8883,
-      "CertificatePath": "/certs/server.pfx",
-      "CertificatePassword": "change-me"
+      "CertificatePath": "/certs/server.pem",
+      "CertificateKeyPath": "/certs/server.key",
+      "Domain": "mqtt.example.com"
     }
   }
 }
 ```
 
-Clients connect to `mqtts://host:8883` or use TLS on port 8883. TLS 1.2 and 1.3
-are enabled.
+Clients connect to `mqtts://mqtt.example.com:8883` or use TLS on port 8883. TLS
+1.2 and 1.3 are enabled.
 
 ### Self-signed certificate for testing
 
@@ -64,15 +75,16 @@ Set a certificate under `Server:Http` to enable the HTTPS endpoint (default port
       "Port": 8080,
       "WebSocketPort": 8083,
       "TlsPort": 8084,
-      "CertificatePath": "/certs/server.pfx",
-      "CertificatePassword": "change-me"
+      "CertificatePath": "/certs/server.pem",
+      "CertificateKeyPath": "/certs/server.key",
+      "Domain": "mqtt.example.com"
     }
   }
 }
 ```
 
-- Dashboard: `https://host:8084/`
-- Secure WebSocket MQTT: `wss://host:8084/mqtt`
+- Dashboard: `https://mqtt.example.com:8084/`
+- Secure WebSocket MQTT: `wss://mqtt.example.com:8084/mqtt`
 
 Kestrel still listens on the plain HTTP ports unless you disable them; restrict
 them with firewall rules or a reverse proxy.
@@ -168,7 +180,11 @@ created by `kubectl create secret tls`.
 | --- | --- |
 | `TLS listener is enabled but CertificatePath is not configured` | Set the path or disable TLS |
 | `FileNotFoundException` on startup | Mount path and file permissions (UID 10001) |
+| `Certificate ... has no private key` | Set `CertificateKeyPath`; the key is not next to the certificate |
+| `The private key does not match any certificate in the file` | The PEM holds a different key pair than the key file |
 | Certificate password error | PFX password matches `CertificatePassword` |
 | Clients fail hostname validation | Certificate SAN includes the DNS name or IP |
+| `HTTPS certificate does not cover ...` warning | Certificate SAN does not list `Domain`; clients will reject it |
+| `platform does not support ephemeral keys` | Older builds only; the loader now re-imports PEM keys so SChannel can use them |
 | WebSocket upgrade fails | Proxy forwards `Upgrade` and `Connection` headers |
 | Dashboard loops on login | Token secret changes on restart; set a stable secret |

@@ -934,6 +934,10 @@ public sealed class MqttBroker : IAsyncDisposable
         }
     }
 
+    /// <summary>Recomputes limits after the cluster gained or lost a node.</summary>
+    /// <remarks>成员变化时立即调用，不必等下一次清扫，避免新节点在分摊前拿到旧配额。</remarks>
+    public void OnClusterMembershipChanged() => ApplyClusterRateScale();
+
     /// <summary>
     /// Recomputes the per-node share of every rate limit from live membership.
     /// </summary>
