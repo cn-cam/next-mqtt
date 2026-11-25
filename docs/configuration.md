@@ -312,6 +312,22 @@ Delivery is at-least-once per event per rule, with up to three attempts and
 backoff; failures are logged and counted. The body is JSON:
 `{ name, topic, qos, retain, receivedAt, payload }`. Only the node that first
 accepted the publish posts the event, so a cluster does not duplicate webhooks.
+### Routing rules
+
+```json
+{
+  "Integrations": {
+    "Rules": [
+      { "Filter": "debug/#", "Action": "drop" },
+      { "Filter": "health/ping", "Action": "drop" }
+    ]
+  }
+}
+```
+
+A matching message is discarded before retained storage, delivery and cluster
+forwarding, and counts in `nextmqtt_messages_dropped_total`. `drop` is the only
+action in this release; rewrite and enrichment are on the roadmap.
 ## Authentication
 
 ```json

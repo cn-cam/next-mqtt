@@ -50,7 +50,8 @@ public sealed class MqttBroker : IAsyncDisposable
         ISessionSnapshotStore? sessionStore = null,
         int sessionSnapshotSeconds = 30,
         IEnumerable<IEnhancedAuthenticator>? enhancedAuthenticators = null,
-        WebhookDispatcher? webhooks = null)
+        WebhookDispatcher? webhooks = null,
+        RuleEngine? rules = null)
     {
         Options = options;
         Authenticator = authenticator;
@@ -62,6 +63,7 @@ public sealed class MqttBroker : IAsyncDisposable
         _logger = logger;
         _sessionStore = sessionStore;
         Webhooks = webhooks;
+        Rules = rules;
 
         foreach (var provider in enhancedAuthenticators ?? [])
         {
@@ -95,6 +97,9 @@ public sealed class MqttBroker : IAsyncDisposable
 
     /// <summary>Shared per-topic publish quotas, disabled unless configured.</summary>
     public TopicQuotaLimiter TopicQuotas { get; }
+
+    /// <summary>Optional routing rules that can discard messages before storage.</summary>
+    public RuleEngine? Rules { get; }
 
     /// <summary>Optional webhook fan-out for locally accepted messages.</summary>
     public WebhookDispatcher? Webhooks { get; }
@@ -316,6 +321,12 @@ public sealed class MqttBroker : IAsyncDisposable
 
         Metrics.PublishReceived();
         PublishRate.Increment();
+
+        if (Rules?.ShouldDrop(publish.Topic) == true)
+        {
+            Metrics.MessageDropped();
+            return;
+        }
 
         var messageId = Guid.NewGuid().ToString("N");
         var matches = Subscriptions.Match(publish.Topic);

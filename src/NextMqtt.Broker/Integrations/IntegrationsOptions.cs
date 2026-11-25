@@ -8,6 +8,19 @@ public sealed class IntegrationsOptions
 
     /// <summary>HTTP webhooks fed by published messages.</summary>
     public List<WebhookOptions> Webhooks { get; set; } = [];
+
+    /// <summary>Routing rules evaluated before storage and delivery.</summary>
+    public List<RuleOptions> Rules { get; set; } = [];
+}
+
+/// <summary>One routing rule, evaluated on every inbound publish.</summary>
+public sealed class RuleOptions
+{
+    /// <summary>Topic filter that selects messages.</summary>
+    public string Filter { get; set; } = string.Empty;
+
+    /// <summary>Action to take; only <c>drop</c> is supported today.</summary>
+    public string Action { get; set; } = "drop";
 }
 
 /// <summary>One webhook rule: every publish matching the filter becomes a POST.</summary>

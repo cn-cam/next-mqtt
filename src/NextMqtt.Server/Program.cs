@@ -115,8 +115,7 @@ if (storageOptions.Retained.Mode == StorageMode.File)
 }
 
 if (integrationsOptions.Webhooks.Count > 0)
-{
-    builder.Services.AddSingleton(sp =>
+{    builder.Services.AddSingleton(sp =>
     {
         var dispatcher = new WebhookDispatcher(
             integrationsOptions,
@@ -128,6 +127,13 @@ if (integrationsOptions.Webhooks.Count > 0)
 
         return dispatcher;
     });
+}
+
+if (integrationsOptions.Rules.Count > 0)
+{
+    builder.Services.AddSingleton(sp => new RuleEngine(
+        integrationsOptions,
+        sp.GetRequiredService<ILogger<RuleEngine>>()));
 }
 
 if (storageOptions.Session.Mode == StorageMode.File)
@@ -149,7 +155,8 @@ builder.Services.AddSingleton(sp =>
         sp.GetService<ISessionSnapshotStore>(),
         storageOptions.Session.SnapshotSeconds,
         enhancedAuthenticators,
-        sp.GetService<WebhookDispatcher>());
+        sp.GetService<WebhookDispatcher>(),
+        sp.GetService<RuleEngine>());
 
     if (cluster is ClusterRouter clusterRouter)
     {
