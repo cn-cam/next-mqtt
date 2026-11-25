@@ -66,7 +66,8 @@ internal static class TestBroker
         ITopicAuthorizer? authorizer = null,
         NextMqtt.Broker.Clustering.IClusterRouter? cluster = null,
         NextMqtt.Broker.Storage.ISessionSnapshotStore? sessionStore = null,
-        NextMqtt.Broker.Integrations.RuleEngine? rules = null)
+        NextMqtt.Broker.Integrations.RuleEngine? rules = null,
+        NextMqtt.Broker.Integrations.WebhookDispatcher? webhooks = null)
     {
         options ??= new BrokerOptions
         {
@@ -82,7 +83,8 @@ internal static class TestBroker
             NullLogger<MqttBroker>.Instance,
             retainedJournal: null,
             sessionStore: sessionStore,
-            rules: rules);
+            rules: rules,
+            webhooks: webhooks);
     }
 
     public static ConnectPacket Connect(

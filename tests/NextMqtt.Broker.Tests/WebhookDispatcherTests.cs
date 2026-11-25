@@ -60,6 +60,20 @@ public sealed class WebhookDispatcherTests
             new HttpClient(handler),
             NullLogger<WebhookDispatcher>.Instance);
 
+    [Fact]
+    public async Task Broker_forwards_to_integrations_on_the_origin_node()
+    {
+        var handler = new CaptureHandler();
+        await using var dispatcher = Create(handler);
+        var broker = TestBroker.Create(webhooks: dispatcher);
+        await using var _ = broker;
+
+        await broker.PublishAsync("audit/login", "alice"u8.ToArray(), MqttQoS.AtLeastOnce);
+
+        Assert.True(await WaitForAsync(() => dispatcher.Delivered == 1));
+        Assert.Single(handler.Bodies);
+    }
+
     private static async Task<bool> WaitForAsync(Func<bool> condition)
     {
         for (var attempt = 0; attempt < 100; attempt++)

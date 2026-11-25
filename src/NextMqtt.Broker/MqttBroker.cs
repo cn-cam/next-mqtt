@@ -337,6 +337,16 @@ public sealed class MqttBroker : IAsyncDisposable
         Metrics.PublishReceived();
         PublishRate.Increment();
 
+        // Only the node that first accepted the publish feeds integrations, so a
+        // cluster does not post the same message once per node.
+        if (forwardToCluster)
+        {
+            Webhooks?.Publish(publish);
+            Nats?.Publish(publish);
+            Kafka?.Publish(publish);
+            Rabbit?.Publish(publish);
+        }
+
         if (Rules?.ShouldDrop(publish.Topic) == true)
         {
             Metrics.MessageDropped();
