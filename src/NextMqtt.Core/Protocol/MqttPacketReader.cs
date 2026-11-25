@@ -12,6 +12,9 @@ public sealed class MqttPacketReader
     private readonly PipeReader _reader;
     private readonly int _maxPacketSize;
 
+    /// <summary>Wraps a pipe and enforces the maximum frame size.</summary>
+    /// <param name="reader">Pipe that carries the raw TCP/WebSocket bytes.</param>
+    /// <param name="maxPacketSize">Largest accepted MQTT packet in bytes.</param>
     public MqttPacketReader(PipeReader reader, int maxPacketSize = MqttLimits.DefaultMaxPacketSize)
     {
         ArgumentNullException.ThrowIfNull(reader);
@@ -21,6 +24,11 @@ public sealed class MqttPacketReader
         _maxPacketSize = maxPacketSize;
     }
 
+    /// <summary>Reads the next complete packet, or null at end of stream.</summary>
+    /// <remarks>半包会等待更多数据；超过最大报文或长度非法时抛出 <see cref="MqttProtocolException"/>。</remarks>
+    /// <param name="version">Protocol level used to decode MQTT 5 properties.</param>
+    /// <param name="cancellationToken">Cancels the wait for more bytes.</param>
+    /// <returns>The decoded packet, or <c>null</c> when the peer closed the stream.</returns>
     public async ValueTask<MqttPacket?> ReadAsync(
         MqttProtocolVersion version,
         CancellationToken cancellationToken = default)

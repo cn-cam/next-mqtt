@@ -5,6 +5,11 @@ namespace NextMqtt.Core.Protocol;
 /// <summary>Encodes MQTT control packets.</summary>
 public static class MqttPacketWriter
 {
+    /// <summary>Serializes one packet, writing the fixed and variable headers.</summary>
+    /// <remarks>校验和版本差异在此统一处理：3.1.1 不编码 MQTT 5 属性。</remarks>
+    /// <param name="writer">Destination buffer; the caller owns flushing.</param>
+    /// <param name="packet">Packet to encode.</param>
+    /// <param name="version">Protocol level of the target connection.</param>
     public static void Write(IBufferWriter<byte> writer, MqttPacket packet, MqttProtocolVersion version)
     {
         ArgumentNullException.ThrowIfNull(writer);
