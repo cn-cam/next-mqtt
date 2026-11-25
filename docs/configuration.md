@@ -319,15 +319,18 @@ accepted the publish posts the event, so a cluster does not duplicate webhooks.
   "Integrations": {
     "Rules": [
       { "Filter": "debug/#", "Action": "drop" },
-      { "Filter": "health/ping", "Action": "drop" }
+      { "Filter": "health/ping", "Action": "drop" },`n      { "Filter": "legacy/#", "Action": "rewrite", "Target": "modern/" }
     ]
   }
 }
 ```
 
 A matching message is discarded before retained storage, delivery and cluster
-forwarding, and counts in `nextmqtt_messages_dropped_total`. `drop` is the only
-action in this release; rewrite and enrichment are on the roadmap.
+forwarding, and counts in `nextmqtt_messages_dropped_total`. `rewrite` replaces
+the literal part of the filter with `Target` and keeps the remainder, so
+`legacy/a/b` becomes `modern/a/b`; a filter without wildcards replaces the whole
+topic. Drop rules win over rewrite rules, and a rewrite that produces an invalid
+topic drops the message.
 ## Plugins
 
 Plugins run in-process, in a collectible load context, and are discovered from

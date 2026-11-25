@@ -20,6 +20,15 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 - Retained messages use the origin timestamp for last-write-wins merging, and
   deletions leave a tombstone so an older replica cannot resurrect a removed value.
 
+## [0.13.0] - 2026-11-25
+
+### Added
+
+- `rewrite` routing rules: the literal filter prefix is replaced with a target
+  prefix, so `legacy/#` can feed `modern/#` without touching publishers.
+  Invalid rewrite targets are rejected at startup and invalid results drop the
+  message.
+
 ## [0.12.0] - 2026-11-25
 
 ### Added
@@ -262,7 +271,8 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 - GitHub Actions for CI, CodeQL, releases and GitHub Pages.
 - Mechanical brand/trademark compliance scanner and repository policy.
 
-[Unreleased]: https://github.com/cn-cam/next-mqtt/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/cn-cam/next-mqtt/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.13.0
 [0.12.0]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.12.0
 [0.11.0]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.11.0
 [0.10.0]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.10.0

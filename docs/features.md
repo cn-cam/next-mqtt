@@ -29,7 +29,7 @@ Legend: ✅ implemented · ⚠️ partial or with documented limits · ❌ not i
 | Server-side receive-maximum enforcement | ⚠️ | Broker advertises and bounds its own inflight window |
 | Client maximum packet size on delivery | ⚠️ | Inbound limit enforced; outbound packet trimming is not |
 | MQTT over QUIC | ❌ | Research item |
-| HTTP webhook bridge | ✅ | Per-rule bounded queues, retries, origin-only posting |`n| Plugin host | ✅ | Manifest + collectible load context; authenticator/authorizer selection |`n| Rule engine transforms / Kafka / NATS | ❌ | Roadmap |
+| HTTP webhook bridge | ✅ | Per-rule bounded queues, retries, origin-only posting |`n| Plugin host | ✅ | Manifest + collectible load context; authenticator/authorizer selection |`n| Rule engine actions | ✅ | Topic-filtered `drop` and prefix `rewrite` before storage |`n| Kafka / NATS bridges | ❌ | Roadmap |
 
 ## Sessions and delivery
 

@@ -29,10 +29,66 @@ public sealed class RuleEngineTests
     [Fact]
     public void Unknown_actions_and_filters_are_ignored()
     {
-        var engine = Create(("debug/#", "rewrite"), ("bad/#/filter", "drop"));
+        var engine = Create(("debug/#", "archive"), ("bad/#/filter", "drop"));
 
         Assert.Equal(0, engine.DropRuleCount);
         Assert.False(engine.ShouldDrop("debug/verbose"));
+    }
+
+    [Fact]
+    public void Rewrite_replaces_the_literal_prefix()
+    {
+        var engine = new RuleEngine(
+            new IntegrationsOptions
+            {
+                Rules = [new RuleOptions { Filter = "legacy/#", Action = "rewrite", Target = "modern/" }],
+            },
+            NullLogger.Instance);
+
+        Assert.True(engine.TryRewrite("legacy/a/b", out var rewritten));
+        Assert.Equal("modern/a/b", rewritten);
+        Assert.False(engine.TryRewrite("prod/a", out _));
+    }
+
+    [Fact]
+    public void Rewrite_without_a_wildcard_replaces_the_whole_topic()
+    {
+        var engine = new RuleEngine(
+            new IntegrationsOptions
+            {
+                Rules = [new RuleOptions { Filter = "old/topic", Action = "rewrite", Target = "new/topic" }],
+            },
+            NullLogger.Instance);
+
+        Assert.True(engine.TryRewrite("old/topic", out var rewritten));
+        Assert.Equal("new/topic", rewritten);
+    }
+
+    [Fact]
+    public async Task Rewritten_publish_reaches_the_target_subscribers()
+    {
+        var engine = new RuleEngine(
+            new IntegrationsOptions
+            {
+                Rules = [new RuleOptions { Filter = "legacy/#", Action = "rewrite", Target = "modern/" }],
+            },
+            NullLogger.Instance);
+
+        var broker = TestBroker.Create(rules: engine);
+        await using var _ = broker;
+
+        var (_, _, subscriber) = await TestBroker.ConnectAsync("sub", broker: broker);
+        broker.Subscriptions.AddOrReplace(new NextMqtt.Broker.Subscriptions.Subscription
+        {
+            ClientId = "sub",
+            Filter = NextMqtt.Core.Topics.TopicFilter.Parse("modern/#"),
+            Options = new MqttSubscriptionOptions(MqttQoS.AtMostOnce),
+        });
+
+        await broker.PublishAsync("legacy/sensor", "1"u8.ToArray(), MqttQoS.AtMostOnce);
+
+        var message = Assert.Single(subscriber.Publishes());
+        Assert.Equal("modern/sensor", message.Topic);
     }
 
     [Fact]

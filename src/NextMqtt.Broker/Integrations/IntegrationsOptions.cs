@@ -19,8 +19,11 @@ public sealed class RuleOptions
     /// <summary>Topic filter that selects messages.</summary>
     public string Filter { get; set; } = string.Empty;
 
-    /// <summary>Action to take; only <c>drop</c> is supported today.</summary>
+    /// <summary>Action to take: <c>drop</c> or <c>rewrite</c>.</summary>
     public string Action { get; set; } = "drop";
+
+    /// <summary>Target prefix or full topic for <c>rewrite</c> rules.</summary>
+    public string? Target { get; set; }
 }
 
 /// <summary>One webhook rule: every publish matching the filter becomes a POST.</summary>

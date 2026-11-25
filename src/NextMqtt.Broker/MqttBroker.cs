@@ -328,6 +328,32 @@ public sealed class MqttBroker : IAsyncDisposable
             return;
         }
 
+        if (Rules is not null
+            && Rules.TryRewrite(publish.Topic, out var rewritten)
+            && !string.Equals(rewritten, publish.Topic, StringComparison.Ordinal))
+        {
+            if (!MqttTopic.IsValidTopicName(rewritten, out var rewriteError))
+            {
+                _logger.LogWarning(
+                    "Dropping message: rewrite produced an invalid topic {Topic}: {Error}",
+                    rewritten,
+                    rewriteError);
+                Metrics.MessageDropped();
+                return;
+            }
+
+            publish = new PublishPacket
+            {
+                Topic = rewritten,
+                Payload = publish.Payload,
+                QoS = publish.QoS,
+                Retain = publish.Retain,
+                Duplicate = publish.Duplicate,
+                PacketId = publish.PacketId,
+                Properties = publish.Properties,
+            };
+        }
+
         var messageId = Guid.NewGuid().ToString("N");
         var matches = Subscriptions.Match(publish.Topic);
         if (matches.Count > 0)
