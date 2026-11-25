@@ -34,6 +34,10 @@ public sealed class ClusterRouter : IClusterRouter
     private long _publishesReceived;
     private int _stopped;
 
+    /// <summary>Creates the router; it stays idle until <see cref="StartAsync"/> is called.</summary>
+    /// <param name="options">Cluster settings including node id, seeds and secret.</param>
+    /// <param name="logger">Logger for heartbeat and forwarding failures.</param>
+    /// <param name="httpClient">Client used for heartbeats and publish forwarding.</param>
     public ClusterRouter(
         ClusterOptions options,
         ILogger<ClusterRouter> logger,
@@ -44,12 +48,18 @@ public sealed class ClusterRouter : IClusterRouter
         _httpClient = httpClient;
     }
 
+    /// <summary>True when a cluster secret and node id are configured.</summary>
     public bool Enabled => _options.Enabled;
 
+    /// <summary>Shared secret used to sign requests to peers.</summary>
     public string Secret => _options.Secret;
 
+    /// <summary>Gives the router the broker used for routing inbound forwards.</summary>
+    /// <param name="broker">Broker that owns the router.</param>
     public void AttachBroker(MqttBroker broker) => _broker = broker;
 
+    /// <summary>Starts the heartbeat loop when clustering is enabled.</summary>
+    /// <param name="cancellationToken">Cancels startup.</param>
     public ValueTask StartAsync(CancellationToken cancellationToken = default)
     {
         if (!Enabled || _loop is not null)
@@ -90,6 +100,7 @@ public sealed class ClusterRouter : IClusterRouter
         return ValueTask.CompletedTask;
     }
 
+    /// <summary>Stops the heartbeat loop and tries to announce the departure.</summary>
     public async ValueTask StopAsync()
     {
         if (Interlocked.Exchange(ref _stopped, 1) != 0)
@@ -114,6 +125,7 @@ public sealed class ClusterRouter : IClusterRouter
         _lifetime.Dispose();
     }
 
+    /// <summary>Projects the membership table for the cluster API.</summary>
     public ClusterSnapshot GetSnapshot()
     {
         if (!Enabled || _self is null)
@@ -136,6 +148,10 @@ public sealed class ClusterRouter : IClusterRouter
         return new ClusterSnapshot(_self.NodeId, "clustered", nodes);
     }
 
+    /// <summary>Forwards a publish to peers that advertised a matching filter.</summary>
+    /// <remarks>尽力而为：失败只记日志，不影响本地投递。</remarks>
+    /// <param name="publish">Publish already accepted locally.</param>
+    /// <param name="cancellationToken">Cancels the fan-out.</param>
     public async ValueTask RouteAsync(PublishPacket publish, CancellationToken cancellationToken = default)
     {
         if (!Enabled || _self is null)
@@ -171,6 +187,7 @@ public sealed class ClusterRouter : IClusterRouter
             .ConfigureAwait(false);
     }
 
+    /// <summary>Copies the membership table for gossip responses.</summary>
     public MemberSnapshot[] SnapshotMembers()
     {
         if (_self is null)
@@ -191,6 +208,9 @@ public sealed class ClusterRouter : IClusterRouter
             .ToArray();
     }
 
+    /// <summary>Handles a peer heartbeat and returns the local membership view.</summary>
+    /// <param name="heartbeat">Heartbeat received from the peer.</param>
+    /// <param name="cancellationToken">Cancels the response.</param>
     public ValueTask<ClusterHeartbeatResponse> ProcessHeartbeatAsync(
         ClusterHeartbeatRequest request,
         CancellationToken cancellationToken = default)
@@ -219,6 +239,10 @@ public sealed class ClusterRouter : IClusterRouter
         return ValueTask.FromResult(response);
     }
 
+    /// <summary>Routes a publish received from a peer, rejecting duplicates.</summary>
+    /// <param name="message">Forwarded message.</param>
+    /// <param name="cancellationToken">Cancels routing.</param>
+    /// <returns><c>true</c> when accepted; <c>false</c> for duplicates.</returns>
     public async ValueTask<bool> ProcessPublishAsync(
         ClusterPublishMessage message,
         CancellationToken cancellationToken = default)
@@ -284,6 +308,8 @@ public sealed class ClusterRouter : IClusterRouter
         return true;
     }
 
+    /// <summary>Removes a node that announced its departure.</summary>
+    /// <param name="nodeId">Node identifier.</param>
     public void Leave(string nodeId)
     {
         if (_self is not null && nodeId != _self.NodeId)
@@ -293,8 +319,10 @@ public sealed class ClusterRouter : IClusterRouter
         }
     }
 
+    /// <summary>Messages forwarded to peers since start.</summary>
     public long PublishesSent => Interlocked.Read(ref _publishesSent);
 
+    /// <summary>Messages accepted from peers since start.</summary>
     public long PublishesReceived => Interlocked.Read(ref _publishesReceived);
 
     private async Task HeartbeatLoopAsync(CancellationToken cancellationToken)
@@ -612,6 +640,12 @@ public sealed class ClusterRouter : IClusterRouter
         };
     }
 
+    /// <summary>Membership row exchanged in heartbeats and returned by the API.</summary>
+    /// <param name="NodeId">Member identifier.</param>
+    /// <param name="AdvertiseUrl">Base URL for heartbeats and forwarding.</param>
+    /// <param name="Status">alive, suspect or dead.</param>
+    /// <param name="LastSeenUnix">Last successful contact, Unix seconds.</param>
+    /// <param name="Filters">Filters the member advertised.</param>
     public sealed record MemberSnapshot(
         string NodeId,
         string AdvertiseUrl,

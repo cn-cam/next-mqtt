@@ -37,6 +37,8 @@ public sealed class MqttBroker : IAsyncDisposable
     private Task? _maintenanceTask;
     private bool _disposed;
 
+    /// <summary>Creates the broker facade and restores persisted state.</summary>
+    /// <remarks>构造时重放保留消息日志与会话快照，因此调用方应先准备好存储实现。</remarks>
     public MqttBroker(
         BrokerOptions options,
         IClientAuthenticator authenticator,
@@ -64,12 +66,16 @@ public sealed class MqttBroker : IAsyncDisposable
         }
     }
 
+    /// <summary>Limits and timings this broker was created with.</summary>
     public BrokerOptions Options { get; }
 
+    /// <summary>Credential validator used by CONNECT.</summary>
     public IClientAuthenticator Authenticator { get; }
 
+    /// <summary>Topic ACL used for publish and subscribe.</summary>
     public ITopicAuthorizer Authorizer { get; }
 
+    /// <summary>Cross-node router; a null implementation when clustering is off.</summary>
     public IClusterRouter Cluster { get; }
 
     /// <summary>Per-address CONNECT limiter, disabled unless configured.</summary>
@@ -85,23 +91,38 @@ public sealed class MqttBroker : IAsyncDisposable
     /// <remarks>限流按节点均分：节点越多，单节点放行额度越小。</remarks>
     public int ClusterSize { get; private set; } = 1;
 
+    /// <summary>All sessions, online and offline.</summary>
     public SessionRegistry Sessions { get; } = new();
 
+    /// <summary>Subscription index used for routing.</summary>
     public SubscriptionIndex Subscriptions { get; } = new();
 
+    /// <summary>Retained messages, optionally journaled to disk.</summary>
     public RetainedMessageStore Retained { get; }
 
+    /// <summary>Monotonic counters exposed through the API and metrics endpoint.</summary>
     public BrokerMetrics Metrics { get; } = new();
 
+    /// <summary>Inbound publish rate for the last 60 seconds.</summary>
     public RateTracker PublishRate { get; } = new();
 
+    /// <summary>Outbound delivery rate for the last 60 seconds.</summary>
     public RateTracker DeliveryRate { get; } = new();
 
+    /// <summary>Validates credentials through the configured authenticator.</summary>
+    /// <param name="context">Client identity and credentials from CONNECT.</param>
+    /// <param name="cancellationToken">Cancels the async authentication step.</param>
     public ValueTask<AuthenticationResult> AuthenticateAsync(
         ClientAuthenticationContext context,
         CancellationToken cancellationToken = default)
         => Authenticator.AuthenticateAsync(context, cancellationToken);
 
+    /// <summary>Binds a connection to a session, taking over an existing one.</summary>
+    /// <remarks>cleanStart 时清除旧状态；否则复用会话并报告 session present。</remarks>
+    /// <param name="connect">CONNECT packet from the client.</param>
+    /// <param name="principal">Authenticated identity.</param>
+    /// <param name="connection">Connection that will own the session.</param>
+    /// <param name="cancellationToken">Cancels the attach.</param>
     public async Task<SessionAttachResult> AttachSessionAsync(
         ConnectPacket connect,
         ClientPrincipal principal,
@@ -181,6 +202,12 @@ public sealed class MqttBroker : IAsyncDisposable
         return new SessionAttachResult(session, sessionPresent, previous);
     }
 
+    /// <summary>Applies disconnect rules: will publication, expiry and metrics.</summary>
+    /// <param name="session">Session whose connection ended.</param>
+    /// <param name="connection">Connection that closed.</param>
+    /// <param name="disconnect">DISCONNECT packet, when the client sent one.</param>
+    /// <param name="graceful">True when the socket closed without a protocol error.</param>
+    /// <param name="cancellationToken">Cancels will publication.</param>
     public async Task OnConnectionClosedAsync(
         BrokerSession session,
         IClientConnection connection,
@@ -326,6 +353,11 @@ public sealed class MqttBroker : IAsyncDisposable
     public ValueTask RouteFromClusterAsync(PublishPacket publish, CancellationToken cancellationToken = default)
         => RouteAsync(publish, sourceClientId: null, cancellationToken, forwardToCluster: false);
 
+    /// <summary>Publishes internally, for example for a will or the dashboard.</summary>
+    /// <param name="topic">Topic name.</param>
+    /// <param name="payload">Payload bytes.</param>
+    /// <param name="qos">Delivery guarantee to use.</param>
+    /// <param name="cancellationToken">Cancels routing.</param>
     public async ValueTask PublishAsync(
         string topic,
         byte[] payload,
@@ -349,12 +381,15 @@ public sealed class MqttBroker : IAsyncDisposable
         await RouteAsync(publish, sourceClientId: null, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>Starts the maintenance loop and the cluster router.</summary>
+    /// <param name="cancellationToken">Cancels startup.</param>
     public Task StartAsync(CancellationToken cancellationToken)
     {
         _maintenanceTask ??= Task.Run(() => MaintenanceLoopAsync(_lifetime.Token), CancellationToken.None);
         return Cluster.StartAsync(cancellationToken).AsTask();
     }
 
+    /// <summary>Stops background loops without disposing session state.</summary>
     public async Task StopAsync()
     {
         _lifetime.Cancel();
@@ -373,6 +408,7 @@ public sealed class MqttBroker : IAsyncDisposable
         }
     }
 
+    /// <summary>Samples counters and gauges for the statistics endpoint.</summary>
     public BrokerStats GetStats()
         => Metrics.Snapshot(
             Sessions.ConnectedCount(),
@@ -381,12 +417,14 @@ public sealed class MqttBroker : IAsyncDisposable
             Retained.Count,
             PublishRate.Snapshot());
 
+    /// <summary>Lists sessions with subscription counts for the clients table.</summary>
     public IReadOnlyList<ClientSnapshot> GetClients()
         => Sessions.Snapshot()
             .Select(session => session.Snapshot(Subscriptions.GetByClient(session.ClientId).Count))
             .OrderBy(client => client.ClientId, StringComparer.Ordinal)
             .ToList();
 
+    /// <summary>Lists every subscription for the subscriptions table.</summary>
     public IReadOnlyList<SubscriptionSnapshot> GetSubscriptions()
         => Subscriptions.GetAll()
             .Select(subscription => new SubscriptionSnapshot(
@@ -402,6 +440,7 @@ public sealed class MqttBroker : IAsyncDisposable
             .ThenBy(subscription => subscription.Filter, StringComparer.Ordinal)
             .ToList();
 
+    /// <summary>Lists retained messages for the retained table.</summary>
     public IReadOnlyList<RetainedSnapshot> GetRetained()
         => Retained.Snapshot()
             .Select(message => new RetainedSnapshot(
@@ -413,6 +452,10 @@ public sealed class MqttBroker : IAsyncDisposable
             .OrderBy(message => message.Topic, StringComparer.Ordinal)
             .ToList();
 
+    /// <summary>Administratively disconnects a client with 0x98.</summary>
+    /// <param name="clientId">Session to disconnect.</param>
+    /// <param name="cancellationToken">Cancels the disconnect.</param>
+    /// <returns><c>true</c> when a connected client was found and kicked.</returns>
     public async Task<bool> KickClientAsync(string clientId, CancellationToken cancellationToken = default)
     {
         var session = Sessions.Get(clientId);
@@ -437,12 +480,18 @@ public sealed class MqttBroker : IAsyncDisposable
         return true;
     }
 
+    /// <summary>Deletes one retained message.</summary>
+    /// <param name="topic">Exact topic name.</param>
     public bool DeleteRetained(string topic) => Retained.Remove(topic);
 
+    /// <summary>Number of retained messages after an administrative clear request.</summary>
+    /// <returns>Remaining count, which is zero after the call.</returns>
     public int ClearRetained() => Retained.Count;
 
+    /// <summary>Membership view for the cluster page and API.</summary>
     public ClusterSnapshot GetCluster() => Cluster.GetSnapshot();
 
+    /// <summary>Flushes session state and releases resources.</summary>
     public async ValueTask DisposeAsync()
     {
         if (_disposed)

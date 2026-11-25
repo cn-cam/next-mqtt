@@ -6,21 +6,30 @@ namespace NextMqtt.Broker.Subscriptions;
 /// <summary>A subscription owned by a session.</summary>
 public sealed class Subscription
 {
+    /// <summary>Subscriber that owns the filter.</summary>
     public required string ClientId { get; init; }
 
+    /// <summary>Parsed filter, including a shared-subscription prefix when present.</summary>
     public required TopicFilter Filter { get; init; }
 
+    /// <summary>Granted QoS and MQTT 5 subscription options.</summary>
     public required MqttSubscriptionOptions Options { get; init; }
 
     /// <summary>MQTT 5 subscription identifier, when supplied by the client.</summary>
+    /// <summary>Subscription identifier echoed on deliveries, when supplied.</summary>
     public int? Identifier { get; init; }
 
+    /// <summary>Filter text without the shared-subscription prefix.</summary>
     public string EffectiveFilter => Filter.Filter;
 
+    /// <summary>Stable key combining client id and the original filter text.</summary>
     public string Key => $"{ClientId}\0{Filter.Original}";
 }
 
 /// <summary>A subscription selected for a topic, optionally from a shared group.</summary>
+/// <summary>A subscription that matched a topic, with its shared group.</summary>
+/// <param name="Subscription">Matched subscription.</param>
+/// <param name="SharedGroup">Group name when the match came from a shared filter.</param>
 public readonly record struct SubscriptionMatch(Subscription Subscription, string? SharedGroup);
 
 /// <summary>
