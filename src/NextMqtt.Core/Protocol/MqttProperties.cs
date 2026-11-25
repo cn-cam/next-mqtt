@@ -5,43 +5,110 @@ namespace NextMqtt.Core.Protocol;
 /// <summary>MQTT 5 property identifiers.</summary>
 public enum MqttPropertyId
 {
+    /// <summary>0x01 — payload is UTF-8 text (0) or unspecified binary (1).</summary>
     PayloadFormatIndicator = 1,
+
+    /// <summary>0x02 — seconds until the message expires.</summary>
     MessageExpiryInterval = 2,
+
+    /// <summary>0x03 — MIME type of the payload.</summary>
     ContentType = 3,
+
+    /// <summary>0x08 — topic the receiver should reply to.</summary>
     ResponseTopic = 8,
+
+    /// <summary>0x09 — opaque data correlating a reply with its request.</summary>
     CorrelationData = 9,
+
+    /// <summary>0x0B — identifier echoed back with matching deliveries.</summary>
     SubscriptionIdentifier = 11,
+
+    /// <summary>0x11 — how long the session outlives the connection.</summary>
     SessionExpiryInterval = 17,
+
+    /// <summary>0x12 — client identifier chosen by the server.</summary>
     AssignedClientIdentifier = 18,
+
+    /// <summary>0x13 — keep-alive the server wants the client to use.</summary>
     ServerKeepAlive = 19,
+
+    /// <summary>0x15 — name of the enhanced authentication method.</summary>
     AuthenticationMethod = 21,
+
+    /// <summary>0x16 — method-specific authentication bytes.</summary>
     AuthenticationData = 22,
+
+    /// <summary>0x17 — whether the client wants reason strings and user properties.</summary>
     RequestProblemInformation = 23,
+
+    /// <summary>0x18 — seconds to wait before publishing the will.</summary>
     WillDelayInterval = 24,
+
+    /// <summary>0x19 — whether the client wants response information.</summary>
     RequestResponseInformation = 25,
+
+    /// <summary>0x1A — response information from the server.</summary>
     ResponseInformation = 26,
+
+    /// <summary>0x1C — another server the client may use.</summary>
     ServerReference = 28,
+
+    /// <summary>0x1F — human-readable reason for a failure.</summary>
     ReasonString = 31,
+
+    /// <summary>0x21 — receive maximum (inflight window) the sender allows.</summary>
     ReceiveMaximum = 33,
+
+    /// <summary>0x22 — largest topic alias the sender accepts.</summary>
     TopicAliasMaximum = 34,
+
+    /// <summary>0x23 — numeric alias replacing the topic name on later publishes.</summary>
     TopicAlias = 35,
+
+    /// <summary>0x24 — highest QoS the server supports.</summary>
     MaximumQoS = 36,
+
+    /// <summary>0x25 — whether retained messages are available.</summary>
     RetainAvailable = 37,
+
+    /// <summary>0x26 — application-defined key/value pair; may repeat.</summary>
     UserProperty = 38,
+
+    /// <summary>0x27 — largest packet the sender will accept.</summary>
     MaximumPacketSize = 39,
+
+    /// <summary>0x28 — whether wildcard subscriptions are available.</summary>
     WildcardSubscriptionAvailable = 40,
+
+    /// <summary>0x29 — whether subscription identifiers are available.</summary>
     SubscriptionIdentifierAvailable = 41,
+
+    /// <summary>0x2A — whether shared subscriptions are available.</summary>
     SharedSubscriptionAvailable = 42,
 }
 
+/// <summary>Wire encoding of an MQTT 5 property value.</summary>
 public enum MqttPropertyDataType
 {
+    /// <summary>Single byte.</summary>
     Byte,
+
+    /// <summary>Two-byte unsigned integer, big endian.</summary>
     UInt16,
+
+    /// <summary>Four-byte unsigned integer, big endian.</summary>
     UInt32,
+
+    /// <summary>1-4 byte variable byte integer.</summary>
     VariableByteInteger,
+
+    /// <summary>Length-prefixed UTF-8 string.</summary>
     String,
+
+    /// <summary>Length-prefixed binary data.</summary>
     Binary,
+
+    /// <summary>Two length-prefixed strings (user property).</summary>
     StringPair,
 }
 
@@ -56,12 +123,20 @@ public sealed class MqttProperties
 {
     private readonly List<MqttProperty> _items = [];
 
+    /// <summary>Properties in insertion order; user properties may repeat.</summary>
     public IReadOnlyList<MqttProperty> Items => _items;
 
+    /// <summary>Number of individual property entries.</summary>
     public int Count => _items.Count;
 
+    /// <summary>True when the bag holds no properties.</summary>
     public bool IsEmpty => _items.Count == 0;
 
+    /// <summary>Adds a property after validating its type and uniqueness.</summary>
+    /// <remarks>除 UserProperty/SubscriptionIdentifier 外，重复添加会抛出 0x82。</remarks>
+    /// <param name="id">Property identifier.</param>
+    /// <param name="value">Boxed value matching <see cref="MqttProperties.GetDataType"/>.</param>
+    /// <returns>The same bag, for chaining.</returns>
     public MqttProperties Add(MqttPropertyId id, object value)
     {
         MqttPropertyValidation.ValidateValue(id, value);
@@ -81,21 +156,51 @@ public sealed class MqttProperties
         return this;
     }
 
+    /// <summary>Adds a byte-valued property.</summary>
+    /// <param name="id">Property identifier.</param>
+    /// <param name="value">Value in the range 0-255.</param>
+    /// <returns>The same bag, for chaining.</returns>
     public MqttProperties AddByte(MqttPropertyId id, byte value) => Add(id, value);
 
+    /// <summary>Adds a two-byte unsigned property.</summary>
+    /// <param name="id">Property identifier.</param>
+    /// <param name="value">Value in the range 0-65535.</param>
+    /// <returns>The same bag, for chaining.</returns>
     public MqttProperties AddUInt16(MqttPropertyId id, ushort value) => Add(id, value);
 
+    /// <summary>Adds a four-byte unsigned property.</summary>
+    /// <param name="id">Property identifier.</param>
+    /// <param name="value">Value in the range 0-4294967295.</param>
+    /// <returns>The same bag, for chaining.</returns>
     public MqttProperties AddUInt32(MqttPropertyId id, uint value) => Add(id, value);
 
+    /// <summary>Adds a variable byte integer property.</summary>
+    /// <param name="id">Property identifier.</param>
+    /// <param name="value">Value in the range 0-268435455.</param>
+    /// <returns>The same bag, for chaining.</returns>
     public MqttProperties AddVariableByteInteger(MqttPropertyId id, int value) => Add(id, value);
 
+    /// <summary>Adds a UTF-8 string property.</summary>
+    /// <param name="id">Property identifier.</param>
+    /// <param name="value">String value; must fit the 65535-byte field limit.</param>
+    /// <returns>The same bag, for chaining.</returns>
     public MqttProperties AddString(MqttPropertyId id, string value) => Add(id, value);
 
+    /// <summary>Adds a binary property, copying the span.</summary>
+    /// <param name="id">Property identifier.</param>
+    /// <param name="value">Bytes; must fit the 65535-byte field limit.</param>
+    /// <returns>The same bag, for chaining.</returns>
     public MqttProperties AddBinary(MqttPropertyId id, ReadOnlySpan<byte> value) => Add(id, value.ToArray());
 
+    /// <summary>Adds one application-defined user property.</summary>
+    /// <param name="name">Key; may repeat with different values.</param>
+    /// <param name="value">Value paired with the key.</param>
+    /// <returns>The same bag, for chaining.</returns>
     public MqttProperties AddUserProperty(string name, string value)
         => Add(MqttPropertyId.UserProperty, new KeyValuePair<string, string>(name, value));
 
+    /// <summary>Reads a byte property, or null when it is absent.</summary>
+    /// <param name="id">Property identifier.</param>
     public byte? GetByte(MqttPropertyId id)
     {
         foreach (var property in _items)
@@ -109,6 +214,8 @@ public sealed class MqttProperties
         return null;
     }
 
+    /// <summary>Reads a two-byte unsigned property, or null when absent.</summary>
+    /// <param name="id">Property identifier.</param>
     public ushort? GetUInt16(MqttPropertyId id)
     {
         foreach (var property in _items)
@@ -122,6 +229,8 @@ public sealed class MqttProperties
         return null;
     }
 
+    /// <summary>Reads a four-byte unsigned property, or null when absent.</summary>
+    /// <param name="id">Property identifier.</param>
     public uint? GetUInt32(MqttPropertyId id)
     {
         foreach (var property in _items)
@@ -135,6 +244,8 @@ public sealed class MqttProperties
         return null;
     }
 
+    /// <summary>Reads a variable byte integer property, or null when absent.</summary>
+    /// <param name="id">Property identifier.</param>
     public int? GetVariableByteInteger(MqttPropertyId id)
     {
         foreach (var property in _items)
@@ -148,6 +259,8 @@ public sealed class MqttProperties
         return null;
     }
 
+    /// <summary>Reads a string property, or null when absent.</summary>
+    /// <param name="id">Property identifier.</param>
     public string? GetString(MqttPropertyId id)
     {
         foreach (var property in _items)
@@ -161,6 +274,9 @@ public sealed class MqttProperties
         return null;
     }
 
+    /// <summary>Reads a binary property, or null when absent.</summary>
+    /// <remarks>返回内部数组，不要修改；需要写入时请复制。</remarks>
+    /// <param name="id">Property identifier.</param>
     public byte[]? GetBinary(MqttPropertyId id)
     {
         foreach (var property in _items)
@@ -174,6 +290,7 @@ public sealed class MqttProperties
         return null;
     }
 
+    /// <summary>Enumerates every user property in insertion order.</summary>
     public IEnumerable<KeyValuePair<string, string>> GetUserProperties()
     {
         foreach (var property in _items)
@@ -267,6 +384,10 @@ public sealed class MqttProperties
         MqttWire.WriteBytes(writer, scratch.WrittenSpan);
     }
 
+    /// <summary>Maps a property identifier to its wire encoding.</summary>
+    /// <remarks>未知属性抛出 0x81；调用方应先校验标识符。</remarks>
+    /// <param name="id">Property identifier.</param>
+    /// <returns>Encoding used by the codec.</returns>
     public static MqttPropertyDataType GetDataType(MqttPropertyId id) => id switch
     {
         MqttPropertyId.PayloadFormatIndicator => MqttPropertyDataType.Byte,
@@ -432,6 +553,11 @@ public static class MqttPropertyValidation
         }
     }
 
+    /// <summary>Rejects properties that are illegal for the packet type.</summary>
+    /// <remarks>MQTT 3.1.1 报文携带属性、或属性不属于该报文时抛出 0x82。</remarks>
+    /// <param name="packetType">Packet whose property set is being checked.</param>
+    /// <param name="properties">Properties decoded from the wire.</param>
+    /// <param name="version">Protocol level of the connection.</param>
     public static void Validate(MqttPacketType packetType, MqttProperties properties, MqttProtocolVersion version)
     {
         if (properties.IsEmpty)
