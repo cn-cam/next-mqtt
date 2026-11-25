@@ -20,6 +20,14 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 - Retained messages use the origin timestamp for last-write-wins merging, and
   deletions leave a tombstone so an older replica cannot resurrect a removed value.
 
+## [0.16.0] - 2026-11-25
+
+### Added
+
+- RabbitMQ bridge through `RabbitMQ.Client` (Apache-2.0, ADR 0008): durable topic
+  exchange, persistent messages, publisher confirms, bounded queue and automatic
+  reconnect. Kafka and RabbitMQ can be enabled together.
+
 ## [0.15.0] - 2026-11-25
 
 ### Added
@@ -286,7 +294,8 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 - GitHub Actions for CI, CodeQL, releases and GitHub Pages.
 - Mechanical brand/trademark compliance scanner and repository policy.
 
-[Unreleased]: https://github.com/cn-cam/next-mqtt/compare/v0.15.0...HEAD
+[Unreleased]: https://github.com/cn-cam/next-mqtt/compare/v0.16.0...HEAD
+[0.16.0]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.16.0
 [0.15.0]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.15.0
 [0.14.0]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.14.0
 [0.13.0]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.13.0

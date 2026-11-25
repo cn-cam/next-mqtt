@@ -42,7 +42,7 @@ security needs.
 
 - [x] HTTP webhook bridge with filter rules (0.10.0)
 - [x] NATS bridge module (0.14.0)
-- [x] Kafka bridge module (0.15.0, ADR 0007)
+- [x] Kafka bridge module (0.15.0, ADR 0007)`n- [x] RabbitMQ bridge module (0.16.0, ADR 0008)
 - [ ] Rule engine for topic routing, filtering and enrichment
 - [x] First-party plugin host with manifest and collectible loading (0.12.0)
 

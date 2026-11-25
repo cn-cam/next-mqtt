@@ -168,6 +168,21 @@ if (integrationsOptions.Kafka.Enabled)
     });
 }
 
+if (integrationsOptions.Rabbit.Enabled)
+{
+    builder.Services.AddSingleton(sp =>
+    {
+        var bridge = new RabbitBridge(
+            integrationsOptions.Rabbit,
+            sp.GetRequiredService<ILogger<RabbitBridge>>());
+
+        sp.GetRequiredService<IHostApplicationLifetime>().ApplicationStopping.Register(() =>
+            bridge.DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(3)));
+
+        return bridge;
+    });
+}
+
 if (integrationsOptions.Rules.Count > 0)
 {
     builder.Services.AddSingleton(sp => new RuleEngine(
@@ -197,7 +212,8 @@ builder.Services.AddSingleton(sp =>
         sp.GetService<WebhookDispatcher>(),
         sp.GetService<RuleEngine>(),
         sp.GetService<NatsBridge>(),
-        sp.GetService<KafkaBridge>());
+        sp.GetService<KafkaBridge>(),
+        sp.GetService<RabbitBridge>());
 
     if (cluster is ClusterRouter clusterRouter)
     {

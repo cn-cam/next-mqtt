@@ -402,6 +402,29 @@ first accepted the message forwards, so clusters do not duplicate.
 in ADR 0007. Topics map the same way as NATS (`/` → `.`, unsafe characters →
 `_`), a bounded queue absorbs bursts, and a broken broker address only logs a
 warning at startup instead of failing the listener.
+### RabbitMQ bridge
+
+```json
+{
+  "Integrations": {
+    "Rabbit": {
+      "Enabled": true,
+      "HostName": "127.0.0.1",
+      "Port": 5672,
+      "UserName": "…",
+      "Password": "…",
+      "Exchange": "nextmqtt",
+      "RoutingKeyPrefix": "mqtt.",
+      "Filter": "telemetry/#"
+    }
+  }
+}
+```
+
+Messages are published to a durable `topic` exchange with publisher confirms,
+so `Forwarded` only counts what RabbitMQ accepted. Routing keys use the same
+mapping as NATS (`/` → `.`, unsafe characters → `_`). Kafka and RabbitMQ can
+run at the same time.
 ## Authentication
 
 ```json

@@ -17,6 +17,9 @@ public sealed class IntegrationsOptions
 
     /// <summary>Optional Kafka forwarding (ADR 0007).</summary>
     public KafkaOptions Kafka { get; set; } = new();
+
+    /// <summary>Optional RabbitMQ forwarding (ADR 0008).</summary>
+    public RabbitOptions Rabbit { get; set; } = new();
 }
 
 /// <summary>One routing rule, evaluated on every inbound publish.</summary>

@@ -53,7 +53,8 @@ public sealed class MqttBroker : IAsyncDisposable
         WebhookDispatcher? webhooks = null,
         RuleEngine? rules = null,
         NatsBridge? nats = null,
-        KafkaBridge? kafka = null)
+        KafkaBridge? kafka = null,
+        RabbitBridge? rabbit = null)
     {
         Options = options;
         Authenticator = authenticator;
@@ -68,6 +69,7 @@ public sealed class MqttBroker : IAsyncDisposable
         Rules = rules;
         Nats = nats;
         Kafka = kafka;
+        Rabbit = rabbit;
 
         foreach (var provider in enhancedAuthenticators ?? [])
         {
@@ -107,6 +109,9 @@ public sealed class MqttBroker : IAsyncDisposable
 
     /// <summary>Optional Kafka forwarding for locally accepted messages.</summary>
     public KafkaBridge? Kafka { get; }
+
+    /// <summary>Optional RabbitMQ forwarding for locally accepted messages.</summary>
+    public RabbitBridge? Rabbit { get; }
 
     /// <summary>Optional routing rules that can discard messages before storage.</summary>
     public RuleEngine? Rules { get; }
