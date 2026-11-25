@@ -20,6 +20,15 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 - Retained messages use the origin timestamp for last-write-wins merging, and
   deletions leave a tombstone so an older replica cannot resurrect a removed value.
 
+## [0.7.0] - 2026-11-25
+
+### Added
+
+- Outbound topic aliases within the client's Topic Alias Maximum.
+- `MaxSubscriptionIdentifiersPerClient` quota for identified subscriptions.
+- Cluster-wide shared subscriptions with exactly one delivering node per group.
+- Retained last-write-wins merging and deletion tombstones.
+
 ## [0.6.2] - 2026-11-25
 
 ### Fixed
@@ -208,7 +217,8 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 - GitHub Actions for CI, CodeQL, releases and GitHub Pages.
 - Mechanical brand/trademark compliance scanner and repository policy.
 
-[Unreleased]: https://github.com/cn-cam/next-mqtt/compare/v0.6.2...HEAD
+[Unreleased]: https://github.com/cn-cam/next-mqtt/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.7.0
 [0.6.2]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.6.2
 [0.6.1]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.6.1
 [0.6.0]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.6.0
