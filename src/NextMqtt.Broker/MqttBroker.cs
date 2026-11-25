@@ -129,7 +129,7 @@ public sealed class MqttBroker : IAsyncDisposable
     public RabbitBridge? Rabbit { get; }
 
     /// <summary>Optional routing rules that can discard messages before storage.</summary>
-    /// <remarks>在落保留与投递之前执行，但集成已经先拿到了一份。</remarks>
+    /// <remarks>在保留、集成与投递之前执行：被丢弃的消息不会进 webhook 或消息桥，改写的主题对下游可见。</remarks>
     public RuleEngine? Rules { get; }
 
     /// <summary>Optional webhook fan-out for locally accepted messages.</summary>
@@ -365,16 +365,6 @@ public sealed class MqttBroker : IAsyncDisposable
         Metrics.PublishReceived();
         PublishRate.Increment();
 
-        // Only the node that first accepted the publish feeds integrations, so a
-        // cluster does not post the same message once per node.
-        if (forwardToCluster)
-        {
-            Webhooks?.Publish(publish);
-            Nats?.Publish(publish);
-            Kafka?.Publish(publish);
-            Rabbit?.Publish(publish);
-        }
-
         if (Rules?.ShouldDrop(publish.Topic) == true)
         {
             Metrics.MessageDropped();
@@ -405,6 +395,17 @@ public sealed class MqttBroker : IAsyncDisposable
                 PacketId = publish.PacketId,
                 Properties = publish.Properties,
             };
+        }
+
+        // Integrations run after the rules: a dropped message never reaches a
+        // webhook or a bridge, and a rewritten message is forwarded under its new
+        // topic. Only the origin node forwards, so a cluster does not duplicate.
+        if (forwardToCluster)
+        {
+            Webhooks?.Publish(publish);
+            Nats?.Publish(publish);
+            Kafka?.Publish(publish);
+            Rabbit?.Publish(publish);
         }
 
         var messageId = Guid.NewGuid().ToString("N");

@@ -7,6 +7,13 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- Routing rules now run before integrations. A message discarded by a `drop`
+  rule no longer reaches a webhook or a message bridge, and a message rewritten
+  by a `rewrite` rule is forwarded under its new topic. Two broker-level tests
+  cover both cases.
+
 ### Added
 
 - Outbound topic aliases: the server assigns aliases per connection inside the

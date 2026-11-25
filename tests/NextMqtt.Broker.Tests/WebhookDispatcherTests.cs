@@ -74,6 +74,54 @@ public sealed class WebhookDispatcherTests
         Assert.Single(handler.Bodies);
     }
 
+    [Fact]
+    public async Task Dropped_publish_never_reaches_a_webhook()
+    {
+        var handler = new CaptureHandler();
+        await using var dispatcher = Create(handler);
+
+        var rules = new RuleEngine(
+            new IntegrationsOptions
+            {
+                Rules = [new RuleOptions { Action = "drop", Filter = "audit/health" }],
+            },
+            NullLogger<RuleEngine>.Instance);
+
+        var broker = TestBroker.Create(rules: rules, webhooks: dispatcher);
+        await using var _ = broker;
+
+        await broker.PublishAsync("audit/health", "x"u8.ToArray(), MqttQoS.AtLeastOnce);
+
+        await Task.Delay(300);
+
+        Assert.Empty(handler.Bodies);
+        Assert.Equal(0, dispatcher.Delivered);
+    }
+
+    [Fact]
+    public async Task Rewritten_topic_is_the_one_integrations_receive()
+    {
+        var handler = new CaptureHandler();
+        await using var dispatcher = Create(handler, filter: "mirror/#");
+
+        var rules = new RuleEngine(
+            new IntegrationsOptions
+            {
+                Rules = [new RuleOptions { Action = "rewrite", Filter = "audit/#", Target = "mirror/" }],
+            },
+            NullLogger<RuleEngine>.Instance);
+
+        var broker = TestBroker.Create(rules: rules, webhooks: dispatcher);
+        await using var _ = broker;
+
+        await broker.PublishAsync("audit/login", "alice"u8.ToArray(), MqttQoS.AtLeastOnce);
+
+        Assert.True(await WaitForAsync(() => dispatcher.Delivered == 1));
+
+        using var document = JsonDocument.Parse(Assert.Single(handler.Bodies));
+        Assert.Equal("mirror/login", document.RootElement.GetProperty("topic").GetString());
+    }
+
     private static async Task<bool> WaitForAsync(Func<bool> condition)
     {
         for (var attempt = 0; attempt < 100; attempt++)
