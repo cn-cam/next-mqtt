@@ -152,7 +152,7 @@ public sealed class ClusterRouter : IClusterRouter
     /// <remarks>尽力而为：失败只记日志，不影响本地投递。</remarks>
     /// <param name="publish">Publish already accepted locally.</param>
     /// <param name="cancellationToken">Cancels the fan-out.</param>
-    public async ValueTask RouteAsync(PublishPacket publish, CancellationToken cancellationToken = default)
+    public async ValueTask RouteAsync(PublishPacket publish, string messageId, CancellationToken cancellationToken = default)
     {
         if (!Enabled || _self is null)
         {
@@ -161,19 +161,47 @@ public sealed class ClusterRouter : IClusterRouter
 
         var now = DateTimeOffset.UtcNow;
         var timeout = TimeSpan.FromSeconds(_options.NodeTimeoutSeconds);
-        var targets = _members.Values
+        var peers = _members.Values
             .Where(member => member.NodeId != _self.NodeId)
             .Where(member => member.Status(now, timeout) == "alive")
-            .Where(member => publish.Retain || member.Matches(publish.Topic))
             .ToList();
 
-        if (targets.Count == 0)
+        var normalTargets = peers
+            .Where(member => publish.Retain || member.MatchesNormal(publish.Topic))
+            .ToList();
+
+        var sharedTargets = new List<(Member Member, string Group)>();
+
+        foreach (var group in SharedGroups(publish.Topic, peers))
+        {
+            var candidates = SharedCandidates(publish.Topic, group, peers);
+
+            if (candidates.Count == 0)
+            {
+                continue;
+            }
+
+            var chosen = candidates[StableIndex(messageId, group, candidates.Count)];
+
+            if (string.Equals(chosen, _self.NodeId, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            var member = peers.FirstOrDefault(peer => string.Equals(peer.NodeId, chosen, StringComparison.Ordinal));
+            if (member is not null)
+            {
+                sharedTargets.Add((member, group));
+            }
+        }
+
+        if (normalTargets.Count == 0 && sharedTargets.Count == 0)
         {
             return;
         }
 
         var message = new ClusterPublishMessage(
-            Guid.NewGuid().ToString("N"),
+            messageId,
             _self.NodeId,
             0,
             publish.Topic,
@@ -183,8 +211,15 @@ public sealed class ClusterRouter : IClusterRouter
             publish.Duplicate,
             publish.Properties.Items.Select(EncodeProperty).ToArray());
 
-        await Task.WhenAll(targets.Select(member => SendPublishAsync(member, message, cancellationToken)))
-            .ConfigureAwait(false);
+        var sends = normalTargets
+            .Select(member => SendPublishAsync(member, message, cancellationToken))
+            .Concat(sharedTargets.Select(target => SendPublishAsync(
+                target.Member,
+                message with { SharedGroup = target.Group },
+                cancellationToken)))
+            .ToList();
+
+        await Task.WhenAll(sends).ConfigureAwait(false);
     }
 
     /// <summary>Copies the membership table for gossip responses.</summary>
@@ -257,7 +292,11 @@ public sealed class ClusterRouter : IClusterRouter
             return false;
         }
 
-        if (!_seenMessages.TryAdd(message.MessageId, DateTimeOffset.UtcNow))
+        var sharedOnly = message.SharedGroup is { Length: > 0 };
+
+        // A targeted shared message reuses the message id of the normal fan-out,
+        // so it must not be rejected as a duplicate of that fan-out.
+        if (!sharedOnly && !_seenMessages.TryAdd(message.MessageId, DateTimeOffset.UtcNow))
         {
             return false;
         }
@@ -304,8 +343,124 @@ public sealed class ClusterRouter : IClusterRouter
         };
 
         Interlocked.Increment(ref _publishesReceived);
-        await _broker.RouteFromClusterAsync(publish, cancellationToken).ConfigureAwait(false);
+
+        if (sharedOnly)
+        {
+            await _broker.RouteSharedFromClusterAsync(publish, message.SharedGroup!, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        else
+        {
+            await _broker.RouteFromClusterAsync(publish, cancellationToken).ConfigureAwait(false);
+        }
+
         return true;
+    }
+
+    /// <summary>Removes a node that announced its departure.</summary>
+    /// <param name="nodeId">Node identifier.</param>
+    /// <summary>Shared groups with at least one local subscriber for this topic.</summary>
+    /// <param name="topic">Topic being published.</param>
+    private List<string> SharedGroups(string topic, List<Member> peers)
+    {
+        var groups = new HashSet<string>(StringComparer.Ordinal);
+
+        if (_broker is not null)
+        {
+            foreach (var subscription in _broker.Subscriptions.GetAll())
+            {
+                if (subscription.Filter.IsShared && subscription.Filter.Matches(topic))
+                {
+                    groups.Add(subscription.Filter.SharedGroup!);
+                }
+            }
+        }
+
+        foreach (var peer in peers)
+        {
+            foreach (var group in peer.SharedGroups(topic))
+            {
+                groups.Add(group);
+            }
+        }
+
+        return groups.OrderBy(group => group, StringComparer.Ordinal).ToList();
+    }
+
+    /// <summary>Live nodes that host the group for this topic, self included.</summary>
+    /// <param name="topic">Topic being published.</param>
+    /// <param name="group">Shared group name.</param>
+    /// <param name="peers">Alive peers.</param>
+    private List<string> SharedCandidates(string topic, string group, List<Member> peers)
+    {
+        var candidates = new List<string>();
+
+        if (_broker is not null
+            && _self is not null
+            && _broker.Subscriptions.GetAll().Any(subscription =>
+                subscription.Filter.IsShared
+                && string.Equals(subscription.Filter.SharedGroup, group, StringComparison.Ordinal)
+                && subscription.Filter.Matches(topic)))
+        {
+            candidates.Add(_self.NodeId);
+        }
+
+        foreach (var peer in peers)
+        {
+            if (peer.HasShared(topic, group))
+            {
+                candidates.Add(peer.NodeId);
+            }
+        }
+
+        candidates.Sort(StringComparer.Ordinal);
+        return candidates;
+    }
+
+    /// <summary>Deterministic index so every node picks the same owner.</summary>
+    /// <param name="messageId">Stable message id.</param>
+    /// <param name="group">Shared group name.</param>
+    /// <param name="count">Candidate count.</param>
+    private static int StableIndex(string messageId, string group, int count)
+    {
+        var hash = 2166136261u;
+
+        foreach (var b in System.Text.Encoding.UTF8.GetBytes(messageId + "\0" + group))
+        {
+            hash = (hash ^ b) * 16777619u;
+        }
+
+        return (int)(hash % (uint)count);
+    }
+
+    /// <summary>True when this node should deliver the shared group.</summary>
+    /// <param name="topic">Topic being published.</param>
+    /// <param name="group">Shared group name.</param>
+    /// <param name="messageId">Stable message id.</param>
+    public bool OwnsSharedGroup(string topic, string group, string messageId)
+    {
+        if (!Enabled || _self is null)
+        {
+            return true;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var timeout = TimeSpan.FromSeconds(_options.NodeTimeoutSeconds);
+        var peers = _members.Values
+            .Where(member => member.NodeId != _self.NodeId && member.Status(now, timeout) == "alive")
+            .ToList();
+
+        var candidates = SharedCandidates(topic, group, peers);
+
+        if (candidates.Count == 0)
+        {
+            return true;
+        }
+
+        return string.Equals(
+            candidates[StableIndex(messageId, group, candidates.Count)],
+            _self.NodeId,
+            StringComparison.Ordinal);
     }
 
     /// <summary>Removes a node that announced its departure.</summary>
@@ -519,8 +674,7 @@ public sealed class ClusterRouter : IClusterRouter
         }
 
         return _broker.Subscriptions.GetAll()
-            .Where(subscription => !subscription.Filter.IsShared)
-            .Select(subscription => subscription.EffectiveFilter)
+            .Select(subscription => subscription.Filter.Original)
             .Distinct(StringComparer.Ordinal)
             .Take(Math.Max(1, _options.MaxFiltersPerHeartbeat))
             .ToArray();
@@ -661,28 +815,32 @@ public sealed class ClusterRouter : IClusterRouter
     {
         private TopicFilter[]? _parsed;
 
-        public bool Matches(string topic)
-        {
-            if (RawFilters.Length == 0)
-            {
-                return false;
-            }
+        /// <summary>Parsed filters, computed once per member.</summary>
+        private TopicFilter[] Parsed => _parsed ??= RawFilters
+            .Select(filter => TopicFilter.TryParse(filter, out var parsed, out _) ? parsed : null)
+            .Where(filter => filter is not null)
+            .ToArray()!;
 
-            _parsed ??= RawFilters
-                .Select(filter => TopicFilter.TryParse(filter, out var parsed, out _) ? parsed : null)
-                .Where(filter => filter is not null)
-                .ToArray()!;
+        /// <summary>True when a non-shared filter matches the topic.</summary>
+        /// <param name="topic">Concrete topic name.</param>
+        public bool MatchesNormal(string topic)
+            => Parsed.Any(filter => !filter.IsShared && filter.Matches(topic));
 
-            foreach (var filter in _parsed)
-            {
-                if (filter.Matches(topic))
-                {
-                    return true;
-                }
-            }
+        /// <summary>Shared groups this member hosts for the topic.</summary>
+        /// <param name="topic">Concrete topic name.</param>
+        public IEnumerable<string> SharedGroups(string topic)
+            => Parsed
+                .Where(filter => filter.IsShared && filter.Matches(topic))
+                .Select(filter => filter.SharedGroup!)
+                .Distinct(StringComparer.Ordinal);
 
-            return false;
-        }
+        /// <summary>True when this node hosts the shared group for the topic.</summary>
+        /// <param name="topic">Concrete topic name.</param>
+        /// <param name="group">Shared group name.</param>
+        public bool HasShared(string topic, string group)
+            => Parsed.Any(filter => filter.IsShared
+                && string.Equals(filter.SharedGroup, group, StringComparison.Ordinal)
+                && filter.Matches(topic));
 
         public string Status(DateTimeOffset now, TimeSpan timeout)
         {

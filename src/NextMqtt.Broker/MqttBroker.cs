@@ -291,67 +291,119 @@ public sealed class MqttBroker : IAsyncDisposable
         Metrics.PublishReceived();
         PublishRate.Increment();
 
+        var messageId = Guid.NewGuid().ToString("N");
         var matches = Subscriptions.Match(publish.Topic);
         if (matches.Count > 0)
         {
-            var deliveries = new Dictionary<string, DeliveryAggregate>(StringComparer.Ordinal);
-
-            foreach (var match in matches)
-            {
-                var subscription = match.Subscription;
-
-                if (subscription.Options.NoLocal
-                    && sourceClientId is not null
-                    && string.Equals(subscription.ClientId, sourceClientId, StringComparison.Ordinal))
-                {
-                    continue;
-                }
-
-                if (!deliveries.TryGetValue(subscription.ClientId, out var aggregate))
-                {
-                    aggregate = new DeliveryAggregate();
-                    deliveries[subscription.ClientId] = aggregate;
-                }
-
-                var qos = (MqttQoS)Math.Min((int)publish.QoS, (int)subscription.Options.QoS);
-                if (qos > aggregate.QoS)
-                {
-                    aggregate.QoS = qos;
-                }
-
-                aggregate.RetainAsPublished |= subscription.Options.RetainAsPublished;
-
-                if (subscription.Identifier is { } identifier)
-                {
-                    aggregate.SubscriptionIdentifiers.Add(identifier);
-                }
-            }
-
-            foreach (var (clientId, aggregate) in deliveries)
-            {
-                var session = Sessions.Get(clientId);
-                if (session is null)
-                {
-                    continue;
-                }
-
-                var message = BuildOutboundMessage(publish, aggregate);
-                if (session.Deliver(message))
-                {
-                    DeliveryRate.Increment();
-                }
-            }
+            DeliverMatches(publish, matches, sourceClientId, messageId);
         }
 
         if (forwardToCluster && Cluster.Enabled)
         {
-            await Cluster.RouteAsync(publish, cancellationToken).ConfigureAwait(false);
+            await Cluster.RouteAsync(publish, messageId, cancellationToken).ConfigureAwait(false);
         }
     }
 
     /// <summary>Entry point used by the cluster transport for remote publishes.</summary>
     public ValueTask RouteFromClusterAsync(PublishPacket publish, CancellationToken cancellationToken = default)
         => RouteAsync(publish, sourceClientId: null, cancellationToken, forwardToCluster: false);
+
+    /// <summary>Delivers a message forwarded specifically for one shared group.</summary>
+    /// <remarks>只有被选中的节点会收到这条消息，因此这里不再做所有权判断，也不再转发。</remarks>
+    /// <param name="publish">Message forwarded by a peer.</param>
+    /// <param name="sharedGroup">Group the origin selected for this node.</param>
+    /// <param name="cancellationToken">Cancels routing.</param>
+    public ValueTask RouteSharedFromClusterAsync(
+        PublishPacket publish,
+        string sharedGroup,
+        CancellationToken cancellationToken = default)
+    {
+        var matches = Subscriptions.Match(publish.Topic)
+            .Where(match => string.Equals(match.SharedGroup, sharedGroup, StringComparison.Ordinal))
+            .ToList();
+
+        if (matches.Count > 0)
+        {
+            DeliverMatches(
+                publish,
+                matches,
+                sourceClientId: null,
+                messageId: Guid.NewGuid().ToString("N"),
+                checkSharedOwnership: false);
+        }
+
+        return ValueTask.CompletedTask;
+    }
+
+    /// <summary>Delivers one message to the local sessions matched by the index.</summary>
+    /// <param name="publish">Message being routed.</param>
+    /// <param name="matches">Local subscription matches.</param>
+    /// <param name="sourceClientId">Publishing client, used by noLocal.</param>
+    /// <param name="messageId">Stable id used for shared-group ownership.</param>
+    /// <param name="checkSharedOwnership">False when the message is already shared-scoped.</param>
+    private void DeliverMatches(
+        PublishPacket publish,
+        List<SubscriptionMatch> matches,
+        string? sourceClientId,
+        string messageId,
+        bool checkSharedOwnership = true)
+    {
+        var deliveries = new Dictionary<string, DeliveryAggregate>(StringComparer.Ordinal);
+
+        foreach (var match in matches)
+        {
+            var subscription = match.Subscription;
+
+            if (checkSharedOwnership
+                && match.SharedGroup is { } sharedGroup
+                && Cluster.Enabled
+                && !Cluster.OwnsSharedGroup(publish.Topic, sharedGroup, messageId))
+            {
+                continue;
+            }
+
+            if (subscription.Options.NoLocal
+                && sourceClientId is not null
+                && string.Equals(subscription.ClientId, sourceClientId, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            if (!deliveries.TryGetValue(subscription.ClientId, out var aggregate))
+            {
+                aggregate = new DeliveryAggregate();
+                deliveries[subscription.ClientId] = aggregate;
+            }
+
+            var qos = (MqttQoS)Math.Min((int)publish.QoS, (int)subscription.Options.QoS);
+            if (qos > aggregate.QoS)
+            {
+                aggregate.QoS = qos;
+            }
+
+            aggregate.RetainAsPublished |= subscription.Options.RetainAsPublished;
+
+            if (subscription.Identifier is { } identifier)
+            {
+                aggregate.SubscriptionIdentifiers.Add(identifier);
+            }
+        }
+
+        foreach (var (clientId, aggregate) in deliveries)
+        {
+            var session = Sessions.Get(clientId);
+            if (session is null)
+            {
+                continue;
+            }
+
+            var message = BuildOutboundMessage(publish, aggregate);
+            if (session.Deliver(message))
+            {
+                DeliveryRate.Increment();
+            }
+        }
+    }
 
     /// <summary>Publishes internally, for example for a will or the dashboard.</summary>
     /// <param name="topic">Topic name.</param>

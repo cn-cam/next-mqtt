@@ -14,6 +14,9 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
   topic.
 - `MaxSubscriptionIdentifiersPerClient` caps how many subscriptions per client
   may carry an MQTT 5 subscription identifier; excess filters get 0x97.
+- Cluster-wide shared subscriptions: shared groups are advertised in heartbeats and
+  each message is assigned to exactly one node that hosts the group, so members on
+  different nodes no longer receive duplicate copies.
 
 ## [0.6.2] - 2026-11-25
 

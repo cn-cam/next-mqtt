@@ -82,7 +82,8 @@ public sealed record ClusterPublishMessage(
     int Qos,
     bool Retain,
     bool Duplicate,
-    ClusterPropertyDto[] Properties);
+    ClusterPropertyDto[] Properties,
+    string? SharedGroup = null);
 
 /// <summary>HMAC-SHA256 request signing with a five minute clock skew window.</summary>
 public static class ClusterSignature
