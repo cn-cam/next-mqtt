@@ -580,7 +580,8 @@ printf '%s' 'my-api-key' | sha256sum
     "RequestTimeoutSeconds": 5,
     "MaxFiltersPerHeartbeat": 10000,
     "SessionReplicaSeconds": 5,
-    "SessionReplicaBatchSize": 200
+    "SessionReplicaBatchSize": 200,
+    "SessionReplicaCapacity": 20000
   }
 }
 ```
@@ -591,7 +592,9 @@ Each round pushes `SessionReplicaBatchSize` sessions and continues where the
 previous round stopped. With more persistent sessions than the batch size, one
 session's replica can be up to
 `ceil(sessions / batch size) × SessionReplicaSeconds` old; raise the batch size
-or accept a longer recovery point on large nodes.
+or accept a longer recovery point on large nodes. `SessionReplicaCapacity` caps
+how many replicas a node keeps in memory (default 20,000); expired entries are
+dropped first, then the oldest by update time.
 
 When clustering is enabled, `AdvertiseUrl` must be reachable from peers and
 `Secret` must be at least 16 characters. See [Clustering](/clustering).

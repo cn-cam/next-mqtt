@@ -198,6 +198,8 @@ dotnet run --project src/NextMqtt.Cli -- pub --port 1883 --topic cluster/test --
   `Storage:Replicas:Mode=File` 可跨重启保留。
 - 除接管与复制外没有跨节点会话持久化：如果属主、所有副本持有者及其磁盘一起丢失，
   会话就没了。
+- 每个节点最多保留 `Cluster:SessionReplicaCapacity` 个副本（默认 20,000），表满时
+  淘汰最旧的。
 - 过滤器广告是全量快照，默认每次心跳最多 10,000 个过滤器。
 - 集群路由按链路至少一次并使用去重缓存，不是事务保证。
 - 保留消息同步只在加入时进行一次；与网络分区的节点会继续提供自己的旧保留值，直到

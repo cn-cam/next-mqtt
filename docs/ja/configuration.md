@@ -570,7 +570,8 @@ printf '%s' 'my-api-key' | sha256sum
     "RequestTimeoutSeconds": 5,
     "MaxFiltersPerHeartbeat": 10000,
     "SessionReplicaSeconds": 5,
-    "SessionReplicaBatchSize": 200
+    "SessionReplicaBatchSize": 200,
+    "SessionReplicaCapacity": 20000
   }
 }
 ```
@@ -581,6 +582,8 @@ printf '%s' 'my-api-key' | sha256sum
 バッチサイズより多い場合、1 セッションのレプリカは最大
 `ceil(セッション数 / バッチサイズ) × SessionReplicaSeconds` 古くなります。大きな
 ノードではバッチサイズを上げるか、長めの復旧点を受け入れてください。
+`SessionReplicaCapacity` はノードがメモリに保持するレプリカ数の上限（既定 20,000）で、
+超過時は期限切れ、次に更新時刻の古い順に削除します。
 
 クラスタを有効にすると、`AdvertiseUrl` はピアから到達可能で、`Secret` は 16 文字
 以上である必要があります。詳しくは[クラスタ](/ja/clustering)を参照してください。

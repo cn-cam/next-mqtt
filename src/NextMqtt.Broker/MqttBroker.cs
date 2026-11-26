@@ -1671,7 +1671,7 @@ public sealed class MqttBroker : IAsyncDisposable
     /// <param name="now">Current time.</param>
     private void TrimReplicas(DateTimeOffset now)
     {
-        const int capacity = 20_000;
+        var capacity = Cluster.ReplicaCapacity;
 
         if (_sessionReplicas.Count <= capacity)
         {

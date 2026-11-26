@@ -568,7 +568,8 @@ printf '%s' 'my-api-key' | sha256sum
     "RequestTimeoutSeconds": 5,
     "MaxFiltersPerHeartbeat": 10000,
     "SessionReplicaSeconds": 5,
-    "SessionReplicaBatchSize": 200
+    "SessionReplicaBatchSize": 200,
+    "SessionReplicaCapacity": 20000
   }
 }
 ```
@@ -579,6 +580,8 @@ printf '%s' 'my-api-key' | sha256sum
 세션이 배치 크기보다 많으면 한 세션의 복제본은 최대
 `ceil(세션 수 / 배치 크기) × SessionReplicaSeconds`만큼 오래될 수 있습니다. 큰
 노드에서는 배치 크기를 늘리거나 더 긴 복구 지점을 받아들이십시오.
+`SessionReplicaCapacity`는 노드가 메모리에 보관하는 복제본 수 상한(기본 20,000)이며,
+초과하면 만료된 항목을 먼저 지우고 그다음 갱신 시각이 오래된 순으로 제거합니다.
 
 클러스터를 켜면 `AdvertiseUrl`은 피어에서 접근 가능해야 하고 `Secret`은 16자
 이상이어야 합니다. 자세한 내용은 [클러스터](/ko/clustering)를 참고하십시오.

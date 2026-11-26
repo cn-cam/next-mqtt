@@ -55,6 +55,13 @@ public sealed class ClusterOptions
     /// </remarks>
     public int SessionReplicaBatchSize { get; set; } = 200;
 
+    /// <summary>Maximum replicas this node keeps, dropping the oldest first.</summary>
+    /// <remarks>
+    /// 副本按会话 ID 去重，超过上限时先删 30 分钟前的，再按更新时间从旧到新淘汰。该值
+    /// 限制的是本节点内存占用，不改变推送频率。
+    /// </remarks>
+    public int SessionReplicaCapacity { get; set; } = 20_000;
+
     /// <summary>Cap on filters advertised per heartbeat to bound message size.</summary>
     /// <remarks>订阅极多时会被截断，超出部分对端看不见，表现为跨节点漏投；调大意味着心跳报文更大。</remarks>
     public int MaxFiltersPerHeartbeat { get; set; } = 10_000;

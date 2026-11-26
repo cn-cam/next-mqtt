@@ -16,9 +16,11 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 - `Storage:Replicas:ShardCount` spreads replica snapshots over multiple files
   (default 16). Only shards whose content changed are rewritten, and a legacy
   single file is read at startup and replaced on the first save.
-- `Cluster:SessionReplicaBatchSize` (default 200) controls how many sessions a
-  node pushes per replica round; the documented recovery point now reflects the
-  full sweep on large nodes instead of promising a fixed five seconds.
+- `Cluster:SessionReplicaBatchSize` (default 200) and
+  `Cluster:SessionReplicaCapacity` (default 20,000) control how many sessions a
+  node pushes per round and how many replicas it keeps; the documented recovery
+  point now reflects the full sweep on large nodes instead of promising a fixed
+  five seconds.
 
 ### Fixed
 

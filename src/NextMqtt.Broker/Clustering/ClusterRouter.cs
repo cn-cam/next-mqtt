@@ -697,6 +697,10 @@ public sealed class ClusterRouter : IClusterRouter
     /// <remarks>与复制间隔一起决定完整轮询需要多久；上限 5,000，避免单轮占用过多带宽。</remarks>
     public int ReplicaBatchSize => Math.Clamp(_options.SessionReplicaBatchSize, 1, 5_000);
 
+    /// <summary>Maximum replicas this node keeps, clamped to a sane range.</summary>
+    /// <remarks>上限一百万，避免误配置导致内存失控。</remarks>
+    public int ReplicaCapacity => Math.Clamp(_options.SessionReplicaCapacity, 1, 1_000_000);
+
     /// <summary>Sends one session replica to every live peer.</summary>
     /// <remarks>并行发送，失败静默；下一次轮询会补发，不阻塞会话本身。</remarks>
     /// <param name="replica">Snapshot to send.</param>

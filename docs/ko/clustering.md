@@ -220,6 +220,8 @@ dotnet run --project src/NextMqtt.Cli -- pub --port 1883 --topic cluster/test --
   `Storage:Replicas:Mode`를 `File`로 두면 재시작을 넘어 유지됩니다.
 - 인계와 복제 외의 노드 간 세션 영속화는 없습니다. 소유자와 모든 복제본 보유자, 그
   디스크가 함께 사라지면 세션도 사라집니다.
+- 각 노드는 최대 `Cluster:SessionReplicaCapacity`개(기본 20,000)의 복제본을 보관하며,
+  표가 가득 차면 가장 오래된 것부터 제거합니다.
 - 필터 광고는 전량 스냅숏이며 기본적으로 heartbeat당 10,000 필터가 상한입니다.
 - 클러스터 라우팅은 링크별 at-least-once이고 중복 제거 캐시를 사용합니다. 트랜잭션
   보장이 아닙니다.

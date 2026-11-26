@@ -166,6 +166,15 @@ public class ClusterTests
 
         options.SessionReplicaBatchSize = int.MaxValue;
         Assert.Equal(5_000, new ClusterRouter(options, logger, http).ReplicaBatchSize);
+
+        options.SessionReplicaCapacity = 0;
+        Assert.Equal(1, new ClusterRouter(options, logger, http).ReplicaCapacity);
+
+        options.SessionReplicaCapacity = 50_000;
+        Assert.Equal(50_000, new ClusterRouter(options, logger, http).ReplicaCapacity);
+
+        options.SessionReplicaCapacity = int.MaxValue;
+        Assert.Equal(1_000_000, new ClusterRouter(options, logger, http).ReplicaCapacity);
     }
 
     [Fact]
@@ -935,6 +944,8 @@ public class ClusterTests
         public TimeSpan ReplicaInterval => TimeSpan.FromSeconds(5);
 
         public int ReplicaBatchSize => 200;
+
+        public int ReplicaCapacity => 20_000;
 
         public Task ReplicateSessionAsync(ClusterSessionReplica replica, CancellationToken cancellationToken = default)
             => Task.CompletedTask;

@@ -235,6 +235,8 @@ dotnet run --project src/NextMqtt.Cli -- pub --port 1883 --topic cluster/test --
   `Storage:Replicas:Mode` を `File` にすると再起動をまたいで保持できます。
 - 引き継ぎと複製以外のノード間セッション永続化はありません。所有者と全レプリカ保持者、
   およびそのディスクが同時に失われるとセッションは失われます。
+- 各ノードは最大 `Cluster:SessionReplicaCapacity` 個（既定 20,000）のレプリカを保持し、
+  表が満杯になると最も古いものから削除します。
 - フィルタ広告は全量スナップショットで、既定では heartbeat あたり 10,000 フィルタが
   上限です。
 - クラスタルーティングはリンクごとに at-least-once で重複排除キャッシュを使います。

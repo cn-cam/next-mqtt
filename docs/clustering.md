@@ -246,6 +246,8 @@ Wait at least one heartbeat after subscribing before publishing.
 - No cross-node session persistence beyond handover and replication: if the
   owner and every replica holder and their disks are lost together, the session
   is gone.
+- Each node keeps at most `Cluster:SessionReplicaCapacity` replicas (default
+  20,000); the oldest are evicted when the table is full.
 - Filter advertisements are full snapshots, capped at 10,000 filters per
   heartbeat by default.
 - Cluster routing is at-least-once per link with a deduplication cache, not a
