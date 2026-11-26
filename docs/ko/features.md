@@ -21,7 +21,7 @@
 | 세션 만료 | ✅ | MQTT 5 interval, DISCONNECT에서 갱신 |
 | 세션 인계 | ✅ | 이전 연결은 `0x8E`를 받음 |
 | 오프라인 큐 | ✅ | 영속 세션당 유계 |
-| 공유 구독 | ✅ | `$share/{group}/{filter}`, 노드 내 라운드 로빈 |
+| 공유 구독 | ✅ | `$share/{group}/{filter}`, 메시지마다 그룹 멤버 하나 |
 | 구독 옵션 | ✅ | `noLocal`, `retainAsPublished`, retain handling |
 | 토픽 별칭 | ⚠️ | 인바운드 지원, 아웃바운드는 계획 중 |
 | 확장 인증(`AUTH`) | ✅ | 교체 가능한 제공자와 챌린지/응답, 내장 `nextmqtt-jwt` |

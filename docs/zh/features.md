@@ -21,7 +21,7 @@
 | 会话过期 | ✅ | MQTT 5 interval，可在 DISCONNECT 更新 |
 | 会话接管 | ✅ | 旧连接收到 `0x8E` |
 | 离线队列 | ✅ | 每个持久会话有界 |
-| 共享订阅 | ✅ | `$share/{group}/{filter}`，节点内轮询 |
+| 共享订阅 | ✅ | `$share/{group}/{filter}`，每条消息为每个组选定一个成员 |
 | 订阅选项 | ✅ | `noLocal`、`retainAsPublished`、retain handling |
 | 主题别名 | ⚠️ | 支持入站；出站别名计划中 |
 | 增强认证（`AUTH`） | ✅ | 可插拔提供方的挑战/应答；内置 `nextmqtt-jwt` |

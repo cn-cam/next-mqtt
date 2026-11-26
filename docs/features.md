@@ -22,7 +22,7 @@ Legend: ✅ implemented · ⚠️ partial or with documented limits · ❌ not i
 | Session expiry | ✅ | MQTT 5 interval, DISCONNECT update |
 | Session takeover | ✅ | Previous connection receives `0x8E` |
 | Offline queue | ✅ | Bounded per persistent session |
-| Shared subscriptions | ✅ | `$share/{group}/{filter}`, round-robin per node |
+| Shared subscriptions | ✅ | `$share/{group}/{filter}`, one member per group per message |
 | Subscription options | ✅ | `noLocal`, `retainAsPublished`, retain handling |
 | Topic aliases | ⚠️ | Inbound aliases supported; outbound aliases planned |
 | Enhanced authentication (`AUTH`) | ✅ | Challenge/response with pluggable providers; built-in `nextmqtt-jwt` |

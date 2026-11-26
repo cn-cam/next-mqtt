@@ -136,7 +136,10 @@ the container network, or on a Linux host, to measure connection capacity.
 
 ## Session lifecycle
 
-- Persistent sessions remain in memory until their expiry deadline.
+- Persistent sessions live in memory and, when `Storage:Session:Mode` is `file`,
+  in a snapshot on disk until their expiry deadline.
+- A new owner claims the session on reconnect; a dead owner is covered by the
+  newest replica, which can also be file-backed.
 - The maintenance loop checks expiry every `Broker:SweepInterval` (30 s by
   default).
 - Disconnecting a client with `cleanStart=true` discards the prior session at
@@ -147,14 +150,15 @@ the container network, or on a Linux host, to measure connection capacity.
 ## Upgrades
 
 1. Drain or scale down one node at a time.
-2. Because sessions are in-memory, plan for clients to reconnect and re-subscribe.
+2. Mount the session, replica and retained files if the rollout must keep state;
+   otherwise plan for clients to reconnect and re-subscribe.
 3. Replace the image tag in Compose/Helm.
 4. Watch `/readyz` and `nextmqtt_clients_connected` during rollout.
 5. For clusters, keep at least two nodes alive to preserve routing coverage.
 
-A rolling restart loses queued messages and retained state. Use retained
-messages as recoverable configuration, not as a durable event log, until
-persistence lands.
+A rolling restart keeps persistent sessions when the file stores are mounted and
+replicas are current; without them, queued messages and retained state are lost.
+Retained messages remain a last-known-value store, not a durable event log.
 
 ## Troubleshooting
 
@@ -172,11 +176,13 @@ persistence lands.
 
 ## Backups
 
-There is no on-disk state to back up unless retained persistence is enabled. With
-`Storage:Retained:Mode` set to `file`, the journal at `Storage:Retained:Path`
-holds every retained message and can be copied while the broker runs (it is
-append-only and compaction uses an atomic rename). Persistent sessions are
-snapshotted to `Storage:Session:Path` when `Storage:Session:Mode` is `file`.
+With `Storage:Retained:Mode` set to `file`, the journal at
+`Storage:Retained:Path` holds every retained message and can be copied while the
+broker runs (it is append-only and compaction uses an atomic rename). Persistent
+sessions are snapshotted to `Storage:Session:Path` when `Storage:Session:Mode`
+is `file`, and received replicas to `Storage:Replicas:Path` when
+`Storage:Replicas:Mode` is `file`. Copy those files only while the matching node
+is stopped, or rely on the API below.
 
 For a logical backup independent of the storage mode, use the API:
 

@@ -10,10 +10,11 @@ no affiliation or certification.
 ## Is it production ready?
 
 The protocol, authentication, ACL and clustering paths are covered by unit and
-loopback integration tests, and the container image is built in CI. The main
-production gap is durability: sessions, queues and retained messages are
-in-memory and do not survive a restart. Use it for workloads that can tolerate
-reconnect and re-subscribe, or wait for the persistence roadmap item.
+loopback integration tests, and the container image is built in CI. Durability
+is opt-in: retained messages, persistent sessions and session replicas can be
+stored on disk, while outbound inflight acknowledgements are replayed by the
+client. Enable the file stores and plan storage before treating the broker as a
+system of record.
 
 ## Why .NET?
 
@@ -49,16 +50,18 @@ routed to it. Local QoS 1/2 semantics are preserved.
 
 ## Can I use shared subscriptions across nodes?
 
-Each node evaluates its own shared groups. A message may be handled once per
-node, not once per cluster. Global coordination is on the roadmap. For strict
-single-consumer semantics, route the topic to one node or use a single shared
-group with a single node.
+Yes. Nodes advertise their shared groups in heartbeats, and each message is
+assigned to one member of the group across the cluster, not once per node. See
+[Clustering](/clustering#delivery-semantics).
 
 ## Where is state stored?
 
-In memory. There is no database, WAL or volume requirement in 0.1. A restart
-clears sessions, queues and retained messages. Configuration and secrets live in
-environment variables, Compose files or Kubernetes objects.
+In memory by default. Set `Storage:Retained:Mode=File`,
+`Storage:Session:Mode=File` and `Storage:Replicas:Mode=File` to journal or
+snapshot the corresponding data set on a volume; there is no database or WAL.
+Without the file stores, a restart clears sessions, queues and retained
+messages. Configuration and secrets live in environment variables, Compose
+files or Kubernetes objects.
 
 ## How do I reset the admin password?
 
