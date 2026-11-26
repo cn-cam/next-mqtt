@@ -6,8 +6,8 @@ namespace NextMqtt.Broker.Storage;
 
 /// <summary>One persistent session as written to disk.</summary>
 /// <remarks>
-/// 仅保存不依赖连接的会话状态；出站 inflight 握手不落盘，入站 QoS 2 中等待 PUBREL
-/// 的消息会保存，否则客户端重连后发送 PUBREL 时消息就会丢失。
+/// 仅保存与连接无关的会话状态；出站确认状态不落盘，但等待确认的消息会作为队列消息保存，
+/// 入站 QoS 2 中等待 PUBREL 的消息也会保存，否则重启后握手无法完成。
 /// </remarks>
 public sealed class PersistedSession
 {

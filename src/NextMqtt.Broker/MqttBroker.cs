@@ -1453,7 +1453,7 @@ public sealed class MqttBroker : IAsyncDisposable
     /// <param name="session">Session to project.</param>
     /// <param name="subscriptions">Subscriptions grouped by client id.</param>
     /// <param name="now">Used to resolve message expiry for inflight entries.</param>
-    /// <param name="includeInflight">True for replicas, which should not lose unacknowledged messages.</param>
+    /// <param name="includeInflight">True for snapshots and replicas, which must not lose unacknowledged messages.</param>
     private static PersistedSession CreateSessionSnapshot(
         BrokerSession session,
         IReadOnlyDictionary<string, List<Subscription>> subscriptions,
