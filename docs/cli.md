@@ -73,9 +73,9 @@ flag, byte count and a UTF-8 or base64 payload.
 
 ## Request and reply
 
-`ash
+```bash
 nextmqtt request --topic svc/echo --payload '{"ping":1}' --timeout 5
-`
+```
 
 Subscribes to a response topic, publishes the request with MQTT 5
 `Response Topic` and `Correlation Data`, then prints the first reply whose
@@ -91,6 +91,7 @@ correlation data matches. Needs `--protocol 5` (the default).
 | `--qos` | 0 | QoS for both the request and the subscription |
 
 Exit code is 1 when no reply arrives in time.
+
 ## Benchmark
 
 ```bash

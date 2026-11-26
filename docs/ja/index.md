@@ -61,11 +61,26 @@ NextMQTT は .NET に標準化するチーム向けに、単一プロセス、�
 - **.NET 10 の単一プロセス**。外部データベースやメッセージミドルウェア不要。
 - **全層の可観測性**。接続、セッション、inflight、サブスクリプション、retained、クラスタ。
 - **予測可能な非同期パイプライン**。`System.IO.Pipelines` と有界チャネル。
-- **CI で検証されるデプロイ資産**。
+- **CI で検証されるデプロイ資産**。wiki の下書きではなく、テストされたマニフェストとチャート。
 
-[アーキテクチャ](/ja/architecture)と[はじめに](/ja/getting-started)をご覧ください。
+## 概要
+
+```text
+MQTT クライアント ──TCP/TLS──┐
+ブラウザークライアント ──WS/WSS──┤
+                                ├─► リスナー ─► コーデック ─► セッション ─► トピック索引
+管理 UI ──HTTPS─────────────────┘                                  │
+                                                                   ├─► retained ストア
+                                                                   └─► クラスタルーター
+```
+
+コンポーネントモデル、データ構造、障害時の挙動は
+[アーキテクチャ](/ja/architecture)を、すぐ始めるには
+[はじめに](/ja/getting-started)をご覧ください。
 
 ## 独立性
 
 NextMQTT は商用 MQTT Broker と提携・推奨・派生の関係にありません。第三者 Broker の
 ソース、ドキュメント、設定形式、ロゴ、商標を含みません。
+[TRADEMARKS.md](https://github.com/cn-cam/next-mqtt/blob/main/TRADEMARKS.md)を参照して
+ください。

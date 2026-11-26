@@ -20,6 +20,7 @@ security needs.
 - [x] File-backed retained store with an append-only journal (0.4.0)
 - [x] Journal compaction at startup and when the file grows (0.4.0)
 - [x] Durable session snapshots with resumed queues and subscriptions (0.5.0)
+- [x] File-backed session replicas for crash and whole-cluster recovery
 - [ ] SQLite and PostgreSQL providers
 - [x] Backup and restore of retained and session state (0.5.0)
 - [x] Graceful drain that waits for inflight acknowledgements (0.5.0)
@@ -31,26 +32,27 @@ security needs.
 ## 0.3 — Protocol depth
 
 - [x] Enhanced authentication (`AUTH`) with pluggable providers (0.8.0)
-- [ ] Outbound topic aliases
+- [x] Outbound topic aliases
 - [x] Response-topic request/response helpers (0.9.0)
 - [ ] MQTT over QUIC experiment
-- [ ] Global shared-subscription coordination across nodes
+- [x] Global shared-subscription coordination across nodes
 - [x] Cluster-aware retained tombstones and last-write-wins conflict resolution (0.7.0)
-- [ ] Subscription identifier limits per client
+- [x] Subscription identifier limits per client
 
 ## 0.4 — Integrations
 
 - [x] HTTP webhook bridge with filter rules (0.10.0)
 - [x] NATS bridge module (0.14.0)
-- [x] Kafka bridge module (0.15.0, ADR 0007)`n- [x] RabbitMQ bridge module (0.16.0, ADR 0008)
-- [ ] Rule engine for topic routing, filtering and enrichment
+- [x] Kafka bridge module (0.15.0, ADR 0007)
+- [x] RabbitMQ bridge module (0.16.0, ADR 0008)
+- [x] Routing actions: topic-filtered drop and prefix rewrite
+- [ ] Payload enrichment and schema validation
 - [x] First-party plugin host with manifest and collectible loading (0.12.0)
 
-  Scoped as a first-party extension host: a versioned contract, an explicit
-  lifecycle and a manifest this project defines, not a foreign plugin API. It
-  needs its own ADR before code lands (see
-  [ADR 0005](adr/0005-extension-interfaces.md)). Until then, extension points are
-  the interfaces listed in [Features](features.md#extensibility).
+  A first-party extension host: a versioned contract, an explicit lifecycle and
+  a manifest this project defines, not a foreign plugin API. See
+  [ADR 0005](adr/0005-extension-interfaces.md) and
+  [Features](features.md#extensibility).
 - [ ] Schema registry hooks for payload validation
 - [ ] Multi-tenant namespaces
 

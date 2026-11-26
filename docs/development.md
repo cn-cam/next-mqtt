@@ -118,8 +118,10 @@ collides, rename it.
 
 ## Runtime dependencies
 
-The runtime and broker have **no third-party NuGet dependencies**. Adding one
-requires an architecture decision record in `docs/adr/` and an update to
+The core, broker and server have **no third-party NuGet dependencies**. The
+Kafka and RabbitMQ bridges use pinned `Confluent.Kafka` and `RabbitMQ.Client`
+packages approved in ADRs; adding any other dependency requires an architecture
+decision record in `docs/adr/` and an update to
 `docs/legal/third-party-licenses.md`.
 
 ## Commit style
