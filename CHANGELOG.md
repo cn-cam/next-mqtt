@@ -23,9 +23,9 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 ### Fixed
 
 - A session claim that cannot reach the recorded owner now falls back to the
-  newest replica instead of aborting. A transport failure is no longer mistaken
-  for the owner answering that it does not hold the session; the two cases are
-  tracked separately.
+  newest replica instead of aborting. Only a `404` counts as the owner
+  answering that it does not hold the session; a transport failure is tracked
+  separately, and other error responses do not resurrect a replica.
 
 ## [0.21.0] - 2026-11-26
 

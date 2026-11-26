@@ -122,7 +122,7 @@
 | 镜像构建与健康/登录冒烟 | CI `Container image` |
 | CodeQL | `codeql.yml` |
 
-当前共 **213 个测试通过**（63 核心、107 Broker、43 Server 集成）。
+当前共 **214 个测试通过**（63 核心、108 Broker、43 Server 集成）。
 
 ## 扩展性
 

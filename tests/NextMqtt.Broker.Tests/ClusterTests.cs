@@ -640,6 +640,76 @@ public class ClusterTests
     }
 
     [Fact]
+    public async Task Replica_is_not_used_when_the_live_owner_rejects_the_claim()
+    {
+        var network = new ClusterHttpNetwork();
+
+        var optionsA = new NextMqtt.Broker.Options.ClusterOptions
+        {
+            Enabled = true,
+            NodeId = "node-a",
+            AdvertiseUrl = "http://node-a",
+            Secret = "secret-owned-by-node-a-000000",
+            Seeds = ["http://node-b"],
+            HeartbeatSeconds = 1,
+            NodeTimeoutSeconds = 10,
+        };
+
+        var optionsB = new NextMqtt.Broker.Options.ClusterOptions
+        {
+            Enabled = true,
+            NodeId = "node-b",
+            AdvertiseUrl = "http://node-b",
+            Secret = "secret-owned-by-node-b-000000",
+            Seeds = ["http://node-a"],
+            HeartbeatSeconds = 1,
+            NodeTimeoutSeconds = 10,
+        };
+
+        var http = new HttpClient(network) { Timeout = TimeSpan.FromSeconds(5) };
+        var routerA = new ClusterRouter(optionsA, Microsoft.Extensions.Logging.Abstractions.NullLogger<ClusterRouter>.Instance, http);
+        var routerB = new ClusterRouter(optionsB, Microsoft.Extensions.Logging.Abstractions.NullLogger<ClusterRouter>.Instance, http);
+
+        network.Register("node-a", routerA);
+        network.Register("node-b", routerB);
+
+        var brokerB = TestBroker.Create(cluster: routerB);
+        network.RegisterBroker("node-b", brokerB);
+        routerB.AttachBroker(brokerB);
+
+        await routerB.StartAsync();
+        await brokerB.StartAsync(CancellationToken.None);
+
+        try
+        {
+            await routerB.ProcessHeartbeatAsync(new ClusterHeartbeatRequest(
+                "node-a",
+                "http://node-a",
+                DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+                []));
+
+            brokerB.StoreSessionReplica(Replica("guarded", "node-a", DateTimeOffset.UtcNow.ToUnixTimeSeconds()));
+            Assert.Equal(1, brokerB.SessionReplicaCount);
+
+            var connection = new FakeConnection { ProtocolVersion = MqttProtocolVersion.V500 };
+            var attach = await brokerB.AttachSessionAsync(
+                TestBroker.Connect("guarded", cleanStart: false, sessionExpiry: 300),
+                NextMqtt.Broker.Security.ClientPrincipal.Anonymous("guarded"),
+                connection);
+
+            // A 401 is not evidence that the owner lost the session, so the
+            // replica must not resurrect it.
+            Assert.False(attach.SessionPresent);
+            Assert.Equal(1, brokerB.SessionReplicaCount);
+        }
+        finally
+        {
+            await brokerB.DisposeAsync();
+            await routerB.StopAsync();
+        }
+    }
+
+    [Fact]
     public async Task Replica_is_used_when_the_owner_is_unreachable_but_looks_alive()
     {
         const string secret = "cluster-test-secret-1234567890";

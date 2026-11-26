@@ -625,7 +625,7 @@ public sealed class ClusterRouter : IClusterRouter
 
         foreach (var peer in peers)
         {
-            var (reached, transfer) = await TryPostAsync<ClusterSessionClaim, PersistedSession>(
+            var (reached, status, transfer) = await TryPostAsync<ClusterSessionClaim, PersistedSession>(
                 peer.AdvertiseUrl,
                 "/internal/cluster/session/claim",
                 claim,
@@ -641,14 +641,15 @@ public sealed class ClusterRouter : IClusterRouter
                 return transfer;
             }
 
-            if (reached)
-            {
-                // A 404 means the peer is serving but does not hold the session.
-                answered.Add(peer.NodeId);
-            }
-            else
+            if (!reached)
             {
                 unreachable.Add(peer.NodeId);
+            }
+            else if (status == HttpStatusCode.NotFound)
+            {
+                // The peer is serving and explicitly reports that it does not
+                // hold the session.
+                answered.Add(peer.NodeId);
             }
         }
 
@@ -979,7 +980,7 @@ public sealed class ClusterRouter : IClusterRouter
         TRequest request,
         CancellationToken cancellationToken)
     {
-        var (_, body) = await TryPostAsync<TRequest, TResponse>(
+        var (_, _, body) = await TryPostAsync<TRequest, TResponse>(
             baseUrl,
             path,
             request,
@@ -991,10 +992,10 @@ public sealed class ClusterRouter : IClusterRouter
     /// <summary>Signs and posts one cluster request, reporting whether the peer replied.</summary>
     /// <remarks>
     /// セッション引き継ぎでは「応答がなかった」と「セッションを持っていないと答えた」を
-    /// 区別する必要がある。前者は到達不能、後者は 404 などの応答として扱う。
+    /// 区別する必要がある。前者は到達不能、後者は 404 として扱う。
     /// </remarks>
-    /// <returns><c>true</c> when any HTTP response arrived, plus the parsed body.</returns>
-    private async Task<(bool Reached, TResponse? Body)> TryPostAsync<TRequest, TResponse>(
+    /// <returns>Whether any HTTP response arrived, its status, and the parsed body.</returns>
+    private async Task<(bool Reached, HttpStatusCode Status, TResponse? Body)> TryPostAsync<TRequest, TResponse>(
         string baseUrl,
         string path,
         TRequest request,
@@ -1026,12 +1027,12 @@ public sealed class ClusterRouter : IClusterRouter
                         (int)response.StatusCode);
                 }
 
-                return (true, default);
+                return (true, response.StatusCode, default);
             }
 
             var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
 
-            return (true, string.IsNullOrEmpty(body)
+            return (true, response.StatusCode, string.IsNullOrEmpty(body)
                 ? default
                 : JsonSerializer.Deserialize<TResponse>(body, ClusterJson.Options));
         }
@@ -1042,7 +1043,7 @@ public sealed class ClusterRouter : IClusterRouter
         catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException or JsonException)
         {
             _logger.LogDebug(ex, "Cluster request to {Url} could not be completed", httpRequest.RequestUri);
-            return (false, default);
+            return (false, default, default);
         }
     }
 
