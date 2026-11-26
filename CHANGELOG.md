@@ -5,6 +5,27 @@ All notable changes to NextMQTT are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.18.0] - 2026-11-26
+
+### Added
+
+- Cross-node session handover. A client that reconnects with `CleanStart=false`
+  to a different node claims its session from the previous owner: the
+  subscriptions and the offline queue move, `session present` is reported as 1,
+  and the old connection is closed with 0x8E without publishing its will.
+  Inbound QoS 2 handshakes are not transferred; the client retries with `DUP`.
+- `POST /api/v1/plugins/reload` rescans the plugin directory, loads a new host
+  and swaps authentication and authorisation atomically. The dashboard exposes
+  the action and shows the reload count.
+- Plugin status now reports the active hooks separately from the configured
+  type names, so a missing or removed plugin is visible instead of implied.
+
+### Changed
+
+- Session affinity is no longer a documented limitation: sessions follow the
+  client on reconnect, and the clustering guide describes what is and is not
+  transferred.
+
 ## [0.17.1] - 2026-11-25
 
 ### Fixed
@@ -248,6 +269,27 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 - Rate-limited publishes are acknowledged but not routed, so publishers do not
   retransmit. MQTT 5 QoS 2 rejections carry `0x96 Message rate too high`.
 
+## [0.18.0] - 2026-11-26
+
+### Added
+
+- Cross-node session handover. A client that reconnects with `CleanStart=false`
+  to a different node claims its session from the previous owner: the
+  subscriptions and the offline queue move, `session present` is reported as 1,
+  and the old connection is closed with 0x8E without publishing its will.
+  Inbound QoS 2 handshakes are not transferred; the client retries with `DUP`.
+- `POST /api/v1/plugins/reload` rescans the plugin directory, loads a new host
+  and swaps authentication and authorisation atomically. The dashboard exposes
+  the action and shows the reload count.
+- Plugin status now reports the active hooks separately from the configured
+  type names, so a missing or removed plugin is visible instead of implied.
+
+### Changed
+
+- Session affinity is no longer a documented limitation: sessions follow the
+  client on reconnect, and the clustering guide describes what is and is not
+  transferred.
+
 ## [0.17.1] - 2026-11-25
 
 ### Fixed
@@ -359,7 +401,8 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 - GitHub Actions for CI, CodeQL, releases and GitHub Pages.
 - Mechanical brand/trademark compliance scanner and repository policy.
 
-[Unreleased]: https://github.com/cn-cam/next-mqtt/compare/v0.17.1...HEAD
+[Unreleased]: https://github.com/cn-cam/next-mqtt/compare/v0.18.0...HEAD
+[0.18.0]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.18.0
 [0.17.1]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.17.1
 [0.17.0]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.17.0
 [0.16.2]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.16.2

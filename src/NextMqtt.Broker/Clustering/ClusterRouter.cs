@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using NextMqtt.Broker.Diagnostics;
 using NextMqtt.Broker.Messaging;
 using NextMqtt.Broker.Options;
+using NextMqtt.Broker.Storage;
 using NextMqtt.Core.Protocol;
 using NextMqtt.Core.Topics;
 
@@ -598,6 +599,48 @@ public sealed class ClusterRouter : IClusterRouter
                 _ = Task.Run(() => SyncRetainedAsync(source, _lifetime.Token), CancellationToken.None);
             }
         }
+    }
+
+    /// <summary>Asks peers whether they hold a session and takes it over.</summary>
+    /// <remarks>逐个询问存活节点；拿到会话就停止，失败按“对端没有”处理。</remarks>
+    /// <param name="clientId">Session to claim.</param>
+    /// <param name="cancellationToken">Cancels the peer requests.</param>
+    public async Task<PersistedSession?> ClaimSessionAsync(string clientId, CancellationToken cancellationToken = default)
+    {
+        if (!Enabled || _self is null)
+        {
+            return null;
+        }
+
+        var timeout = TimeSpan.FromSeconds(_options.NodeTimeoutSeconds);
+        var now = DateTimeOffset.UtcNow;
+        var claim = new ClusterSessionClaim(clientId, _self.NodeId);
+
+        var peers = _members.Values
+            .Where(member => member.NodeId != _self.NodeId && member.Status(now, timeout) == "alive")
+            .Select(member => member.AdvertiseUrl)
+            .ToList();
+
+        foreach (var peer in peers)
+        {
+            var transfer = await PostAsync<ClusterSessionClaim, PersistedSession>(
+                peer,
+                "/internal/cluster/session/claim",
+                claim,
+                cancellationToken).ConfigureAwait(false);
+
+            if (transfer is not null)
+            {
+                _logger.LogInformation(
+                    "Session {ClientId} claimed from {Peer}; it will resume on this node",
+                    clientId,
+                    peer);
+
+                return transfer;
+            }
+        }
+
+        return null;
     }
 
     /// <summary>Pulls the retained set from a peer once, so a joining node can serve it.</summary>

@@ -76,8 +76,66 @@ Errors use a stable shape:
 | DELETE | `/api/v1/retained?topic=...` | Delete a retained message |
 | POST | `/api/v1/publish` | Publish through the broker |
 | GET | `/api/v1/cluster` | Membership snapshot |
+| GET | `/api/v1/logs` | Recent log entries, filtered by level and text |
+| GET | `/api/v1/plugins` | Loaded plugins and which hooks are active |
+| POST | `/api/v1/plugins/reload` | Rescan the plugin directory and swap the hooks |
 | GET | `/api/v1/config` | Effective safe configuration |
 | GET | `/metrics` | Prometheus exposition |
+
+### Logs
+
+```http
+GET /api/v1/logs?level=Warning&search=cluster&limit=200
+```
+
+```json
+{
+  "entries": [
+    {
+      "timestamp": "2026-11-25T20:00:52.123+00:00",
+      "level": "Warning",
+      "category": "NextMqtt.Broker.Clustering.ClusterRouter",
+      "message": "Cluster node node-b timed out and was removed",
+      "exception": null
+    }
+  ],
+  "total": 42,
+  "capacity": 2000,
+  "level": "Warning"
+}
+```
+
+`level` accepts `trace`, `debug`, `information`/`info`, `warning`/`warn`,
+`error`, `critical`/`fatal`. Entries are kept in a bounded in-memory ring, so
+`total` can exceed `capacity`.
+
+### Plugins
+
+```http
+GET /api/v1/plugins
+```
+
+```json
+{
+  "enabled": true,
+  "directory": "plugins",
+  "contractVersion": 1,
+  "authenticator": "ProbeAuth.DenyAllAuthenticator",
+  "authorizer": null,
+  "authenticatorLoaded": true,
+  "authorizerLoaded": false,
+  "instances": 1,
+  "reloads": 0,
+  "plugins": [
+    { "name": "probe-auth", "version": "1.0.0", "directory": "/app/plugins/probe-auth", "assembly": "ProbeAuth" }
+  ]
+}
+```
+
+`POST /api/v1/plugins/reload` rescans the directory, loads a new host, swaps the
+authenticator and authorizer, and then unloads the previous host. A plugin that
+disappears from disk falls back to the built-in implementation on the next
+reload; in-flight requests finish against the old instance.
 
 ### List clients
 
@@ -210,5 +268,7 @@ These endpoints are for node-to-node traffic only and are signed with
 - `POST /internal/cluster/heartbeat`
 - `POST /internal/cluster/publish`
 - `POST /internal/cluster/leave`
+- `POST /internal/cluster/retained`
+- `POST /internal/cluster/session/claim`
 
 They are not covered by admin token authentication. Block them at the edge.

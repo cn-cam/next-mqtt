@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using NextMqtt.Broker.Storage;
 using NextMqtt.Core.Protocol;
 
 namespace NextMqtt.Broker.Clustering;
@@ -188,6 +189,12 @@ public sealed record ClusterRetainedMessage(
     long StoredAtUnix,
     long? ExpiresAtUnix,
     ClusterPropertyDto[] Properties);
+
+/// <summary>Request for a session that may live on another node.</summary>
+/// <remarks>只在 CleanStart 为 false 时发送；对方交还会话并断开自己的连接。</remarks>
+/// <param name="ClientId">Session to take over.</param>
+/// <param name="NodeId">Node asking for it, for logging and conflict detection.</param>
+public sealed record ClusterSessionClaim(string ClientId, string NodeId);
 
 /// <summary>HMAC-SHA256 request signing with a five minute clock skew window.</summary>
 /// <remarks>时间戳超出窗口直接拒绝，用来挡住重放。</remarks>

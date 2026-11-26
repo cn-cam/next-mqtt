@@ -14,6 +14,7 @@ const data = ref<PluginsInfo>({
   authenticatorLoaded: false,
   authorizerLoaded: false,
   instances: 0,
+  reloads: 0,
   plugins: [],
 })
 
@@ -22,6 +23,17 @@ async function load(): Promise<void> {
 }
 
 const { refresh, refreshing, error } = useAutoRefresh(load, 10_000)
+const reloading = ref(false)
+
+async function reload(): Promise<void> {
+  reloading.value = true
+
+  try {
+    data.value = await api.reloadPlugins()
+  } finally {
+    reloading.value = false
+  }
+}
 
 function trail(plugin: PluginsInfo['plugins'][number]): string {
   return plugin.directory
@@ -37,6 +49,9 @@ function trail(plugin: PluginsInfo['plugins'][number]): string {
         <p>{{ t('plugins.subtitle') }}</p>
       </div>
       <div class="header-actions">
+        <button class="button" type="button" :disabled="reloading" @click="reload">
+          {{ reloading ? t('plugins.reloading') : t('plugins.reload') }}
+        </button>
         <button class="button ghost" type="button" :disabled="refreshing" @click="refresh">
           <Icon name="refresh" :size="16" :class="{ spin: refreshing }" />
           {{ t('common.refresh') }}
@@ -92,6 +107,10 @@ function trail(plugin: PluginsInfo['plugins'][number]): string {
             <tr>
               <th>{{ t('plugins.instances') }}</th>
               <td class="mono">{{ data.instances }}</td>
+            </tr>
+            <tr>
+              <th>{{ t('plugins.reloads') }}</th>
+              <td class="mono">{{ data.reloads }}</td>
             </tr>
           </tbody>
         </table>

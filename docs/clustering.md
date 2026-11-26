@@ -76,8 +76,10 @@ view.
   last-write-wins still applies. Messages published while the node was away are
   therefore not lost.
 
-Sessions are the exception: they live on the node that accepted the connection,
-so a client that reconnects to another node starts a fresh session.
+Sessions follow the client: a reconnect with `CleanStart=false` on another node
+claims the session from its previous owner, so the offline queue and
+subscriptions survive a node change. A reconnect with `CleanStart=true` still
+starts from scratch.
 
 ## Routing
 
@@ -110,8 +112,12 @@ node receives the retained value after its SUBACK. Deleting a retained message
   is down, messages routed to it are lost; MQTT QoS does not span nodes.
 - **Duplicate suppression.** A bounded seen-message cache rejects repeat
   delivery of the same cluster message.
-- **Session affinity.** Sessions live on the node that accepted the connection.
-  Reconnecting to a different node creates a new session (`session present = 0`).
+- **Session affinity with handover.** A session normally lives on the node that
+  accepted the connection. When a client reconnects with `CleanStart=false` to
+  another node, that node claims the session from its previous owner, restores
+  its subscriptions and offline queue, and reports `session present = 1`. The
+  old connection is closed with 0x8E and its will is not published. Inbound QoS 2
+  handshakes are not transferred; the client retries with `DUP`.
 - **Shared subscriptions span the cluster.** Nodes advertise their `$share`
   groups in heartbeats; each message is assigned to exactly one node that hosts
   the group, chosen by hashing the message id and group name, so a group member
@@ -176,7 +182,11 @@ Wait at least one heartbeat after subscribing before publishing.
 
 ## Limitations
 
-- No cross-node session migration or persistence.
+- Session handover covers subscriptions and the offline queue, not the inbound
+  QoS 2 handshake or the `inflight` acknowledgement state; those messages are
+  replayed from the queue and the client retries.
+- No cross-node session persistence beyond a handover: if the owning node dies
+  without transferring, the session is lost.
 - Filter advertisements are full snapshots, capped at 10,000 filters per
   heartbeat by default.
 - Cluster routing is at-least-once per link with a deduplication cache, not a

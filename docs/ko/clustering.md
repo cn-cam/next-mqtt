@@ -38,6 +38,14 @@ NEXTMQTT_CLUSTER__SECRET=shared-secret-at-least-16-chars
 
 `GET /api/v1/cluster`와 UI에서 확인할 수 있습니다.
 
+## 자가 치유
+
+- **정지 노드는 제거됩니다**: 노드 타임아웃 후 suspect, 3배 시간이 지나면 멤버 표에서 제거되고 해당 필터로의 전달도 멈춥니다.
+- **제한은 즉시 재계산**: 참여·이탈 시점에 연결·publish·토픽 할당을 다시 나눕니다.
+- **실행 중 참여**: 재시작·추가 노드는 시드 하나면 충분하며 첫 heartbeat 응답에서 멤버 표를 학습합니다.
+- **retained 따라잡기**: 최초 참여 시 피어에서 retained를 가져오고 원래 타임스탬프를 유지해 last-write-wins가 유지됩니다.
+- **세션 인계**: `CleanStart=false`로 다른 노드에 재연결하면 새 노드가 이전 소유자에게서 세션을 인계받아 구독과 오프라인 큐를 복원합니다. `CleanStart=true`는 새 세션입니다. 이전 연결은 0x8E로 닫고 유언은 보내지 않습니다.
+
 ## 라우팅
 
 - 로컬 전달 후 retain은 모든 노드로
@@ -47,8 +55,8 @@ NEXTMQTT_CLUSTER__SECRET=shared-secret-at-least-16-chars
 ## 전달 의미
 
 - 노드 간 HTTP 최선 노력
-- 세션은 노드 고정(다른 노드 재연결 시 새 세션)
-- 공유 구독은 노드 단위
+- 세션은 `CleanStart=false` 재연결 시 인계(인바운드 QoS 2와 inflight 제외)
+- 공유 구독은 클러스터 전체에서 한 노드만
 - 필터 전파는 최대 1 heartbeat 지연
 
 ## 보안

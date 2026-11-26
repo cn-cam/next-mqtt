@@ -211,6 +211,13 @@ public sealed class MqttBroker : IAsyncDisposable
         IClientConnection connection,
         CancellationToken cancellationToken = default)
     {
+        if (Cluster.Enabled
+            && !connect.CleanStart
+            && Sessions.Get(connect.ClientId) is null)
+        {
+            await ClaimRemoteSessionAsync(connect.ClientId, cancellationToken).ConfigureAwait(false);
+        }
+
         await _attachGate.WaitAsync(cancellationToken).ConfigureAwait(false);
 
         BrokerSession session;
@@ -282,6 +289,143 @@ public sealed class MqttBroker : IAsyncDisposable
         }
 
         return new SessionAttachResult(session, sessionPresent, previous);
+    }
+
+    /// <summary>Asks the cluster for a session before creating a fresh one.</summary>
+    /// <remarks>传输失败只告警：宁可新建会话，也不让客户端连不上。</remarks>
+    /// <param name="clientId">Session to claim.</param>
+    /// <param name="cancellationToken">Cancels the request.</param>
+    private async Task ClaimRemoteSessionAsync(string clientId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var transfer = await Cluster.ClaimSessionAsync(clientId, cancellationToken).ConfigureAwait(false);
+
+            if (transfer is not null && InstallSession(transfer))
+            {
+                _logger.LogInformation(
+                    "Client {ClientId} resumed a session transferred from another node",
+                    clientId);
+            }
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException)
+        {
+            _logger.LogWarning(ex, "Session claim for {ClientId} failed; starting a fresh session", clientId);
+        }
+    }
+
+    /// <summary>Installs a session transferred from another node.</summary>
+    /// <remarks>走与启动恢复相同的路径，避免两套状态重建逻辑。</remarks>
+    /// <param name="record">Snapshot built by the previous owner.</param>
+    /// <returns><c>true</c> when the session is present afterwards.</returns>
+    public bool InstallSession(PersistedSession record)
+    {
+        RestoreSessions([record]);
+        return Sessions.Get(record.ClientId) is not null;
+    }
+
+    /// <summary>Removes a session locally and returns it for another node.</summary>
+    /// <remarks>
+    /// 与 attach 共用同一把锁，避免交还会话时又被本机连接接管；
+    /// 旧连接以 0x8E 断开，遗嘱不发布，因为迁移不是异常断开。
+    /// </remarks>
+    /// <param name="clientId">Session to hand over.</param>
+    /// <param name="cancellationToken">Cancels the disconnect.</param>
+    /// <returns>The snapshot, or null when this node does not hold the session.</returns>
+    public async Task<PersistedSession?> DetachSessionAsync(string clientId, CancellationToken cancellationToken = default)
+    {
+        BrokerSession? session;
+        IClientConnection? connection;
+        PersistedSession record;
+
+        await _attachGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+
+        try
+        {
+            session = Sessions.Get(clientId);
+
+            if (session is null)
+            {
+                return null;
+            }
+
+            record = CreateTransferRecord(session);
+            connection = session.Connection;
+
+            session.PrepareForTransfer();
+            Sessions.Remove(clientId);
+            Subscriptions.RemoveAll(clientId);
+            session.Dispose();
+        }
+        finally
+        {
+            _attachGate.Release();
+        }
+
+        if (connection is not null)
+        {
+            await connection.DisconnectAsync(
+                MqttReasonCodes.SessionTakenOver,
+                "Session moved to another node.",
+                cancellationToken).ConfigureAwait(false);
+        }
+
+        PersistSessions(force: false);
+
+        _logger.LogInformation(
+            "Session {ClientId} handed over with {Count} queued message(s)",
+            clientId,
+            record.Queue.Count);
+
+        return record;
+    }
+
+    /// <summary>Builds the transfer snapshot for one session.</summary>
+    /// <param name="session">Session that is leaving this node.</param>
+    private PersistedSession CreateTransferRecord(BrokerSession session)
+    {
+        var principal = session.Principal;
+
+        var record = new PersistedSession
+        {
+            ClientId = session.ClientId,
+            Name = principal.Name,
+            Username = principal.Username,
+            IsSuperuser = principal.IsSuperuser,
+            Claims = principal.Claims.Count == 0
+                ? null
+                : principal.Claims.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal),
+            ProtocolVersion = (int)session.ProtocolVersion,
+            SessionExpiryInterval = session.SessionExpiryInterval,
+            ExpiresAt = session.ExpiresAt,
+            LastSeen = session.LastSeen,
+        };
+
+        record.Subscriptions = Subscriptions.GetByClient(session.ClientId)
+            .Select(subscription => new PersistedSubscription
+            {
+                Filter = subscription.Filter.Original,
+                QoS = (int)subscription.Options.QoS,
+                NoLocal = subscription.Options.NoLocal,
+                RetainAsPublished = subscription.Options.RetainAsPublished,
+                RetainHandling = (int)subscription.Options.RetainHandling,
+                Identifier = subscription.Identifier,
+            })
+            .ToList();
+
+        record.Queue = session.SnapshotForTransfer(DateTimeOffset.UtcNow)
+            .Select(message => new PersistedMessage
+            {
+                Topic = message.Topic,
+                Payload = Convert.ToBase64String(message.Payload),
+                QoS = (int)message.QoS,
+                Retain = message.Retain,
+                ExpiresAt = message.ExpiresAt,
+                Properties = PropertyRecord.FromProperties(message.Properties),
+            })
+            .ToList();
+
+        return record;
     }
 
     /// <summary>Applies disconnect rules: will publication, expiry and metrics.</summary>

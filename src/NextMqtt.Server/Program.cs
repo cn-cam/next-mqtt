@@ -104,17 +104,24 @@ builder.Services.AddSingleton(logBuffer);
 
 var pluginOptions = builder.Configuration.GetSection(PluginOptions.SectionName).Get<PluginOptions>()
     ?? new PluginOptions();
-var pluginHost = PluginHost.Load(
-    pluginOptions,
-    LoggerFactory.Create(logging => logging.AddSimpleConsole()).CreateLogger<PluginHost>());
-var pluginAuthenticator = pluginHost.FindAuthenticator(pluginOptions.Authenticator);
-var pluginAuthorizer = pluginHost.FindAuthorizer(pluginOptions.Authorizer);
+
+var builtinAuthenticator = new ClientAuthenticator(authenticationOptions);
+var builtinAuthorizer = new TopicAuthorizer(aclOptions);
+var switchableAuthenticator = new SwitchableAuthenticator(builtinAuthenticator);
+var switchableAuthorizer = new SwitchableAuthorizer(builtinAuthorizer);
 
 builder.Services.AddSingleton(pluginOptions);
-builder.Services.AddSingleton(pluginHost);
-
-builder.Services.AddSingleton<IClientAuthenticator>(_ => pluginAuthenticator ?? new ClientAuthenticator(authenticationOptions));
-builder.Services.AddSingleton<ITopicAuthorizer>(_ => pluginAuthorizer ?? new TopicAuthorizer(aclOptions));
+builder.Services.AddSingleton(switchableAuthenticator);
+builder.Services.AddSingleton<IClientAuthenticator>(switchableAuthenticator);
+builder.Services.AddSingleton(switchableAuthorizer);
+builder.Services.AddSingleton<ITopicAuthorizer>(switchableAuthorizer);
+builder.Services.AddSingleton(sp => new PluginRuntime(
+    pluginOptions,
+    sp.GetRequiredService<ILoggerFactory>(),
+    switchableAuthenticator,
+    switchableAuthorizer,
+    builtinAuthenticator,
+    builtinAuthorizer));
 builder.Services.AddSingleton(clusterOptions);
 builder.Services.AddSingleton(_ => new HttpClient
 {
@@ -246,7 +253,6 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<BrokerLifecycleSer
 builder.Services.AddHostedService<MqttTcpListenerService>();
 
 var app = builder.Build();
-app.Lifetime.ApplicationStopping.Register(pluginHost.Dispose);
 var broker = app.Services.GetRequiredService<MqttBroker>();
 var adminAuth = app.Services.GetRequiredService<AdminAuthService>();
 var clusterRouter = app.Services.GetRequiredService<ClusterRouter>();
@@ -516,37 +522,23 @@ api.MapGet("/logs", (LogBuffer buffer, string? level, string? search, int limit 
     });
 });
 
-api.MapGet("/plugins", (PluginHost host, PluginOptions options) =>
+api.MapGet("/plugins", (PluginRuntime runtime) => Results.Ok(runtime.Status()));
+
+api.MapPost("/plugins/reload", (PluginRuntime runtime) =>
 {
-    var authenticatorLoaded = options.Authenticator is null
-        ? host.Instances.OfType<IClientAuthenticator>().Any()
-        : host.Instances.Any(instance => instance is IClientAuthenticator
-            && string.Equals(instance.GetType().FullName, options.Authenticator, StringComparison.Ordinal));
-
-    var authorizerLoaded = options.Authorizer is null
-        ? host.Instances.OfType<ITopicAuthorizer>().Any()
-        : host.Instances.Any(instance => instance is ITopicAuthorizer
-            && string.Equals(instance.GetType().FullName, options.Authorizer, StringComparison.Ordinal));
-
-    return Results.Ok(new
+    try
     {
-        enabled = options.Enabled,
-        directory = options.Directory,
-        contractVersion = PluginHost.ContractVersion,
-        authenticator = options.Authenticator,
-        authorizer = options.Authorizer,
-        authenticatorLoaded,
-        authorizerLoaded,
-        instances = host.Instances.Count,
-        plugins = host.Plugins.Select(plugin => new
-        {
-            name = plugin.Name,
-            version = plugin.Version,
-            directory = plugin.Directory,
-            assembly = plugin.Assembly.GetName().Name,
-        }),
-    });
+        return Results.Ok(runtime.Reload());
+    }
+    catch (Exception ex) when (ex is IOException or BadImageFormatException or System.Text.Json.JsonException)
+    {
+        return Results.Problem(
+            title: "Plugin reload failed",
+            detail: ex.Message,
+            statusCode: StatusCodes.Status500InternalServerError);
+    }
 });
+
 api.MapGet("/backup", (MqttBroker b) => Results.Ok(b.CreateBackup()));
 
 api.MapPost("/backup", (MqttBroker b, BrokerBackup backup) =>

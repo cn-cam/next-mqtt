@@ -228,6 +228,9 @@ const en: Record<string, string> = {
   'plugins.none': 'built-in',
   'plugins.resolved': 'active',
   'plugins.unresolved': 'not applied',
+  'plugins.reload': 'Reload plugins',
+  'plugins.reloading': 'Reloading...',
+  'plugins.reloads': 'Reloads',
   'plugins.emptyTitle': 'No plugins loaded',
   'plugins.emptyHint': 'Drop a folder with plugin.json and the entry assembly under the plugin directory, then restart.',
 
@@ -576,6 +579,9 @@ const zh: Record<string, string> = {
   'plugins.none': '内置',
   'plugins.resolved': '已生效',
   'plugins.unresolved': '未生效',
+  'plugins.reload': '重新加载插件',
+  'plugins.reloading': '正在重新加载…',
+  'plugins.reloads': '重载次数',
   'plugins.emptyTitle': '尚未加载插件',
   'plugins.emptyHint': '在插件目录下放入包含 plugin.json 与入口程序集的文件夹，然后重启。',
 

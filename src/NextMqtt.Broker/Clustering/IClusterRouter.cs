@@ -1,4 +1,5 @@
 using NextMqtt.Broker.Diagnostics;
+using NextMqtt.Broker.Storage;
 using NextMqtt.Core.Protocol;
 
 namespace NextMqtt.Broker.Clustering;
@@ -31,6 +32,13 @@ public interface IClusterRouter
     /// <param name="messageId">Stable id for the message.</param>
     /// <returns><c>true</c> when the local node owns this delivery.</returns>
     bool OwnsSharedGroup(string topic, string group, string messageId);
+
+    /// <summary>Asks peers whether they hold a session and takes it over.</summary>
+    /// <remarks>只有 CleanStart 为 false 时调用；对端交还会话并断开自己的连接。</remarks>
+    /// <param name="clientId">Session to claim.</param>
+    /// <param name="cancellationToken">Cancels the peer requests.</param>
+    /// <returns>The transferred session, or null when no peer holds it.</returns>
+    Task<PersistedSession?> ClaimSessionAsync(string clientId, CancellationToken cancellationToken = default);
 
     /// <summary>Starts the heartbeat loop and joins the cluster.</summary>
     /// <remarks>幂等；重复调用不会起第二个循环。</remarks>
@@ -72,6 +80,13 @@ public sealed class NullClusterRouter : IClusterRouter
     /// <param name="group">Ignored.</param>
     /// <param name="messageId">Ignored.</param>
     public bool OwnsSharedGroup(string topic, string group, string messageId) => true;
+
+    /// <summary>No peers, so there is never a session to claim.</summary>
+    /// <remarks>返回 null 让调用方按普通方式新建会话。</remarks>
+    /// <param name="clientId">Ignored.</param>
+    /// <param name="cancellationToken">Ignored.</param>
+    public Task<PersistedSession?> ClaimSessionAsync(string clientId, CancellationToken cancellationToken = default)
+        => Task.FromResult<PersistedSession?>(null);
 
     /// <summary>No-op start.</summary>
     /// <remarks>返回已完成的任务。</remarks>

@@ -488,6 +488,62 @@ public sealed class BrokerSession : IDisposable
         }
     }
 
+    /// <summary>Exports queued and unacknowledged messages for a handover to another node.</summary>
+    /// <remarks>
+    /// 未确认的消息排在最前：它们在原节点上先于队列被发送，重放顺序必须保持。
+    /// 入站 QoS 2 握手不迁移，客户端会带 DUP 重发，新节点按新消息处理。
+    /// </remarks>
+    /// <param name="now">Used to turn a relative expiry into an absolute one.</param>
+    /// <returns>Messages in delivery order.</returns>
+    public IReadOnlyList<OutboundMessage> SnapshotForTransfer(DateTimeOffset now)
+    {
+        lock (_gate)
+        {
+            var result = new List<OutboundMessage>(_inflight.Count + _queue.Count);
+
+            foreach (var entry in _inflight.Values.OrderBy(item => item.LastSent))
+            {
+                var packet = entry.Packet;
+                DateTimeOffset? expiresAt = null;
+
+                if (packet.Properties.GetUInt32(MqttPropertyId.MessageExpiryInterval) is { } seconds and > 0)
+                {
+                    expiresAt = now.AddSeconds(seconds);
+                }
+
+                result.Add(new OutboundMessage
+                {
+                    Topic = packet.Topic,
+                    Payload = packet.Payload,
+                    QoS = packet.QoS,
+                    Retain = packet.Retain,
+                    Properties = packet.Properties,
+                    ExpiresAt = expiresAt,
+                });
+            }
+
+            foreach (var queued in _queue)
+            {
+                result.Add(queued.Message);
+            }
+
+            return result;
+        }
+    }
+
+    /// <summary>Drops the will and both queues before the session moves to another node.</summary>
+    /// <remarks>与会话迁移配合：迁移不是异常断开，不能因此发布遗嘱。</remarks>
+    public void PrepareForTransfer()
+    {
+        lock (_gate)
+        {
+            Will = null;
+            _queue.Clear();
+            _inflight.Clear();
+            _inboundQos2.Clear();
+        }
+    }
+
     /// <summary>Retransmits unacknowledged messages whose timer elapsed.</summary>
     /// <remarks>只重发超时的，避免把整个窗口一次性打爆。</remarks>
     /// <param name="now">Current time, used against RetransmitInterval.</param>

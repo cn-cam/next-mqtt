@@ -135,6 +135,7 @@ export interface PluginsInfo {
   authenticatorLoaded: boolean
   authorizerLoaded: boolean
   instances: number
+  reloads: number
   plugins: PluginInfo[]
 }
 

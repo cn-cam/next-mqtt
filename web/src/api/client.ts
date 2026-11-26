@@ -163,6 +163,10 @@ export const api = {
     return request('/api/v1/plugins')
   },
 
+  reloadPlugins(): Promise<PluginsInfo> {
+    return request('/api/v1/plugins/reload', { method: 'POST' })
+  },
+
   logs(params: { level?: string; search?: string; limit?: number } = {}): Promise<LogsInfo> {
     return request(`/api/v1/logs${query(params)}`)
   },
