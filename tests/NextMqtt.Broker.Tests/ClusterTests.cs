@@ -2,6 +2,8 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using NextMqtt.Broker.Clustering;
+using NextMqtt.Broker.Diagnostics;
+using NextMqtt.Broker.Storage;
 using NextMqtt.Core.Protocol;
 
 namespace NextMqtt.Broker.Tests;
@@ -706,6 +708,94 @@ public class ClusterTests
             await routerA.StopAsync();
             await routerB.StopAsync();
         }
+    }
+
+    /// <summary>Cluster router stub that only serves replicas and liveness.</summary>
+    private sealed class ReplicaStub : IClusterRouter
+    {
+        private readonly ClusterSessionReplica? _replica;
+        private readonly bool _alive;
+
+        public ReplicaStub(ClusterSessionReplica? replica, bool alive)
+        {
+            _replica = replica;
+            _alive = alive;
+        }
+
+        public bool Enabled => true;
+
+        public ClusterSnapshot GetSnapshot() => new("node-x", "clustered", []);
+
+        public ValueTask RouteAsync(PublishPacket publish, string messageId, CancellationToken cancellationToken = default)
+            => ValueTask.CompletedTask;
+
+        public bool OwnsSharedGroup(string topic, string group, string messageId) => true;
+
+        public Task<PersistedSession?> ClaimSessionAsync(string clientId, CancellationToken cancellationToken = default)
+            => Task.FromResult<PersistedSession?>(null);
+
+        public bool ReplicatesSessions => true;
+
+        public TimeSpan ReplicaInterval => TimeSpan.FromSeconds(5);
+
+        public Task ReplicateSessionAsync(ClusterSessionReplica replica, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public Task<ClusterSessionReplica?> FindSessionReplicaAsync(string clientId, CancellationToken cancellationToken = default)
+            => Task.FromResult(_replica);
+
+        public bool IsNodeAlive(string nodeId) => _alive;
+
+        public ValueTask StartAsync(CancellationToken cancellationToken = default) => ValueTask.CompletedTask;
+
+        public ValueTask StopAsync() => ValueTask.CompletedTask;
+    }
+
+    private static ClusterSessionReplica Replica(string clientId, string owner, long updatedUnix)
+        => new(
+            new NextMqtt.Broker.Storage.PersistedSession { ClientId = clientId },
+            owner,
+            7,
+            updatedUnix);
+
+    [Fact]
+    public async Task Restored_session_owned_by_a_live_peer_is_dropped()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var broker = TestBroker.Create(cluster: new ReplicaStub(Replica("ghost", "node-b", now.AddSeconds(5).ToUnixTimeSeconds()), alive: true));
+
+        var (_, session, connection) = await TestBroker.ConnectAsync(
+            "ghost",
+            cleanStart: false,
+            sessionExpiry: 300,
+            broker: broker);
+
+        session.Detach(connection);
+
+        Assert.Equal(1, await broker.DropStaleRestoredSessionsAsync());
+        Assert.Null(broker.Sessions.Get("ghost"));
+
+        await broker.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task Restored_session_is_kept_when_the_owner_is_this_node()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var broker = TestBroker.Create(cluster: new ReplicaStub(Replica("ghost", "node-x", now.AddSeconds(5).ToUnixTimeSeconds()), alive: true));
+
+        var (_, session, connection) = await TestBroker.ConnectAsync(
+            "ghost",
+            cleanStart: false,
+            sessionExpiry: 300,
+            broker: broker);
+
+        session.Detach(connection);
+
+        Assert.Equal(0, await broker.DropStaleRestoredSessionsAsync());
+        Assert.NotNull(broker.Sessions.Get("ghost"));
+
+        await broker.DisposeAsync();
     }
 
     [Fact]

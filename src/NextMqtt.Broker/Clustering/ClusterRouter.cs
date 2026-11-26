@@ -726,6 +726,11 @@ public sealed class ClusterRouter : IClusterRouter
     }
 
     /// <summary>True when the peer is currently considered alive.</summary>
+    /// <remarks>用于判断副本记录的属主是否还活着。</remarks>
+    /// <param name="nodeId">Node identifier to test.</param>
+    public bool IsNodeAlive(string nodeId) => IsAlive(nodeId);
+
+    /// <summary>True when the peer is currently considered alive.</summary>
     /// <param name="nodeId">Node identifier to test.</param>
     private bool IsAlive(string nodeId)
         => _members.TryGetValue(nodeId, out var member)

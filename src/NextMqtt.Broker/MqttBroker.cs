@@ -771,10 +771,73 @@ public sealed class MqttBroker : IAsyncDisposable
     /// <summary>Starts the maintenance loop and the cluster router.</summary>
     /// <remarks>幂等：重复调用不会起第二个清扫线程。</remarks>
     /// <param name="cancellationToken">Cancels startup.</param>
-    public Task StartAsync(CancellationToken cancellationToken)
+    public async Task StartAsync(CancellationToken cancellationToken)
     {
         _maintenanceTask ??= Task.Run(() => MaintenanceLoopAsync(_lifetime.Token), CancellationToken.None);
-        return Cluster.StartAsync(cancellationToken).AsTask();
+        await Cluster.StartAsync(cancellationToken).ConfigureAwait(false);
+
+        if (Cluster.Enabled)
+        {
+            // A session restored from local disk may have been taken over by a
+            // peer while this node was down; reconcile before clients arrive.
+            _ = Task.Run(() => DropStaleRestoredSessionsAsync(_lifetime.Token), CancellationToken.None);
+        }
+    }
+
+    /// <summary>Drops restored sessions that a live peer now owns.</summary>
+    /// <remarks>
+    /// 节点停机期间会话可能已被对端接管；本机文件里的旧副本会导致重复投递，
+    /// 因此启动后先比对副本：属主是别人且仍然存活、副本不比本地旧，就删除本地会话。
+    /// </remarks>
+    /// <param name="cancellationToken">Stops the reconciliation.</param>
+    /// <returns>Number of sessions dropped.</returns>
+    public async Task<int> DropStaleRestoredSessionsAsync(CancellationToken cancellationToken = default)
+    {
+        if (!Cluster.Enabled)
+        {
+            return 0;
+        }
+
+        var dropped = 0;
+        var self = Cluster.GetSnapshot().NodeId;
+
+        foreach (var session in Sessions.Snapshot())
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                break;
+            }
+
+            if (!session.Persistent || session.IsOnline)
+            {
+                continue;
+            }
+
+            var replica = await Cluster.FindSessionReplicaAsync(session.ClientId, cancellationToken).ConfigureAwait(false);
+
+            if (replica is null
+                || string.Equals(replica.OwnerNodeId, self, StringComparison.Ordinal)
+                || !Cluster.IsNodeAlive(replica.OwnerNodeId)
+                || replica.UpdatedAtUnix < session.LastSeen.ToUnixTimeSeconds())
+            {
+                continue;
+            }
+
+            _logger.LogInformation(
+                "Dropping restored session {ClientId}: it is now owned by {Owner}",
+                session.ClientId,
+                replica.OwnerNodeId);
+
+            RemoveSession(session);
+            dropped++;
+        }
+
+        if (dropped > 0)
+        {
+            PersistSessions(force: true);
+        }
+
+        return dropped;
     }
 
     /// <summary>Stops background loops without disposing session state.</summary>

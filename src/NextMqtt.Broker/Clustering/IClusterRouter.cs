@@ -60,6 +60,11 @@ public interface IClusterRouter
     /// <param name="cancellationToken">Cancels the peer requests.</param>
     Task<ClusterSessionReplica?> FindSessionReplicaAsync(string clientId, CancellationToken cancellationToken = default);
 
+    /// <summary>True when the peer is currently considered alive.</summary>
+    /// <remarks>用于判断副本记录的属主是否还活着。</remarks>
+    /// <param name="nodeId">Node identifier to test.</param>
+    bool IsNodeAlive(string nodeId);
+
     /// <summary>Starts the heartbeat loop and joins the cluster.</summary>
     /// <remarks>幂等；重复调用不会起第二个循环。</remarks>
     /// <param name="cancellationToken">Stops the startup handshake.</param>
@@ -129,6 +134,11 @@ public sealed class NullClusterRouter : IClusterRouter
     /// <param name="cancellationToken">Ignored.</param>
     public Task<ClusterSessionReplica?> FindSessionReplicaAsync(string clientId, CancellationToken cancellationToken = default)
         => Task.FromResult<ClusterSessionReplica?>(null);
+
+    /// <summary>Single node, so nothing else can be alive.</summary>
+    /// <remarks>始终返回 false。</remarks>
+    /// <param name="nodeId">Ignored.</param>
+    public bool IsNodeAlive(string nodeId) => false;
 
     /// <summary>No-op start.</summary>
     /// <remarks>返回已完成的任务。</remarks>

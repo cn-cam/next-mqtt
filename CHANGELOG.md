@@ -5,6 +5,16 @@ All notable changes to NextMQTT are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.19.1] - 2026-11-26
+
+### Fixed
+
+- A node that restarted could resurrect sessions a peer had taken over while it
+  was down, because the local session file knows nothing about the handover.
+  Startup now compares each restored session with the cluster replicas and drops
+  it when the recorded owner is a different, live node and the replica is not
+  older. Without this, the same client could be served from two nodes and
+  receive duplicates after reconnecting.
 ## [0.19.0] - 2026-11-26
 
 ### Added
@@ -284,6 +294,16 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 - Rate-limited publishes are acknowledged but not routed, so publishers do not
   retransmit. MQTT 5 QoS 2 rejections carry `0x96 Message rate too high`.
 
+## [0.19.1] - 2026-11-26
+
+### Fixed
+
+- A node that restarted could resurrect sessions a peer had taken over while it
+  was down, because the local session file knows nothing about the handover.
+  Startup now compares each restored session with the cluster replicas and drops
+  it when the recorded owner is a different, live node and the replica is not
+  older. Without this, the same client could be served from two nodes and
+  receive duplicates after reconnecting.
 ## [0.19.0] - 2026-11-26
 
 ### Added
@@ -431,7 +451,8 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 - GitHub Actions for CI, CodeQL, releases and GitHub Pages.
 - Mechanical brand/trademark compliance scanner and repository policy.
 
-[Unreleased]: https://github.com/cn-cam/next-mqtt/compare/v0.19.0...HEAD
+[Unreleased]: https://github.com/cn-cam/next-mqtt/compare/v0.19.1...HEAD
+[0.19.1]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.19.1
 [0.19.0]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.19.0
 [0.18.0]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.18.0
 [0.17.1]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.17.1
