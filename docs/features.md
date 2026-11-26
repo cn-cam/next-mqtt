@@ -93,7 +93,8 @@ Legend: ✅ implemented · ⚠️ partial or with documented limits · ❌ not i
 | REST management API | ✅ | Clients, subscriptions, retained, publish, cluster, logs, plugins, config |
 | Vue 3 dashboard | ✅ | English/Chinese, dark/light, live polling, plugin and log views |
 | MQTT debugger | ✅ | Browser client over WebSocket: MQTT 3.1.1 and 5.0, QoS 0–2, MQTT 5 properties, subscriptions, packet trace, log export |
-| Plugin hot reload | ✅ | `POST /api/v1/plugins/reload` rescans the directory and swaps authentication and authorisation |
+| Plugin hot reload | ✅ | `POST /api/v1/plugins/reload` re-reads the settings, rescans the directory and swaps authentication and authorisation |
+| Plugin lifecycle | ✅ | `IPluginLifecycle` receives `Initialize` and `Dispose` before unload |
 | Prometheus metrics | ✅ | `/metrics`, counters and gauges |
 | JSON statistics | ✅ | 60-second publish series |
 | Health and readiness | ✅ | `/healthz`, `/readyz` |

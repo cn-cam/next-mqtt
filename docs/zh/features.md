@@ -87,7 +87,8 @@
 | --- | --- | --- |
 | REST 管理 API | ✅ | 客户端、订阅、保留、发布、集群、日志、插件、配置 |
 | Vue 3 控制台 | ✅ | 中英文、深浅主题、实时轮询、插件与日志页面 |
-| 插件热重载 | ✅ | `POST /api/v1/plugins/reload` 重新扫描目录并替换认证与授权 |
+| 插件热重载 | ✅ | `POST /api/v1/plugins/reload` 重新读取配置、扫描目录并替换认证与授权 |
+| 插件生命周期 | ✅ | 实现 `IPluginLifecycle` 可在卸载前收到 `Initialize` 与 `Dispose` |
 | MQTT 调试器 | ✅ | 浏览器经 WebSocket 直连：MQTT 3.1.1 / 5.0、QoS 0–2、MQTT 5 属性、订阅、报文跟踪、日志导出 |
 | Prometheus 指标 | ✅ | `/metrics`，计数器与 gauge |
 | JSON 统计 | ✅ | 60 秒发布序列 |

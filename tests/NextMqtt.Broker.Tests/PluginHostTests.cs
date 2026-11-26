@@ -17,6 +17,31 @@ public sealed class TestPluginAuthenticator : IClientAuthenticator
         => ValueTask.FromResult(AuthenticationResult.Failure(MqttReasonCodes.NotAuthorized));
 }
 
+/// <summary>Plugin that records its lifecycle calls next to the manifest.</summary>
+/// <remarks>写文件而不是用静态计数：插件在独立加载上下文中运行，静态字段与宿主不共享。</remarks>
+public sealed class TestLifecyclePlugin : NextMqtt.Broker.Integrations.IPluginLifecycle
+{
+    /// <summary>Folder the plugin was loaded from, remembered for Dispose.</summary>
+    private string? _directory;
+
+    /// <summary>Appends one line to lifecycle.log in the plugin folder.</summary>
+    /// <param name="context">Load information supplied by the host.</param>
+    public void Initialize(NextMqtt.Broker.Integrations.PluginContext context)
+    {
+        _directory = context.Directory;
+        File.AppendAllText(Path.Combine(context.Directory, "lifecycle.log"), "init\n");
+    }
+
+    /// <summary>Appends one line to lifecycle.log in the plugin folder.</summary>
+    public void Dispose()
+    {
+        if (_directory is not null)
+        {
+            File.AppendAllText(Path.Combine(_directory, "lifecycle.log"), "dispose\n");
+        }
+    }
+}
+
 public sealed class PluginHostTests : IDisposable
 {
     private readonly string _directory = Path.Combine(
@@ -78,6 +103,31 @@ public sealed class PluginHostTests : IDisposable
             NullLogger.Instance);
 
         Assert.Empty(host.Plugins);
+    }
+
+    [Fact]
+    public void Lifecycle_plugin_receives_initialize_and_dispose()
+    {
+        WriteManifest(PluginHost.ContractVersion, "NextMqtt.Broker.Tests.dll");
+        File.Copy(
+            typeof(TestPluginAuthenticator).Assembly.Location,
+            Path.Combine(_directory, "NextMqtt.Broker.Tests.dll"),
+            overwrite: true);
+
+        var logPath = Path.Combine(_directory, "lifecycle.log");
+
+        using (var host = PluginHost.Load(
+            new PluginOptions { Enabled = true, Directory = _directory },
+            NullLogger.Instance))
+        {
+            Assert.Single(host.Plugins);
+            Assert.True(File.Exists(logPath));
+            Assert.Contains("init", File.ReadAllText(logPath));
+        }
+
+        var contents = File.ReadAllText(logPath);
+        Assert.Contains("init", contents);
+        Assert.Contains("dispose", contents);
     }
 
     [Fact]

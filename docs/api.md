@@ -132,10 +132,16 @@ GET /api/v1/plugins
 }
 ```
 
-`POST /api/v1/plugins/reload` rescans the directory, loads a new host, swaps the
-authenticator and authorizer, and then unloads the previous host. A plugin that
-disappears from disk falls back to the built-in implementation on the next
-reload; in-flight requests finish against the old instance.
+`POST /api/v1/plugins/reload` re-reads the `Plugins` section from configuration,
+rescans the directory, loads a new host, swaps the authenticator and authorizer,
+and then disposes and unloads the previous host. A plugin that disappears from
+disk falls back to the built-in implementation on the next reload; in-flight
+requests finish against the old instance.
+
+Plugins that implement `IPluginLifecycle` receive `Initialize(PluginContext)`
+after construction and `Dispose()` before their load context is unloaded, so
+files, threads and sockets can be released deterministically. A plugin whose
+`Initialize` throws is skipped and logged; the rest keep loading.
 
 ### List clients
 

@@ -43,8 +43,11 @@ public sealed record PluginStatus(
 /// </remarks>
 public sealed class PluginRuntime : IDisposable
 {
-    /// <summary>Plugin settings from configuration.</summary>
-    private readonly PluginOptions _options;
+    /// <summary>Re-reads the plugin section, so a reload picks up edited settings.</summary>
+    private readonly Func<PluginOptions> _optionsProvider;
+
+    /// <summary>Settings used for the current host.</summary>
+    private PluginOptions _options;
 
     /// <summary>Factory used to give each host its own logger.</summary>
     private readonly ILoggerFactory _loggerFactory;
@@ -75,28 +78,29 @@ public sealed class PluginRuntime : IDisposable
 
     /// <summary>Loads the initial plugin set.</summary>
     /// <remarks>构造即加载；目录不存在时得到一个空宿主，不影响启动。</remarks>
-    /// <param name="options">Plugin settings from configuration.</param>
+    /// <param name="optionsProvider">Reads the current plugin settings; called on every reload.</param>
     /// <param name="loggerFactory">Factory used for plugin-host logging.</param>
     /// <param name="authenticator">Switch that receives the plugin or built-in authenticator.</param>
     /// <param name="authorizer">Switch that receives the plugin or built-in authorizer.</param>
     /// <param name="builtinAuthenticator">Authenticator used when no plugin provides one.</param>
     /// <param name="builtinAuthorizer">Authorizer used when no plugin provides one.</param>
     public PluginRuntime(
-        PluginOptions options,
+        Func<PluginOptions> optionsProvider,
         ILoggerFactory loggerFactory,
         SwitchableAuthenticator authenticator,
         SwitchableAuthorizer authorizer,
         IClientAuthenticator builtinAuthenticator,
         ITopicAuthorizer builtinAuthorizer)
     {
-        _options = options;
+        _optionsProvider = optionsProvider;
+        _options = optionsProvider();
         _loggerFactory = loggerFactory;
         _logger = loggerFactory.CreateLogger<PluginRuntime>();
         _authenticator = authenticator;
         _authorizer = authorizer;
         _builtinAuthenticator = builtinAuthenticator;
         _builtinAuthorizer = builtinAuthorizer;
-        _host = PluginHost.Load(options, loggerFactory.CreateLogger<PluginHost>());
+        _host = PluginHost.Load(_options, loggerFactory.CreateLogger<PluginHost>());
 
         Apply(_host);
     }
@@ -107,11 +111,14 @@ public sealed class PluginRuntime : IDisposable
     public PluginStatus Reload()
     {
         PluginHost? previous;
+        PluginOptions options;
 
         lock (_gate)
         {
+            options = _optionsProvider();
             previous = _host;
-            _host = PluginHost.Load(_options, _loggerFactory.CreateLogger<PluginHost>());
+            _host = PluginHost.Load(options, _loggerFactory.CreateLogger<PluginHost>());
+            _options = options;
             Apply(_host);
             Interlocked.Increment(ref _reloads);
         }
@@ -121,8 +128,8 @@ public sealed class PluginRuntime : IDisposable
         _logger.LogInformation(
             "Plugin host reloaded: {Count} plugin(s), authenticator={Authenticator}, authorizer={Authorizer}",
             _host.Plugins.Count,
-            _options.Authenticator ?? "built-in",
-            _options.Authorizer ?? "built-in");
+            options.Authenticator ?? "built-in",
+            options.Authorizer ?? "built-in");
 
         return Status();
     }
@@ -132,20 +139,22 @@ public sealed class PluginRuntime : IDisposable
     public PluginStatus Status()
     {
         PluginHost host;
+        PluginOptions options;
 
         lock (_gate)
         {
             host = _host;
+            options = _options;
         }
 
         return new PluginStatus(
-            _options.Enabled,
-            _options.Directory,
+            options.Enabled,
+            options.Directory,
             PluginHost.ContractVersion,
-            _options.Authenticator,
-            _options.Authorizer,
-            host.FindAuthenticator(_options.Authenticator) is not null,
-            host.FindAuthorizer(_options.Authorizer) is not null,
+            options.Authenticator,
+            options.Authorizer,
+            host.FindAuthenticator(options.Authenticator) is not null,
+            host.FindAuthorizer(options.Authorizer) is not null,
             host.Instances.Count,
             Interlocked.Read(ref _reloads),
             host.Plugins

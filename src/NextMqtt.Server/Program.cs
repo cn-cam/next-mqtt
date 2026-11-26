@@ -102,21 +102,18 @@ var logBuffer = new LogBuffer(2000);
 builder.Logging.AddProvider(new LogBufferProvider(logBuffer));
 builder.Services.AddSingleton(logBuffer);
 
-var pluginOptions = builder.Configuration.GetSection(PluginOptions.SectionName).Get<PluginOptions>()
-    ?? new PluginOptions();
-
 var builtinAuthenticator = new ClientAuthenticator(authenticationOptions);
 var builtinAuthorizer = new TopicAuthorizer(aclOptions);
 var switchableAuthenticator = new SwitchableAuthenticator(builtinAuthenticator);
 var switchableAuthorizer = new SwitchableAuthorizer(builtinAuthorizer);
 
-builder.Services.AddSingleton(pluginOptions);
 builder.Services.AddSingleton(switchableAuthenticator);
 builder.Services.AddSingleton<IClientAuthenticator>(switchableAuthenticator);
 builder.Services.AddSingleton(switchableAuthorizer);
 builder.Services.AddSingleton<ITopicAuthorizer>(switchableAuthorizer);
 builder.Services.AddSingleton(sp => new PluginRuntime(
-    pluginOptions,
+    () => builder.Configuration.GetSection(PluginOptions.SectionName).Get<PluginOptions>()
+        ?? new PluginOptions(),
     sp.GetRequiredService<ILoggerFactory>(),
     switchableAuthenticator,
     switchableAuthorizer,
@@ -254,6 +251,10 @@ builder.Services.AddHostedService<MqttTcpListenerService>();
 
 var app = builder.Build();
 var broker = app.Services.GetRequiredService<MqttBroker>();
+
+// Construct the plugin runtime before serving: plugins must be active from the
+// first connection, not from the first /plugins request.
+app.Services.GetRequiredService<PluginRuntime>();
 var adminAuth = app.Services.GetRequiredService<AdminAuthService>();
 var clusterRouter = app.Services.GetRequiredService<ClusterRouter>();
 var version = typeof(Program).Assembly.GetName().Version?.ToString(3) ?? "0.1.2";

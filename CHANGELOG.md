@@ -5,6 +5,26 @@ All notable changes to NextMQTT are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.20.0] - 2026-11-26
+
+### Added
+
+- `IPluginLifecycle`. A plugin can implement `Initialize(PluginContext)` and
+  `Dispose()`; the host calls `Initialize` after construction (a failure skips
+  that plugin) and `Dispose` before unloading the load context, so files,
+  threads and sockets can be released deterministically.
+- Plugin reload now re-reads the `Plugins` section from configuration. Editing
+  `appsettings.json` and calling `POST /api/v1/plugins/reload` enables or
+  disables plugins, changes the directory and switches the authenticator or
+  authorizer without a restart.
+
+### Fixed
+
+- Plugins were only loaded when the dashboard first called `GET /api/v1/plugins`
+  after the plugin runtime was introduced, so authentication ran on the built-in
+  hook until someone opened the page. The runtime is now constructed before the
+  server starts serving.
+
 ## [0.19.3] - 2026-11-26
 
 ### Fixed
@@ -316,6 +336,26 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 - Rate-limited publishes are acknowledged but not routed, so publishers do not
   retransmit. MQTT 5 QoS 2 rejections carry `0x96 Message rate too high`.
 
+## [0.20.0] - 2026-11-26
+
+### Added
+
+- `IPluginLifecycle`. A plugin can implement `Initialize(PluginContext)` and
+  `Dispose()`; the host calls `Initialize` after construction (a failure skips
+  that plugin) and `Dispose` before unloading the load context, so files,
+  threads and sockets can be released deterministically.
+- Plugin reload now re-reads the `Plugins` section from configuration. Editing
+  `appsettings.json` and calling `POST /api/v1/plugins/reload` enables or
+  disables plugins, changes the directory and switches the authenticator or
+  authorizer without a restart.
+
+### Fixed
+
+- Plugins were only loaded when the dashboard first called `GET /api/v1/plugins`
+  after the plugin runtime was introduced, so authentication ran on the built-in
+  hook until someone opened the page. The runtime is now constructed before the
+  server starts serving.
+
 ## [0.19.3] - 2026-11-26
 
 ### Fixed
@@ -495,7 +535,8 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 - GitHub Actions for CI, CodeQL, releases and GitHub Pages.
 - Mechanical brand/trademark compliance scanner and repository policy.
 
-[Unreleased]: https://github.com/cn-cam/next-mqtt/compare/v0.19.3...HEAD
+[Unreleased]: https://github.com/cn-cam/next-mqtt/compare/v0.20.0...HEAD
+[0.20.0]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.20.0
 [0.19.3]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.19.3
 [0.19.2]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.19.2
 [0.19.1]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.19.1

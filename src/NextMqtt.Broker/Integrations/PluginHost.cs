@@ -146,6 +146,19 @@ public sealed class PluginHost : IDisposable
 
                 foreach (var instance in CreateInstances(assembly, logger))
                 {
+                    if (instance is IPluginLifecycle lifecycle)
+                    {
+                        try
+                        {
+                            lifecycle.Initialize(new PluginContext(folder, ContractVersion));
+                        }
+                        catch (Exception ex)
+                        {
+                            logger.LogWarning(ex, "Plugin {Name} failed to initialise; skipping it", manifest.Name);
+                            continue;
+                        }
+                    }
+
                     host._instances.Add(instance);
                 }
             }
@@ -170,10 +183,28 @@ public sealed class PluginHost : IDisposable
     public ITopicAuthorizer? FindAuthorizer(string? typeName)
         => Find<ITopicAuthorizer>(typeName);
 
-    /// <summary>Unloads every plugin context; hosted instances are not disposed.</summary>
-    /// <remarks>不调用插件的 Dispose：能卸载不代表能安全清理，由调用方决定。</remarks>
+    /// <summary>Disposes lifecycle plugins, then unloads every context.</summary>
+    /// <remarks>
+    /// 实现了 <see cref="IPluginLifecycle"/> 的实例先收到 Dispose，再卸载上下文，
+    /// 这样插件可以释放文件、线程与套接字；其余实例保持原有行为。
+    /// </remarks>
     public void Dispose()
     {
+        foreach (var instance in _instances)
+        {
+            if (instance is IPluginLifecycle lifecycle)
+            {
+                try
+                {
+                    lifecycle.Dispose();
+                }
+                catch (Exception)
+                {
+                    // A failing plugin must not block the others from unloading.
+                }
+            }
+        }
+
         foreach (var context in _contexts)
         {
             context.Unload();

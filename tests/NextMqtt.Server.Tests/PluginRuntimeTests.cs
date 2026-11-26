@@ -7,6 +7,21 @@ using NextMqtt.Server.Hosting;
 
 namespace NextMqtt.Server.Tests;
 
+/// <summary>Plugin type used by the reload test; the host instantiates it from a copy of this assembly.</summary>
+public sealed class ReloadProbePlugin : NextMqtt.Broker.Integrations.IPluginLifecycle
+{
+    /// <summary>Nothing to prepare.</summary>
+    /// <param name="context">Load information supplied by the host.</param>
+    public void Initialize(NextMqtt.Broker.Integrations.PluginContext context)
+    {
+    }
+
+    /// <summary>Nothing to release.</summary>
+    public void Dispose()
+    {
+    }
+}
+
 public sealed class PluginRuntimeTests
 {
     private sealed class FixedAuthenticator : IClientAuthenticator
@@ -34,7 +49,7 @@ public sealed class PluginRuntimeTests
             new TopicAuthorizer(new AclOptions { DefaultPolicy = AclDefaultPolicy.Allow }));
 
         var runtime = new PluginRuntime(
-            new PluginOptions { Enabled = false },
+            () => new PluginOptions { Enabled = false },
             NullLoggerFactory.Instance,
             authenticator,
             authorizer,
@@ -92,6 +107,67 @@ public sealed class PluginRuntimeTests
 
             Assert.Equal(1, reloaded.Reloads);
             Assert.True((await authenticator.AuthenticateAsync(Context())).Succeeded);
+        }
+    }
+
+    [Fact]
+    public void Reload_reads_the_settings_again()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "nextmqtt-reload-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(directory, "plugin.json"),
+                $$"""
+                {
+                  "name": "reload",
+                  "version": "1.0.0",
+                  "contractVersion": {{NextMqtt.Broker.Integrations.PluginHost.ContractVersion}},
+                  "entryAssembly": "NextMqtt.Server.Tests.dll"
+                }
+                """);
+
+            File.Copy(
+                typeof(ReloadProbePlugin).Assembly.Location,
+                Path.Combine(directory, "NextMqtt.Server.Tests.dll"),
+                overwrite: true);
+
+            var options = new PluginOptions { Enabled = false };
+            var authenticator = new SwitchableAuthenticator(
+                new ClientAuthenticator(new AuthenticationOptions { AllowAnonymous = true }));
+            var authorizer = new SwitchableAuthorizer(
+                new TopicAuthorizer(new AclOptions { DefaultPolicy = AclDefaultPolicy.Allow }));
+
+            using var runtime = new PluginRuntime(
+                () => options,
+                NullLoggerFactory.Instance,
+                authenticator,
+                authorizer,
+                new ClientAuthenticator(new AuthenticationOptions { AllowAnonymous = true }),
+                new TopicAuthorizer(new AclOptions { DefaultPolicy = AclDefaultPolicy.Allow }));
+
+            Assert.Empty(runtime.Status().Plugins);
+
+            options = new PluginOptions { Enabled = true, Directory = directory };
+
+            var status = runtime.Reload();
+
+            Assert.True(status.Enabled);
+            Assert.Single(status.Plugins);
+            Assert.Equal("reload", status.Plugins[0].Name);
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // The load context may keep the assembly mapped on Windows.
+            }
         }
     }
 }
