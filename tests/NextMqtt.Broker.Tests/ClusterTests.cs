@@ -329,12 +329,13 @@ public class ClusterTests
 
         try
         {
-            var deadline = DateTimeOffset.UtcNow.AddSeconds(10);
-
-            while (DateTimeOffset.UtcNow < deadline && routerB.GetSnapshot().Nodes.Count < 2)
-            {
-                await Task.Delay(100);
-            }
+            // Seed membership directly so the test does not depend on heartbeat
+            // timing on a slow runner.
+            await routerB.ProcessHeartbeatAsync(new ClusterHeartbeatRequest(
+                "node-a",
+                "http://node-a",
+                DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+                []));
 
             var (_, sessionA, connectionA) = await TestBroker.ConnectAsync(
                 "roamer",
@@ -425,12 +426,11 @@ public class ClusterTests
 
         try
         {
-            var deadline = DateTimeOffset.UtcNow.AddSeconds(10);
-
-            while (DateTimeOffset.UtcNow < deadline && routerB.GetSnapshot().Nodes.Count < 2)
-            {
-                await Task.Delay(100);
-            }
+            await routerB.ProcessHeartbeatAsync(new ClusterHeartbeatRequest(
+                "node-a",
+                "http://node-a",
+                DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+                []));
 
             var (_, session, connection) = await TestBroker.ConnectAsync(
                 "queued",
