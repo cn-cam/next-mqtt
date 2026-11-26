@@ -48,8 +48,11 @@
 }
 ```
 
-- UI: `https://host:8084/`
-- WSS: `wss://host:8084/mqtt`
+- UI: `https://mqtt.example.com:8084/`
+- WSS: `wss://mqtt.example.com:8084/mqtt`
+
+평문 HTTP 포트를 끄지 않으면 Kestrel은 그 포트에서도 계속 수신합니다. 방화벽이나
+리버스 프록시로 제한하십시오.
 
 ## 자체 서명(테스트 전용)
 
@@ -63,12 +66,45 @@ openssl pkcs12 -export -out server.pfx -inkey server.key -in server.crt \
   -passout pass:change-me
 ```
 
+자체 서명 인증서를 운영에 사용하지 마십시오. PKI 또는 ACME 클라이언트의 인증서를
+사용하십시오.
+
 ## 리버스 프록시
 
-- `X-Forwarded-For`, `X-Forwarded-Proto` 전달
-- `/mqtt` WebSocket Upgrade 허용
-- read timeout을 keep-alive보다 길게
-- `/internal/cluster/*` 외부 차단
+ingress에서 TLS를 종단하면 운영이 더 단순할 때가 많습니다:
+
+```nginx
+server {
+    listen 443 ssl http2;
+    server_name mqtt.example.com;
+
+    ssl_certificate     /etc/ssl/certs/server.crt;
+    ssl_certificate_key /etc/ssl/private/server.key;
+
+    location / {
+        proxy_pass http://nextmqtt-http:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+    }
+
+    location /mqtt {
+        proxy_pass http://nextmqtt-http:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_read_timeout 3600s;
+    }
+}
+```
+
+원시 MQTT/TLS는 TCP 8883을 MQTT 서비스로 전달합니다. HTTP 리버스 프록시는 원시
+MQTT를 운반할 수 없습니다. `X-Forwarded-For`/`X-Forwarded-Proto` 전달, WebSocket
+Upgrade 허용, keep-alive보다 긴 read timeout, `/internal/cluster/*` 차단도
+잊지 마십시오.
 
 ## 컨테이너
 
@@ -92,15 +128,41 @@ kubectl create secret tls nextmqtt-mqtt-tls \
   --cert=server.crt --key=server.key -n nextmqtt
 ```
 
-`/certs`에 마운트하고 `NEXTMQTT_SERVER__TLS__CERTIFICATEPATH=/certs/tls.crt`를
-설정합니다. PEM 로더는 같은 디렉터리의 `tls.key`를 사용합니다.
+```yaml
+spec:
+  template:
+    spec:
+      containers:
+        - name: broker
+          env:
+            - name: NEXTMQTT_SERVER__TLS__ENABLED
+              value: "true"
+            - name: NEXTMQTT_SERVER__TLS__CERTIFICATEPATH
+              value: /certs/tls.crt
+          volumeMounts:
+            - name: mqtt-tls
+              mountPath: /certs
+              readOnly: true
+      volumes:
+        - name: mqtt-tls
+          secret:
+            secretName: nextmqtt-mqtt-tls
+```
+
+PEM 로더는 `tls.crt` 옆의 `tls.key`를 찾습니다. `kubectl create secret tls`가
+만드는 파일 구성과 같습니다.
 
 ## 문제 해결
 
 | 증상 | 확인 |
 | --- | --- |
-| 시작 시 인증서 미설정 | 경로 설정 또는 TLS 비활성화 |
-| 파일 없음 | 마운트 경로와 UID 10001 권한 |
-| PFX 비밀번호 오류 | `CertificatePassword` |
-| 호스트 이름 검증 실패 | 인증서 SAN |
-| WebSocket 업그레이드 실패 | Upgrade 헤더 |
+| `TLS listener is enabled but CertificatePath is not configured` | 경로를 설정하거나 TLS 비활성화 |
+| 시작 시 `FileNotFoundException` | 마운트 경로와 권한(UID 10001) |
+| `Certificate ... has no private key` | `CertificateKeyPath` 설정. 키가 인증서 옆에 없음 |
+| `The private key does not match any certificate in the file` | PEM과 키 파일이 다른 키 쌍 |
+| 인증서 비밀번호 오류 | PFX 비밀번호가 `CertificatePassword`와 일치하는지 |
+| 클라이언트 호스트 이름 검증 실패 | 인증서 SAN에 DNS 이름 또는 IP 포함 여부 |
+| `HTTPS certificate does not cover ...` 경고 | SAN에 `Domain`이 없음. 클라이언트가 거부 |
+| `platform does not support ephemeral keys` | 이전 빌드 전용. 지금은 PEM 키를 다시 가져옴 |
+| WebSocket 업그레이드 실패 | 프록시가 `Upgrade`와 `Connection`을 전달하는지 |
+| 대시보드 로그인이 반복됨 | 재시작 시 토큰 키가 바뀜. 고정 시크릿 설정 |

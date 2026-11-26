@@ -24,27 +24,32 @@
 | 共享订阅 | ✅ | `$share/{group}/{filter}`，节点内轮询 |
 | 订阅选项 | ✅ | `noLocal`、`retainAsPublished`、retain handling |
 | 主题别名 | ⚠️ | 支持入站；出站别名计划中 |
-| 增强认证（`AUTH`） | ❌ | 返回 `0x8C`；外部认证提供方计划中 |
+| 增强认证（`AUTH`） | ✅ | 可插拔提供方的挑战/应答；内置 `nextmqtt-jwt` |
 | 服务端 receive-maximum 强制 | ⚠️ | 广播并限制自身 inflight 窗口 |
 | 客户端最大报文限制 | ⚠️ | 入站已限制；出站未按客户端上限裁剪 |
 | MQTT over QUIC | ❌ | 研究项 |
-| 桥接/规则引擎/插件 SDK | ❌ | 路线图 |
+| 出站 webhook 桥接 | ✅ | 每规则有界队列、重试、仅源节点推送 |
+| 插件宿主 | ✅ | 清单 + 可回收加载上下文；可选择认证器/授权器 |
+| 规则引擎动作 | ✅ | 存储前按主题过滤 `drop` 与前缀 `rewrite` |
+| NATS 桥接 | ✅ | 文本协议发布、有界队列、自动重连 |
+| Kafka 桥接 | ✅ | Confluent.Kafka 生产者，过滤与有界队列同 NATS |
+| RabbitMQ 桥接 | ✅ | 持久 topic 交换机、publisher confirm、自动重连 |
 
 ## 会话与投递
 
 | 能力 | 状态 | 说明 |
 | --- | --- | --- |
 | Clean Start / Session Present | ✅ | 3.1.1 与 5.0 语义 |
-| 持久会话 | ✅ | 内存态，见下方持久化 |
+| 持久会话 | ✅ | 默认内存，可选落盘快照 |
 | 会话过期清理 | ✅ | 后台维护循环 |
 | QoS 1/2 inflight 窗口 | ✅ | 每会话可配置 |
 | 包 ID 分配 | ✅ | 跳过 inflight 中已用 ID |
 | 离线队列上限 | ✅ | 丢弃最旧消息并计数 |
 | 重叠订阅聚合 | ✅ | 每客户端一条，取最高 QoS |
-| 重启后状态保留 | ⚠️ | 保留消息日志 + 定期会话快照；inflight 状态不持久化 |
+| 重启后状态保留 | ✅ | 保留日志 + 会话/副本快照；inflight 仍由客户端重传 |
 | 会话备份与恢复 | ✅ | `GET`/`POST /api/v1/backup` 导入导出保留消息与会话 |
 | 优雅停机 | ✅ | 关闭前等待 inflight 确认，上限 `Server:DrainTimeoutSeconds` |
-| 跨节点会话迁移 | ❌ | 会话归属单节点 |
+| 跨节点会话迁移 | ✅ | `CleanStart=false` 时向属主或最新副本索要会话 |
 
 ## 安全
 
@@ -117,24 +122,32 @@
 | 镜像构建与健康/登录冒烟 | CI `Container image` |
 | CodeQL | `codeql.yml` |
 
-当前共 **147 个测试通过**（63 核心、61 Broker、23 Server 集成）。
+当前共 **209 个测试通过**（63 核心、103 Broker、43 Server 集成）。
 
 ## 扩展性
 
-NextMQTT 0.1.x 提供扩展**接口**，而不是插件 ABI。为其他 MQTT Broker 编写的插件包不会被加载、不兼容、也不在支持范围内。
+NextMQTT 同时提供进程内扩展接口与插件宿主。插件由 `plugin.json` 清单加载到可回收
+上下文，契约版本为 1；清单指向不存在的程序集或契约版本不符时会被跳过。
 
 | 扩展点 | 接口 | 用途 |
 | --- | --- | --- |
 | 客户端认证 | `IClientAuthenticator` | 替换或扩展用户名/密码与 API Key 校验 |
 | 主题授权 | `ITopicAuthorizer` | 按客户端放行或拒绝发布/订阅 |
 | 集群路由 | `IClusterRouter` | 替换 HTTP 转发策略 |
+| 插件生命周期 | `IPluginLifecycle` | 在加载上下文卸载前释放资源 |
 
-扩展通过依赖注入解析，因此新增扩展等于改源码后重新构建——不引入额外运行时，也没有单独的配置格式。进程外集成使用带版本的管理 API（`/api/v1`）与集群端点（`/internal/cluster`）。自有扩展宿主在路线图中，落地前需先有 ADR（见 [ADR 0005](/adr/0005-extension-interfaces.md)）。
+接口通过依赖注入解析，因此也可以直接编译进程序。插件是免重新构建的磁盘方案：
+`Plugins:Authenticator` 与 `Plugins:Authorizer` 指定要激活的类型，
+`POST /api/v1/plugins/reload` 无需重启即可生效。进程外集成使用带版本的管理 API
+（`/api/v1`）与集群端点（`/internal/cluster`）。
 
 ## 已知限制
 
-- 会话、队列与订阅在内存中，重启会丢失；保留消息启用文件日志后可保留。
-- 集群转发为尽力而为；共享订阅在节点间协调，只投递一次。
-- 增强认证、出站主题别名、持久化和桥接尚未实现。
-- 扩展需要修改源码，尚无插件宿主。
+- 入站 QoS 2 握手与出站 `inflight` 窗口不跨节点迁移；这些消息从队列重放，由客户端
+  重试。
+- 副本的新鲜度取决于 `Cluster:SessionReplicaSeconds`；未开启
+  `Storage:Replicas:Mode=File` 时，所有节点重启会丢失副本。
+- 集群转发为尽力而为；共享订阅在节点间协调。
+- 跨节点不保证顺序，也不保证 exactly-once。
+- 进程内扩展需要改源码并重新构建；插件宿主是运行时的替代方案。
 - 默认配置偏向开发体验，公网部署前必须加固。

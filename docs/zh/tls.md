@@ -1,5 +1,7 @@
 # TLS
 
+NextMQTT 可以自己为 MQTT 和控制台加密，也可以放在负责终止 TLS 的反向代理之后。
+
 ## 证书格式
 
 - **PFX/PKCS#12**：设置 `CertificatePath` 与 `CertificatePassword`
@@ -51,8 +53,10 @@ PEM 可以包含完整证书链（叶子 + 中间证书），中间证书会自�
 }
 ```
 
-- 控制台：`https://host:8084/`
-- WSS：`wss://host:8084/mqtt`
+- 控制台：`https://mqtt.example.com:8084/`
+- WSS：`wss://mqtt.example.com:8084/mqtt`
+
+除非关闭明文 HTTP 端口，Kestrel 仍会在这些端口监听；用防火墙或反向代理限制它们。
 
 ## 自签名证书（仅测试）
 
@@ -66,7 +70,41 @@ openssl pkcs12 -export -out server.pfx -inkey server.key -in server.crt \
   -passout pass:change-me
 ```
 
+不要把自签名证书用于生产。请使用自有 PKI 或 ACME 客户端签发的证书。
+
 ## 反向代理
+
+在 ingress 终止 TLS 往往更简单：
+
+```nginx
+server {
+    listen 443 ssl http2;
+    server_name mqtt.example.com;
+
+    ssl_certificate     /etc/ssl/certs/server.crt;
+    ssl_certificate_key /etc/ssl/private/server.key;
+
+    location / {
+        proxy_pass http://nextmqtt-http:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+    }
+
+    location /mqtt {
+        proxy_pass http://nextmqtt-http:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_read_timeout 3600s;
+    }
+}
+```
+
+原始 MQTT/TLS 需要把 TCP 8883 转发到 MQTT 服务；HTTP 反向代理无法承载原始 MQTT。
 
 - 转发 `X-Forwarded-For`、`X-Forwarded-Proto`
 - `/mqtt` 必须允许 WebSocket Upgrade
@@ -95,21 +133,41 @@ kubectl create secret tls nextmqtt-mqtt-tls \
   --cert=server.crt --key=server.key -n nextmqtt
 ```
 
-挂载到 `/certs`，并设置：
-
-```text
-NEXTMQTT_SERVER__TLS__ENABLED=true
-NEXTMQTT_SERVER__TLS__CERTIFICATEPATH=/certs/tls.crt
+```yaml
+spec:
+  template:
+    spec:
+      containers:
+        - name: broker
+          env:
+            - name: NEXTMQTT_SERVER__TLS__ENABLED
+              value: "true"
+            - name: NEXTMQTT_SERVER__TLS__CERTIFICATEPATH
+              value: /certs/tls.crt
+          volumeMounts:
+            - name: mqtt-tls
+              mountPath: /certs
+              readOnly: true
+      volumes:
+        - name: mqtt-tls
+          secret:
+            secretName: nextmqtt-mqtt-tls
 ```
 
-PEM 加载器会查找同目录的 `tls.key`。
+PEM 加载器会查找 `tls.crt` 同目录的 `tls.key`，与 `kubectl create secret tls`
+生成的文件布局一致。
 
 ## 排错
 
 | 现象 | 检查 |
 | --- | --- |
-| 启动报未配置证书 | 设置路径或关闭 TLS |
-| 文件不存在 | 挂载路径与 UID 10001 权限 |
-| PFX 密码错误 | 核对 `CertificatePassword` |
-| 主机名校验失败 | 证书 SAN 是否包含域名/IP |
-| WebSocket 升级失败 | 代理是否转发 Upgrade |
+| `TLS listener is enabled but CertificatePath is not configured` | 设置路径或关闭 TLS |
+| 启动时 `FileNotFoundException` | 挂载路径与权限（UID 10001） |
+| `Certificate ... has no private key` | 设置 `CertificateKeyPath`，私钥不在证书旁边 |
+| `The private key does not match any certificate in the file` | PEM 与私钥文件不是同一对 |
+| 证书密码错误 | PFX 密码是否与 `CertificatePassword` 一致 |
+| 客户端主机名校验失败 | 证书 SAN 是否包含 DNS 名或 IP |
+| `HTTPS certificate does not cover ...` 警告 | SAN 未包含 `Domain`，客户端会拒绝 |
+| `platform does not support ephemeral keys` | 仅旧版本；现在会重新导入 PEM 私钥 |
+| WebSocket 升级失败 | 代理是否转发 `Upgrade` 与 `Connection` |
+| 控制台登录反复跳转 | 重启后令牌密钥变了，设置固定的令牌密钥 |

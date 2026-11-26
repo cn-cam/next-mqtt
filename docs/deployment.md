@@ -4,10 +4,11 @@ NextMQTT ships as a multi-architecture container image, Kustomize manifests and
 a Helm chart. The same image runs a single node or a cluster member; clustering
 is enabled entirely through configuration.
 
-::: warning State is in memory
-Sessions, queues and retained messages do not survive a broker restart in this
-release. Plan rollouts and capacity accordingly. Persistence is on the
-[roadmap](/roadmap).
+::: warning In-memory default
+Sessions, queues and retained messages are in memory unless you configure
+storage. Enable the retained journal, session snapshots and the replica file
+store before a rollout that must keep state. Inflight QoS handshakes are always
+replayed by the client.
 :::
 
 ## Container image
@@ -19,7 +20,7 @@ docker pull ghcr.io/cn-cam/next-mqtt:latest
 Available tags:
 
 - `latest` — newest stable build from `main`
-- `0.1.0`, `0.1` — release tags
+- `0.21.0`, `0.21` — release tags
 - `sha-<commit>` — immutable commit builds
 
 Platforms: `linux/amd64`, `linux/arm64`.
@@ -175,11 +176,12 @@ Helm creates a secret with keys `admin-password`, `token-secret` and
 
 ```bash
 helm upgrade nextmqtt deploy/helm/next-mqtt -n nextmqtt --reuse-values \
-  --set image.tag=0.2.0
+  --set image.tag=0.21.0
 ```
 
-Rolling restarts drop in-memory sessions. Ensure clients reconnect and drain
-nodes one at a time.
+Rolling restarts keep persistent sessions when the file stores are mounted and
+shared replicas are fresh; without them, in-memory sessions are lost. Drain
+nodes one at a time and make sure clients reconnect.
 
 ## Production checklist
 
@@ -191,6 +193,8 @@ nodes one at a time.
 - [ ] TLS for MQTT and HTTPS for the dashboard
 - [ ] Ingress restricted to trusted networks or behind SSO
 - [ ] NetworkPolicy blocks `/internal/cluster/*` from clients
+- [ ] `Storage:Retained:Mode=File`, `Storage:Session:Mode=File` and
+      `Storage:Replicas:Mode=File` on a persistent volume
 - [ ] Resources and HPA aligned with traffic
 - [ ] Monitoring scrapes `/metrics` and alerts on drops/auth failures
 - [ ] Backups of configuration and secrets

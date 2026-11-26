@@ -33,23 +33,24 @@ Legend: ✅ implemented · ⚠️ partial or with documented limits · ❌ not i
 | Plugin host | ✅ | Manifest + collectible load context; authenticator/authorizer selection |
 | Rule engine actions | ✅ | Topic-filtered `drop` and prefix `rewrite` before storage |
 | NATS bridge | ✅ | Text-protocol publisher, bounded queue, auto-reconnect |
-| Kafka bridge | ✅ | Confluent.Kafka producer, filtered and bounded like NATS |`n| RabbitMQ bridge | ✅ | Durable topic exchange, publisher confirms, auto-reconnect |
+| Kafka bridge | ✅ | Confluent.Kafka producer, filtered and bounded like NATS |
+| RabbitMQ bridge | ✅ | Durable topic exchange, publisher confirms, auto-reconnect |
 
 ## Sessions and delivery
 
 | Capability | Status | Notes |
 | --- | --- | --- |
 | Clean start and session present | ✅ | MQTT 3.1.1 and 5.0 semantics |
-| Persistent sessions | ✅ | In memory; see durability below |
+| Persistent sessions | ✅ | In memory by default, optionally snapshotted to disk |
 | Session expiry sweep | ✅ | Background maintenance loop |
 | QoS 1/2 inflight window | ✅ | Configurable per session |
 | Packet-id allocation | ✅ | Skips ids already inflight |
 | Offline queue bounds | ✅ | Oldest messages dropped and counted |
 | Overlapping subscription aggregation | ✅ | One delivery per client at maximum QoS |
-| Persistent state across restart | ⚠️ | Retained journal and periodic session snapshots; inflight QoS state is not persisted |
+| Persistent state across restart | ✅ | Retained journal plus session and replica snapshots; inflight QoS state is still replayed by the client |
 | Session backup and restore | ✅ | `GET`/`POST /api/v1/backup` export and import retained and session state |
 | Graceful shutdown drain | ✅ | Waits up to `Server:DrainTimeoutSeconds` for inflight acknowledgements |
-| Cross-node session migration | ❌ | Sessions are node-affine |
+| Cross-node session migration | ✅ | `CleanStart=false` claims the session from its owner or the newest replica |
 
 ## Security
 
@@ -105,7 +106,7 @@ Legend: ✅ implemented · ⚠️ partial or with documented limits · ❌ not i
 | Compose single node / 3-node cluster | ✅ | `docker-compose.yml`, `deploy/compose` |
 | Kustomize manifests | ✅ | StatefulSet, PDB, HPA, Ingress, NetworkPolicy |
 | Helm chart | ✅ | Probes, autoscaling, ingress, existing secret |
-| Durable storage / backup | ❌ | Roadmap |
+| Durable storage | ✅ | Retained journal, session snapshots and session replicas |
 | Distributed tracing | ❌ | Roadmap |
 
 ## Verification
@@ -124,34 +125,40 @@ The claims above are covered by the repository's tests and CI:
 | Container build + health/login smoke | CI `Container image` job |
 | CodeQL | `codeql.yml` |
 
-Current test count: 147 passing tests (63 core, 61 broker, 23 server)
-integration).
+Current test count: 209 passing tests (63 core, 103 broker, 43 server).
 
 ## Extensibility
 
-NextMQTT 0.1.x has extension **interfaces**, not a plugin ABI. Plugin packages
-built for other MQTT brokers are not loaded, are not compatible, and are not
-supported.
+NextMQTT has in-process extension interfaces and a plugin host. Plugins are
+loaded from `plugin.json` manifests into a collectible context with contract
+version 1; a manifest that names a missing assembly or a different contract
+version is skipped.
 
 | Extension point | Interface | Purpose |
 | --- | --- | --- |
 | Client authentication | `IClientAuthenticator` | Replace or extend username/password and API-key checks |
 | Topic authorisation | `ITopicAuthorizer` | Allow or deny publish/subscribe per client |
 | Cluster routing | `IClusterRouter` | Replace the HTTP forwarding strategy |
+| Plugin lifecycle | `IPluginLifecycle` | Release resources before the load context is unloaded |
 
-Each is resolved from dependency injection, so an extension is a source change
-plus a rebuild — no external runtime and no configuration schema of its own.
-Out-of-process integrations use the versioned REST API (`/api/v1`) and the
-cluster endpoints (`/internal/cluster`). A first-party extension host is on the
-roadmap and needs its own ADR first (see
-[ADR 0005](adr/0005-extension-interfaces.md)).
+The interfaces are resolved from dependency injection, so an implementation can
+also be compiled in. Plugins are an on-disk alternative that avoids a rebuild:
+`Plugins:Authenticator` and `Plugins:Authorizer` name the type to activate, and
+`POST /api/v1/plugins/reload` applies changes without a restart. Out-of-process
+integrations use the versioned REST API (`/api/v1`) and the cluster endpoints
+(`/internal/cluster`).
 
 ## Known limitations
 
-- Sessions, queues and subscriptions are in memory; retained messages can be journaled.
-- Cluster forwarding is best effort; shared subscriptions are coordinated across nodes.
-- Durable sessions and bridges
-  are not in this release.
-- Extending behaviour means changing source; there is no plugin host yet.
+- The inbound QoS 2 handshake and the outbound `inflight` window are not moved
+  between nodes; those messages are replayed from the queue and the client
+  retries.
+- Replicas are only as fresh as `Cluster:SessionReplicaSeconds`; without
+  `Storage:Replicas:Mode=File` they are lost when every node restarts.
+- Cluster forwarding is best effort; shared subscriptions are coordinated across
+  nodes.
+- There is no cross-node ordering guarantee and no exactly-once delivery.
+- Extending behaviour in-process means changing source and rebuilding; the
+  plugin host is the runtime alternative.
 - The default configuration is development-friendly; harden it before exposing
   the broker.
