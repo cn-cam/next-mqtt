@@ -535,10 +535,14 @@ printf '%s' 'my-api-key' | sha256sum
     "HeartbeatSeconds": 5,
     "NodeTimeoutSeconds": 20,
     "RequestTimeoutSeconds": 5,
-    "MaxFiltersPerHeartbeat": 10000
+    "MaxFiltersPerHeartbeat": 10000,
+    "SessionReplicaSeconds": 5
   }
 }
 ```
+
+`SessionReplicaSeconds` controls how often a node pushes session replicas to its
+peers so a crash does not lose the sessions it owns; `0` disables replication.
 
 When clustering is enabled, `AdvertiseUrl` must be reachable from peers and
 `Secret` must be at least 16 characters. See [Clustering](/clustering).

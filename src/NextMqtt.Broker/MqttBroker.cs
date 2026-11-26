@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using NextMqtt.Broker.Clustering;
 using NextMqtt.Broker.Diagnostics;
@@ -183,6 +184,19 @@ public sealed class MqttBroker : IAsyncDisposable
     /// <remarks>按订阅者计数，跨节点转发进来的也算。</remarks>
     public RateTracker DeliveryRate { get; } = new();
 
+    /// <summary>Newest replica of sessions owned by peers.</summary>
+    /// <remarks>只在原节点不可用时启用；条目由对端周期性推送刷新。</remarks>
+    private readonly ConcurrentDictionary<string, ClusterSessionReplica> _sessionReplicas = new(StringComparer.Ordinal);
+
+    /// <summary>Version counter for replicas produced by this node.</summary>
+    private long _replicaVersion;
+
+    /// <summary>Earliest time the next replica round may start.</summary>
+    private DateTimeOffset _nextReplicaPush = DateTimeOffset.MinValue;
+
+    /// <summary>Round-robin cursor over the session snapshot.</summary>
+    private int _replicaCursor;
+
     /// <summary>Returns the provider registered for an authentication method, if any.</summary>
     /// <remarks>未注册返回 null，由连接层回 0x8C。</remarks>
     /// <param name="method">Authentication Method from CONNECT.</param>
@@ -323,6 +337,32 @@ public sealed class MqttBroker : IAsyncDisposable
         RestoreSessions([record]);
         return Sessions.Get(record.ClientId) is not null;
     }
+
+    /// <summary>Stores a replica pushed by another node.</summary>
+    /// <remarks>只保留版本更新的副本；过期或更旧的推送直接丢弃。</remarks>
+    /// <param name="replica">Snapshot received from a peer.</param>
+    public void StoreSessionReplica(ClusterSessionReplica replica)
+    {
+        var existing = _sessionReplicas.GetValueOrDefault(replica.Session.ClientId);
+
+        if (existing is not null && existing.Version >= replica.Version)
+        {
+            return;
+        }
+
+        _sessionReplicas[replica.Session.ClientId] = replica;
+        TrimReplicas(DateTimeOffset.UtcNow);
+    }
+
+    /// <summary>Returns the newest replica this node holds for a session.</summary>
+    /// <remarks>调用方必须确认副本记录的属主已经不可用，否则会复活旧状态。</remarks>
+    /// <param name="clientId">Session to look up.</param>
+    public ClusterSessionReplica? GetSessionReplica(string clientId)
+        => _sessionReplicas.TryGetValue(clientId, out var replica) ? replica : null;
+
+    /// <summary>Number of replicas held for sessions owned by peers.</summary>
+    /// <remarks>用于诊断与测试。</remarks>
+    public int SessionReplicaCount => _sessionReplicas.Count;
 
     /// <summary>Removes a session locally and returns it for another node.</summary>
     /// <remarks>
@@ -1161,54 +1201,64 @@ public sealed class MqttBroker : IAsyncDisposable
                 continue;
             }
 
-            var principal = session.Principal;
-
-            var record = new PersistedSession
-            {
-                ClientId = session.ClientId,
-                Name = principal.Name,
-                Username = principal.Username,
-                IsSuperuser = principal.IsSuperuser,
-                Claims = principal.Claims.Count == 0
-                    ? null
-                    : principal.Claims.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal),
-                ProtocolVersion = (int)session.ProtocolVersion,
-                SessionExpiryInterval = session.SessionExpiryInterval,
-                ExpiresAt = session.ExpiresAt,
-                LastSeen = session.LastSeen,
-            };
-
-            if (subscriptions.TryGetValue(session.ClientId, out var clientSubscriptions))
-            {
-                record.Subscriptions = clientSubscriptions
-                    .Select(subscription => new PersistedSubscription
-                    {
-                        Filter = subscription.Filter.Original,
-                        QoS = (int)subscription.Options.QoS,
-                        NoLocal = subscription.Options.NoLocal,
-                        RetainAsPublished = subscription.Options.RetainAsPublished,
-                        RetainHandling = (int)subscription.Options.RetainHandling,
-                        Identifier = subscription.Identifier,
-                    })
-                    .ToList();
-            }
-
-            record.Queue = session.SnapshotQueue()
-                .Select(message => new PersistedMessage
-                {
-                    Topic = message.Topic,
-                    Payload = Convert.ToBase64String(message.Payload),
-                    QoS = (int)message.QoS,
-                    Retain = message.Retain,
-                    ExpiresAt = message.ExpiresAt,
-                    Properties = PropertyRecord.FromProperties(message.Properties),
-                })
-                .ToList();
-
-            snapshot.Add(record);
+            snapshot.Add(CreateSessionSnapshot(session, subscriptions));
         }
 
         return snapshot;
+    }
+
+    /// <summary>Projects one session into the transferable shape.</summary>
+    /// <param name="session">Session to project.</param>
+    /// <param name="subscriptions">Subscriptions grouped by client id.</param>
+    private static PersistedSession CreateSessionSnapshot(
+        BrokerSession session,
+        IReadOnlyDictionary<string, List<Subscription>> subscriptions)
+    {
+        var principal = session.Principal;
+
+        var record = new PersistedSession
+        {
+            ClientId = session.ClientId,
+            Name = principal.Name,
+            Username = principal.Username,
+            IsSuperuser = principal.IsSuperuser,
+            Claims = principal.Claims.Count == 0
+                ? null
+                : principal.Claims.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal),
+            ProtocolVersion = (int)session.ProtocolVersion,
+            SessionExpiryInterval = session.SessionExpiryInterval,
+            ExpiresAt = session.ExpiresAt,
+            LastSeen = session.LastSeen,
+        };
+
+        if (subscriptions.TryGetValue(session.ClientId, out var clientSubscriptions))
+        {
+            record.Subscriptions = clientSubscriptions
+                .Select(subscription => new PersistedSubscription
+                {
+                    Filter = subscription.Filter.Original,
+                    QoS = (int)subscription.Options.QoS,
+                    NoLocal = subscription.Options.NoLocal,
+                    RetainAsPublished = subscription.Options.RetainAsPublished,
+                    RetainHandling = (int)subscription.Options.RetainHandling,
+                    Identifier = subscription.Identifier,
+                })
+                .ToList();
+        }
+
+        record.Queue = session.SnapshotQueue()
+            .Select(message => new PersistedMessage
+            {
+                Topic = message.Topic,
+                Payload = Convert.ToBase64String(message.Payload),
+                QoS = (int)message.QoS,
+                Retain = message.Retain,
+                ExpiresAt = message.ExpiresAt,
+                Properties = PropertyRecord.FromProperties(message.Properties),
+            })
+            .ToList();
+
+        return record;
     }
 
     /// <summary>Converts a stored message for delivery, or null when its payload is not valid base64.</summary>
@@ -1263,6 +1313,7 @@ public sealed class MqttBroker : IAsyncDisposable
     {
         Retained.PruneExpired(now);
         PersistSessionsIfDue(now);
+        ReplicateSessionsIfDue(now);
         ApplyClusterRateScale();
 
         foreach (var session in Sessions.Snapshot())
@@ -1278,6 +1329,104 @@ public sealed class MqttBroker : IAsyncDisposable
                 Metrics.SessionExpired();
                 RemoveSession(session);
             }
+        }
+    }
+
+    /// <summary>Pushes a batch of session replicas to peers when the interval elapsed.</summary>
+    /// <remarks>按快照顺序轮转，每轮最多 200 个，避免大量会话时把心跳和转发挤掉。</remarks>
+    /// <param name="now">Current time.</param>
+    private void ReplicateSessionsIfDue(DateTimeOffset now)
+    {
+        if (!Cluster.ReplicatesSessions || now < _nextReplicaPush)
+        {
+            return;
+        }
+
+        _nextReplicaPush = now + Cluster.ReplicaInterval;
+
+        var sessions = Sessions.Snapshot()
+            .Where(session => session.Persistent)
+            .ToList();
+
+        if (sessions.Count == 0)
+        {
+            return;
+        }
+
+        var subscriptions = Subscriptions.GetAll()
+            .GroupBy(subscription => subscription.ClientId, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.ToList(), StringComparer.Ordinal);
+
+        var nodeId = Cluster.GetSnapshot().NodeId;
+        var budget = Math.Min(200, sessions.Count);
+        var start = _replicaCursor % sessions.Count;
+
+        for (var index = 0; index < budget; index++)
+        {
+            var session = sessions[(start + index) % sessions.Count];
+            var replica = new ClusterSessionReplica(
+                CreateSessionSnapshot(session, subscriptions),
+                nodeId,
+                Interlocked.Increment(ref _replicaVersion),
+                now.ToUnixTimeSeconds());
+
+            _ = PushReplicaAsync(replica);
+        }
+
+        _replicaCursor = (start + budget) % sessions.Count;
+    }
+
+    /// <summary>Sends one replica and swallows transport failures.</summary>
+    /// <remarks>下一轮会重发同一个会话，所以这里只需要记 Debug 日志。</remarks>
+    /// <param name="replica">Replica to send.</param>
+    private async Task PushReplicaAsync(ClusterSessionReplica replica)
+    {
+        try
+        {
+            await Cluster.ReplicateSessionAsync(replica, _lifetime.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            // Shutdown.
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Session replica for {ClientId} could not be pushed", replica.Session.ClientId);
+        }
+    }
+
+    /// <summary>Drops expired replicas and keeps the table bounded.</summary>
+    /// <param name="now">Current time.</param>
+    private void TrimReplicas(DateTimeOffset now)
+    {
+        const int capacity = 20_000;
+
+        if (_sessionReplicas.Count <= capacity)
+        {
+            return;
+        }
+
+        var cutoff = now.AddMinutes(-30).ToUnixTimeSeconds();
+
+        foreach (var entry in _sessionReplicas)
+        {
+            if (entry.Value.UpdatedAtUnix < cutoff)
+            {
+                _sessionReplicas.TryRemove(entry.Key, out _);
+            }
+        }
+
+        // Still too large: evict the oldest replicas first.
+        var excess = _sessionReplicas.Count - capacity;
+
+        if (excess <= 0)
+        {
+            return;
+        }
+
+        foreach (var entry in _sessionReplicas.OrderBy(item => item.Value.UpdatedAtUnix).Take(excess))
+        {
+            _sessionReplicas.TryRemove(entry.Key, out _);
         }
     }
 

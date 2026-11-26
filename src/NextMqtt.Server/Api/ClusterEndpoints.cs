@@ -190,6 +190,85 @@ public static class ClusterEndpoints
 
             await context.Response.WriteAsJsonAsync(transfer, ClusterJson.Options);
         });
+
+        app.MapPost("/internal/cluster/session/replicate", async context =>
+        {
+            var body = await ReadBodyAsync(context);
+
+            if (body is null)
+            {
+                return;
+            }
+
+            if (!Verify(context, router.Secret, body))
+            {
+                return;
+            }
+
+            ClusterSessionReplica? replica;
+
+            try
+            {
+                replica = JsonSerializer.Deserialize<ClusterSessionReplica>(body, ClusterJson.Options);
+            }
+            catch (JsonException)
+            {
+                context.Response.StatusCode = StatusCodes.Status400BadRequest;
+                return;
+            }
+
+            if (replica is null || string.IsNullOrEmpty(replica.Session.ClientId))
+            {
+                context.Response.StatusCode = StatusCodes.Status400BadRequest;
+                return;
+            }
+
+            broker.StoreSessionReplica(replica);
+            context.Response.StatusCode = StatusCodes.Status202Accepted;
+        });
+
+        app.MapPost("/internal/cluster/session/replica", async context =>
+        {
+            var body = await ReadBodyAsync(context);
+
+            if (body is null)
+            {
+                return;
+            }
+
+            if (!Verify(context, router.Secret, body))
+            {
+                return;
+            }
+
+            ClusterSessionClaim? claim;
+
+            try
+            {
+                claim = JsonSerializer.Deserialize<ClusterSessionClaim>(body, ClusterJson.Options);
+            }
+            catch (JsonException)
+            {
+                context.Response.StatusCode = StatusCodes.Status400BadRequest;
+                return;
+            }
+
+            if (claim is null || string.IsNullOrEmpty(claim.ClientId))
+            {
+                context.Response.StatusCode = StatusCodes.Status400BadRequest;
+                return;
+            }
+
+            var replica = broker.GetSessionReplica(claim.ClientId);
+
+            if (replica is null)
+            {
+                context.Response.StatusCode = StatusCodes.Status404NotFound;
+                return;
+            }
+
+            await context.Response.WriteAsJsonAsync(replica, ClusterJson.Options);
+        });
     }
 
     /// <summary>Reads the body as UTF-8, returning null after answering 413 for an oversized request.</summary>

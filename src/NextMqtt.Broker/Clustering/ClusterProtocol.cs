@@ -196,6 +196,18 @@ public sealed record ClusterRetainedMessage(
 /// <param name="NodeId">Node asking for it, for logging and conflict detection.</param>
 public sealed record ClusterSessionClaim(string ClientId, string NodeId);
 
+/// <summary>Replica of a session owned by another node.</summary>
+/// <remarks>用于原节点崩溃时恢复会话；版本号越大越新，接收方只保留最新的。</remarks>
+/// <param name="Session">Snapshot of the session.</param>
+/// <param name="OwnerNodeId">Node that owns the live session.</param>
+/// <param name="Version">Monotonic version assigned by the owner.</param>
+/// <param name="UpdatedAtUnix">When the owner sent this replica.</param>
+public sealed record ClusterSessionReplica(
+    PersistedSession Session,
+    string OwnerNodeId,
+    long Version,
+    long UpdatedAtUnix);
+
 /// <summary>HMAC-SHA256 request signing with a five minute clock skew window.</summary>
 /// <remarks>时间戳超出窗口直接拒绝，用来挡住重放。</remarks>
 public static class ClusterSignature

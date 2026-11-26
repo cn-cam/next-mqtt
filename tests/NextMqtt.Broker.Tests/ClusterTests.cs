@@ -92,6 +92,35 @@ internal sealed class ClusterHttpNetwork : HttpMessageHandler
             };
         }
 
+        if (path.EndsWith("/session/replicate", StringComparison.Ordinal))
+        {
+            var replica = JsonSerializer.Deserialize<ClusterSessionReplica>(body, ClusterJson.Options)!;
+
+            if (!_brokers.TryGetValue(host, out var broker))
+            {
+                return new HttpResponseMessage(HttpStatusCode.NotFound);
+            }
+
+            broker.StoreSessionReplica(replica);
+            return new HttpResponseMessage(HttpStatusCode.Accepted);
+        }
+
+        if (path.EndsWith("/session/replica", StringComparison.Ordinal))
+        {
+            var claim = JsonSerializer.Deserialize<ClusterSessionClaim>(body, ClusterJson.Options)!;
+
+            if (!_brokers.TryGetValue(host, out var broker) || broker.GetSessionReplica(claim.ClientId) is not { } replica)
+            {
+                return new HttpResponseMessage(HttpStatusCode.NotFound);
+            }
+
+            var payload = JsonSerializer.SerializeToUtf8Bytes(replica, ClusterJson.Options);
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new ByteArrayContent(payload),
+            };
+        }
+
         return new HttpResponseMessage(HttpStatusCode.NotFound);
     }
 }
@@ -466,6 +495,216 @@ public class ClusterTests
             await routerB.StopAsync();
             await brokerA.DisposeAsync();
             await brokerB.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task Session_is_recovered_from_a_replica_when_the_owner_is_gone()
+    {
+        const string secret = "cluster-test-secret-1234567890";
+        var network = new ClusterHttpNetwork();
+
+        var optionsA = new NextMqtt.Broker.Options.ClusterOptions
+        {
+            Enabled = true,
+            NodeId = "node-a",
+            AdvertiseUrl = "http://node-a",
+            Secret = secret,
+            Seeds = ["http://node-b"],
+            HeartbeatSeconds = 1,
+            NodeTimeoutSeconds = 10,
+            SessionReplicaSeconds = 1,
+        };
+
+        var optionsB = new NextMqtt.Broker.Options.ClusterOptions
+        {
+            Enabled = true,
+            NodeId = "node-b",
+            AdvertiseUrl = "http://node-b",
+            Secret = secret,
+            Seeds = ["http://node-a"],
+            HeartbeatSeconds = 1,
+            NodeTimeoutSeconds = 10,
+            SessionReplicaSeconds = 1,
+        };
+
+        var http = new HttpClient(network) { Timeout = TimeSpan.FromSeconds(5) };
+        var routerA = new ClusterRouter(optionsA, Microsoft.Extensions.Logging.Abstractions.NullLogger<ClusterRouter>.Instance, http);
+        var routerB = new ClusterRouter(optionsB, Microsoft.Extensions.Logging.Abstractions.NullLogger<ClusterRouter>.Instance, http);
+
+        network.Register("node-a", routerA);
+        network.Register("node-b", routerB);
+
+        var brokerA = TestBroker.Create(cluster: routerA);
+        var brokerB = TestBroker.Create(cluster: routerB);
+
+        network.RegisterBroker("node-a", brokerA);
+        network.RegisterBroker("node-b", brokerB);
+
+        routerA.AttachBroker(brokerA);
+        routerB.AttachBroker(brokerB);
+
+        await routerA.StartAsync();
+        await routerB.StartAsync();
+        await brokerA.StartAsync(CancellationToken.None);
+        await brokerB.StartAsync(CancellationToken.None);
+
+        try
+        {
+            await routerB.ProcessHeartbeatAsync(new ClusterHeartbeatRequest(
+                "node-a",
+                "http://node-a",
+                DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+                []));
+
+            var (_, session, connection) = await TestBroker.ConnectAsync(
+                "replicated",
+                cleanStart: false,
+                sessionExpiry: 300,
+                broker: brokerA);
+
+            brokerA.Subscriptions.AddOrReplace(new NextMqtt.Broker.Subscriptions.Subscription
+            {
+                ClientId = "replicated",
+                Filter = NextMqtt.Core.Topics.TopicFilter.Parse("replica/#"),
+                Options = new MqttSubscriptionOptions(MqttQoS.AtLeastOnce),
+            });
+
+            session.Detach(connection);
+            session.Deliver(new NextMqtt.Broker.Sessions.OutboundMessage
+            {
+                Topic = "replica/queued",
+                Payload = "replica"u8.ToArray(),
+                QoS = MqttQoS.AtLeastOnce,
+            });
+
+            var deadline = DateTimeOffset.UtcNow.AddSeconds(15);
+
+            while (DateTimeOffset.UtcNow < deadline && brokerB.SessionReplicaCount == 0)
+            {
+                await Task.Delay(200);
+            }
+
+            Assert.Equal(1, brokerB.SessionReplicaCount);
+
+            // The owner disappears without handing the session over.
+            await routerA.StopAsync();
+            await brokerA.StopAsync();
+
+            var newConnection = new FakeConnection { ProtocolVersion = MqttProtocolVersion.V500 };
+            var attach = await brokerB.AttachSessionAsync(
+                TestBroker.Connect("replicated", cleanStart: false, sessionExpiry: 300),
+                NextMqtt.Broker.Security.ClientPrincipal.Anonymous("replicated"),
+                newConnection);
+
+            Assert.True(attach.SessionPresent);
+            Assert.Contains(
+                brokerB.Subscriptions.GetByClient("replicated"),
+                subscription => subscription.Filter.Original == "replica/#");
+
+            var publish = Assert.Single(newConnection.Publishes());
+            Assert.Equal("replica/queued", publish.Topic);
+        }
+        finally
+        {
+            await brokerA.DisposeAsync();
+            await brokerB.DisposeAsync();
+            await routerB.StopAsync();
+        }
+    }
+
+    [Fact]
+    public async Task Replica_from_a_live_owner_is_not_used()
+    {
+        const string secret = "cluster-test-secret-1234567890";
+        var network = new ClusterHttpNetwork();
+
+        var optionsA = new NextMqtt.Broker.Options.ClusterOptions
+        {
+            Enabled = true,
+            NodeId = "node-a",
+            AdvertiseUrl = "http://node-a",
+            Secret = secret,
+            Seeds = ["http://node-b"],
+            HeartbeatSeconds = 1,
+            NodeTimeoutSeconds = 10,
+            SessionReplicaSeconds = 1,
+        };
+
+        var optionsB = new NextMqtt.Broker.Options.ClusterOptions
+        {
+            Enabled = true,
+            NodeId = "node-b",
+            AdvertiseUrl = "http://node-b",
+            Secret = secret,
+            Seeds = ["http://node-a"],
+            HeartbeatSeconds = 1,
+            NodeTimeoutSeconds = 10,
+            SessionReplicaSeconds = 1,
+        };
+
+        var http = new HttpClient(network) { Timeout = TimeSpan.FromSeconds(5) };
+        var routerA = new ClusterRouter(optionsA, Microsoft.Extensions.Logging.Abstractions.NullLogger<ClusterRouter>.Instance, http);
+        var routerB = new ClusterRouter(optionsB, Microsoft.Extensions.Logging.Abstractions.NullLogger<ClusterRouter>.Instance, http);
+
+        network.Register("node-a", routerA);
+        network.Register("node-b", routerB);
+
+        var brokerA = TestBroker.Create(cluster: routerA);
+        var brokerB = TestBroker.Create(cluster: routerB);
+
+        network.RegisterBroker("node-a", brokerA);
+        network.RegisterBroker("node-b", brokerB);
+
+        routerA.AttachBroker(brokerA);
+        routerB.AttachBroker(brokerB);
+
+        await routerA.StartAsync();
+        await routerB.StartAsync();
+        await brokerA.StartAsync(CancellationToken.None);
+        await brokerB.StartAsync(CancellationToken.None);
+
+        try
+        {
+            await routerB.ProcessHeartbeatAsync(new ClusterHeartbeatRequest(
+                "node-a",
+                "http://node-a",
+                DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+                []));
+
+            var (_, session, connection) = await TestBroker.ConnectAsync(
+                "stale",
+                cleanStart: false,
+                sessionExpiry: 300,
+                broker: brokerA);
+
+            session.Detach(connection);
+
+            var deadline = DateTimeOffset.UtcNow.AddSeconds(15);
+
+            while (DateTimeOffset.UtcNow < deadline && brokerB.SessionReplicaCount == 0)
+            {
+                await Task.Delay(200);
+            }
+
+            // The owner is still alive but the session is gone: a replica must
+            // not resurrect it.
+            brokerA.Sessions.Remove("stale");
+            brokerA.Subscriptions.RemoveAll("stale");
+
+            var attach = await brokerB.AttachSessionAsync(
+                TestBroker.Connect("stale", cleanStart: false, sessionExpiry: 300),
+                NextMqtt.Broker.Security.ClientPrincipal.Anonymous("stale"),
+                new FakeConnection { ProtocolVersion = MqttProtocolVersion.V500 });
+
+            Assert.False(attach.SessionPresent);
+        }
+        finally
+        {
+            await brokerA.DisposeAsync();
+            await brokerB.DisposeAsync();
+            await routerA.StopAsync();
+            await routerB.StopAsync();
         }
     }
 

@@ -75,6 +75,12 @@ view.
   from one peer over the signed internal API, keeping the original timestamps so
   last-write-wins still applies. Messages published while the node was away are
   therefore not lost.
+- **Session replicas survive a crash.** Every `SessionReplicaSeconds` a node
+  pushes snapshots of its persistent sessions to its peers. If the owner dies
+  and a client reconnects elsewhere, the new node claims the session from the
+  owner when it is reachable, and otherwise falls back to the newest replica —
+  but only when the replica's owner is no longer alive, so a stale copy cannot
+  resurrect a session that is still running somewhere.
 
 Sessions follow the client: a reconnect with `CleanStart=false` on another node
 claims the session from its previous owner, so the offline queue and
@@ -185,8 +191,10 @@ Wait at least one heartbeat after subscribing before publishing.
 - Session handover covers subscriptions and the offline queue, not the inbound
   QoS 2 handshake or the `inflight` acknowledgement state; those messages are
   replayed from the queue and the client retries.
-- No cross-node session persistence beyond a handover: if the owning node dies
-  without transferring, the session is lost.
+- A replica is at most `SessionReplicaSeconds` old and lives in memory on the
+  peers, so a replica itself is lost if every other node restarts at once.
+- No cross-node session persistence beyond handover and replication: if the
+  owner and all replica holders die together, the session is lost.
 - Filter advertisements are full snapshots, capped at 10,000 filters per
   heartbeat by default.
 - Cluster routing is at-least-once per link with a deduplication cache, not a

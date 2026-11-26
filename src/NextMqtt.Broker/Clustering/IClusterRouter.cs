@@ -40,6 +40,26 @@ public interface IClusterRouter
     /// <returns>The transferred session, or null when no peer holds it.</returns>
     Task<PersistedSession?> ClaimSessionAsync(string clientId, CancellationToken cancellationToken = default);
 
+    /// <summary>True when this node pushes session replicas to its peers.</summary>
+    /// <remarks>关闭复制时，节点崩溃会丢掉它持有的会话。</remarks>
+    bool ReplicatesSessions { get; }
+
+    /// <summary>How often replicas are pushed, as configured.</summary>
+    /// <remarks>0 表示关闭复制。</remarks>
+    TimeSpan ReplicaInterval { get; }
+
+    /// <summary>Sends one session replica to every live peer.</summary>
+    /// <remarks>尽力而为：失败只记日志，下一次轮询会重发。</remarks>
+    /// <param name="replica">Snapshot to send.</param>
+    /// <param name="cancellationToken">Cancels the fan-out.</param>
+    Task ReplicateSessionAsync(ClusterSessionReplica replica, CancellationToken cancellationToken = default);
+
+    /// <summary>Asks peers for the newest replica of a session.</summary>
+    /// <remarks>只在原节点不可用时使用，调用方负责判断所有者是否已死。</remarks>
+    /// <param name="clientId">Session to look up.</param>
+    /// <param name="cancellationToken">Cancels the peer requests.</param>
+    Task<ClusterSessionReplica?> FindSessionReplicaAsync(string clientId, CancellationToken cancellationToken = default);
+
     /// <summary>Starts the heartbeat loop and joins the cluster.</summary>
     /// <remarks>幂等；重复调用不会起第二个循环。</remarks>
     /// <param name="cancellationToken">Stops the startup handshake.</param>
@@ -87,6 +107,28 @@ public sealed class NullClusterRouter : IClusterRouter
     /// <param name="cancellationToken">Ignored.</param>
     public Task<PersistedSession?> ClaimSessionAsync(string clientId, CancellationToken cancellationToken = default)
         => Task.FromResult<PersistedSession?>(null);
+
+    /// <summary>Single node, so replicas have nowhere to go.</summary>
+    /// <remarks>Broker 据此跳过复制路径。</remarks>
+    public bool ReplicatesSessions => false;
+
+    /// <summary>No replication, so the interval is unused.</summary>
+    /// <remarks>固定返回 0。</remarks>
+    public TimeSpan ReplicaInterval => TimeSpan.Zero;
+
+    /// <summary>Discards the replica.</summary>
+    /// <remarks>直接完成，不产生等待。</remarks>
+    /// <param name="replica">Ignored.</param>
+    /// <param name="cancellationToken">Ignored.</param>
+    public Task ReplicateSessionAsync(ClusterSessionReplica replica, CancellationToken cancellationToken = default)
+        => Task.CompletedTask;
+
+    /// <summary>No peers, so there is no replica to find.</summary>
+    /// <remarks>返回 null。</remarks>
+    /// <param name="clientId">Ignored.</param>
+    /// <param name="cancellationToken">Ignored.</param>
+    public Task<ClusterSessionReplica?> FindSessionReplicaAsync(string clientId, CancellationToken cancellationToken = default)
+        => Task.FromResult<ClusterSessionReplica?>(null);
 
     /// <summary>No-op start.</summary>
     /// <remarks>返回已完成的任务。</remarks>

@@ -640,7 +640,112 @@ public sealed class ClusterRouter : IClusterRouter
             }
         }
 
+        // No live owner answered. The previous owner may have crashed, so use
+        // the newest replica, but only when that owner is not alive in our view.
+        var replica = _broker?.GetSessionReplica(clientId);
+
+        if (replica is null && ReplicatesSessions)
+        {
+            replica = await FindSessionReplicaAsync(clientId, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (replica is not null && !IsAlive(replica.OwnerNodeId))
+        {
+            _logger.LogInformation(
+                "Session {ClientId} recovered from a replica of {Owner}",
+                clientId,
+                replica.OwnerNodeId);
+
+            return replica.Session;
+        }
+
         return null;
+    }
+
+    /// <summary>True when this node pushes session replicas to its peers.</summary>
+    /// <remarks>与集群开关和复制间隔同时生效。</remarks>
+    public bool ReplicatesSessions => Enabled && _options.SessionReplicaSeconds > 0;
+
+    /// <summary>How often replicas are pushed, as configured.</summary>
+    /// <remarks>0 表示关闭复制。</remarks>
+    public TimeSpan ReplicaInterval => TimeSpan.FromSeconds(Math.Max(1, _options.SessionReplicaSeconds));
+
+    /// <summary>Sends one session replica to every live peer.</summary>
+    /// <remarks>并行发送，失败静默；下一次轮询会补发，不阻塞会话本身。</remarks>
+    /// <param name="replica">Snapshot to send.</param>
+    /// <param name="cancellationToken">Cancels the fan-out.</param>
+    public async Task ReplicateSessionAsync(ClusterSessionReplica replica, CancellationToken cancellationToken = default)
+    {
+        var peers = AlivePeerUrls();
+
+        if (peers.Count == 0)
+        {
+            return;
+        }
+
+        await Parallel.ForEachAsync(
+            peers,
+            new ParallelOptions { MaxDegreeOfParallelism = 4, CancellationToken = cancellationToken },
+            async (peer, token) => await PostAsync<ClusterSessionReplica, object>(
+                peer,
+                "/internal/cluster/session/replicate",
+                replica,
+                token).ConfigureAwait(false))
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>Asks peers for the newest replica of a session.</summary>
+    /// <remarks>只在原节点不可用时使用；版本号最大的副本胜出。</remarks>
+    /// <param name="clientId">Session to look up.</param>
+    /// <param name="cancellationToken">Cancels the peer requests.</param>
+    public async Task<ClusterSessionReplica?> FindSessionReplicaAsync(string clientId, CancellationToken cancellationToken = default)
+    {
+        if (!Enabled || _self is null)
+        {
+            return null;
+        }
+
+        var claim = new ClusterSessionClaim(clientId, _self.NodeId);
+        ClusterSessionReplica? best = null;
+
+        foreach (var peer in AlivePeerUrls())
+        {
+            var replica = await PostAsync<ClusterSessionClaim, ClusterSessionReplica>(
+                peer,
+                "/internal/cluster/session/replica",
+                claim,
+                cancellationToken).ConfigureAwait(false);
+
+            if (replica is not null && (best is null || replica.Version > best.Version))
+            {
+                best = replica;
+            }
+        }
+
+        return best;
+    }
+
+    /// <summary>True when the peer is currently considered alive.</summary>
+    /// <param name="nodeId">Node identifier to test.</param>
+    private bool IsAlive(string nodeId)
+        => _members.TryGetValue(nodeId, out var member)
+           && member.Status(DateTimeOffset.UtcNow, TimeSpan.FromSeconds(_options.NodeTimeoutSeconds)) == "alive";
+
+    /// <summary>Advertise URLs of every live peer, excluding this node.</summary>
+    private List<string> AlivePeerUrls()
+    {
+        if (!Enabled || _self is null)
+        {
+            return [];
+        }
+
+        var timeout = TimeSpan.FromSeconds(_options.NodeTimeoutSeconds);
+        var now = DateTimeOffset.UtcNow;
+
+        return _members.Values
+            .Where(member => member.NodeId != _self.NodeId && member.Status(now, timeout) == "alive")
+            .Select(member => member.AdvertiseUrl)
+            .ToList();
     }
 
     /// <summary>Pulls the retained set from a peer once, so a joining node can serve it.</summary>

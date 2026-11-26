@@ -43,6 +43,10 @@ public sealed class ClusterOptions
     /// <remarks>按单次请求计算，超时只影响这一次转发，本地投递照常完成。</remarks>
     public int RequestTimeoutSeconds { get; set; } = 5;
 
+    /// <summary>How often a session replica is pushed to peers; 0 disables replication.</summary>
+    /// <remarks>关闭后节点崩溃会丢失它持有的会话；开启时每轮最多推送 200 个会话，按顺序轮转。</remarks>
+    public int SessionReplicaSeconds { get; set; } = 5;
+
     /// <summary>Cap on filters advertised per heartbeat to bound message size.</summary>
     /// <remarks>订阅极多时会被截断，超出部分对端看不见，表现为跨节点漏投；调大意味着心跳报文更大。</remarks>
     public int MaxFiltersPerHeartbeat { get; set; } = 10_000;
