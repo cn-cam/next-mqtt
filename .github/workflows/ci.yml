@@ -51,6 +51,24 @@ jobs:
           name: test-results
           path: TestResults
           if-no-files-found: ignore
+      - name: Report failed tests
+        if: failure()
+        shell: pwsh
+        run: |
+          $failed = @()
+          Get-ChildItem TestResults -Filter *.trx -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
+            [xml]$trx = Get-Content $_.FullName
+            $failed += $trx.TestRun.Results.UnitTestResult | Where-Object outcome -eq 'Failed'
+          }
+          if ($failed.Count -eq 0) {
+            Write-Host '::error::Test step failed but no failed test was found in the TRX files'
+            exit 0
+          }
+          foreach ($test in $failed) {
+            $message = $test.output.ErrorInfo.Message
+            Write-Host "::error::Failed test: $($test.testName)"
+            "- **$($test.testName)**: $message" | Add-Content -Path $env:GITHUB_STEP_SUMMARY
+          }
 
   web:
     name: Dashboard

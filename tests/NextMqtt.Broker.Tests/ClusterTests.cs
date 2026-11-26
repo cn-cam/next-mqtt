@@ -981,8 +981,6 @@ public class ClusterTests
 
         await routerA.StartAsync();
         await routerB.StartAsync();
-        await brokerA.StartAsync(CancellationToken.None);
-        await brokerB.StartAsync(CancellationToken.None);
 
         try
         {
@@ -1011,6 +1009,11 @@ public class ClusterTests
                 Payload = "pending"u8.ToArray(),
                 QoS = MqttQoS.AtLeastOnce,
             });
+
+            // Start the replica loop only after the state exists, so the first
+            // round cannot race with session creation.
+            await brokerA.StartAsync(CancellationToken.None);
+            await brokerB.StartAsync(CancellationToken.None);
 
             var deadline = DateTimeOffset.UtcNow.AddSeconds(15);
 
