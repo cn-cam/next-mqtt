@@ -87,6 +87,44 @@ claims the session from its previous owner, so the offline queue and
 subscriptions survive a node change. A reconnect with `CleanStart=true` still
 starts from scratch.
 
+## Availability model
+
+The design assumes a client is connected to at most one node at a time and that
+clients reconnect on their own. Within that assumption:
+
+| Failure | Effect | What the cluster does |
+| --- | --- | --- |
+| Client TCP drop | Session goes offline | Queue keeps accepting messages until the expiry interval |
+| Node crash | Its sessions become unreachable; routing stops sending to it | Peers mark it dead within `NodeTimeoutSeconds`; messages for its subscribers are lost until the client reconnects and claims the session elsewhere |
+| Client reconnects elsewhere | Session is on the dead node | The new node claims it, or falls back to the newest replica if the owner is gone or reports no session |
+| Owner disk lost, node restarted | Session store empty | Replicas on peers (file-backed if configured) restore it; a peer that answered "no session" does not block the fallback |
+| All nodes restarted | Memory is empty | Each node reloads its session file and its replica file; the newest copy wins by `(lastSeen, nodeId)` |
+| Partition | Two views of membership | Only the side that owns the live client serves it; a replica is never used while its recorded owner is alive in the local view |
+| Slow replica push | Replica up to `SessionReplicaSeconds` old | A recovered session may miss the last few seconds of queued messages |
+
+**Recovery point.** Session state is at most `SessionReplicaSeconds` (default 5)
+old on the replica side; the owner's own file is at most `SessionSnapshotSeconds`
+(30) old. Retained messages are journaled per write. Messages already delivered
+but not yet acknowledged are replayed from the queue; a duplicate is possible,
+which MQTT tolerates at QoS 1/2.
+
+**Recovery time.** A reconnect plus one internal round trip: the new node asks
+live peers, then reads its own replica file. No operator action is needed.
+
+**Deliberate limits.** Inbound QoS 2 handshakes and the outbound `inflight`
+window are not transferred; they become queued messages and the client retries.
+Sessions with a zero expiry are not replicated, because they cannot outlive the
+connection by definition. There is no cross-node ordering guarantee and no
+exactly-once delivery.
+
+**Split-brain stance.** Session ownership is decided by evidence, not by a
+consensus round: a live owner always wins; if it answers without the session, the
+newest replica is used; ties between two restored copies are broken by
+`(lastSeen, nodeId)`, so every node reaches the same verdict without
+coordination. The trade-off is a short window where a partitioned owner and a
+recovered copy could both accept the same client id — the client itself can only
+be in one place, so this is acceptable for MQTT semantics.
+
 ## Routing
 
 1. A publish is delivered locally.
