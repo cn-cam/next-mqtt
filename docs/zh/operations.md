@@ -20,6 +20,7 @@
 | --- | --- | --- |
 | `nextmqtt_connections_opened_total` | counter | 接受连接数 |
 | `nextmqtt_connections_closed_total` | counter | 关闭连接数 |
+| `nextmqtt_connections_rejected_total` | counter | CONNECT 阶段拒绝 |
 | `nextmqtt_authentication_failures_total` | counter | 认证失败 |
 | `nextmqtt_publishes_received_total` | counter | 接收发布 |
 | `nextmqtt_publishes_sent_total` | counter | 投递发布 |
@@ -27,11 +28,27 @@
 | `nextmqtt_bytes_sent_total` | counter | 出站字节 |
 | `nextmqtt_messages_dropped_total` | counter | 丢弃消息 |
 | `nextmqtt_retransmissions_total` | counter | QoS 重传 |
+| `nextmqtt_subscriptions_created_total` | counter | 成功订阅 |
+| `nextmqtt_sessions_expired_total` | counter | 过期删除的会话 |
+| `nextmqtt_connections_rate_limited_total` | counter | 连接限流拒绝 |
+| `nextmqtt_publishes_rate_limited_total` | counter | 发布限流丢弃 |
 | `nextmqtt_clients_connected` | gauge | 在线连接 |
 | `nextmqtt_sessions` | gauge | 会话数 |
 | `nextmqtt_subscriptions` | gauge | 订阅数 |
 | `nextmqtt_retained_messages` | gauge | 保留消息数 |
 | `nextmqtt_cluster_nodes` | gauge | 集群节点数 |
+| `nextmqtt_build_info` | gauge | 版本标签 |
+
+## 控制台
+
+概览页每 3 秒轮询一次 API，显示连接/会话数、订阅与保留消息、最近一分钟发布吞吐、
+连接/认证/丢弃/重传计数以及集群成员。客户端、订阅与保留消息表每 5 秒刷新并在服务端
+分页。发布控制台使用与 REST API 相同的无 ACL 管理路径。
+
+MQTT 调试器（Messaging → Debugger）由浏览器经 WebSocket 直连 Broker，验证真实协议
+而非管理 API。支持 MQTT 3.1.1 / 5.0、QoS 0–2、保留消息、遗嘱、MQTT 5 会话与发布
+属性、带 noLocal 的订阅、retain-as-published、retain handling、PING、报文跟踪与
+JSON 日志导出。它使用普通 MQTT 凭据，同样受认证与 ACL 约束。
 
 ## 日志
 
@@ -48,7 +65,9 @@
 | 1 万 QoS 1 活跃连接 | 1–2 核 | 512 MiB–1 GiB |
 | 大保留集/离线队列 | 1+ 核 | 按负载估算 |
 
-内存主要由会话、离线队列、保留消息和 inflight 窗口占用。
+内存主要由会话、离线队列、保留消息和 inflight 窗口占用。内存紧张时降低队列上限或
+会话过期时间。当前版本没有保留消息总量配额，请监控 `nextmqtt_retained_messages` 与
+负载大小。
 
 ### 实测参考数据
 
@@ -100,3 +119,25 @@ Linux 和专用主机上会更高。可用 `nextmqtt bench` 与 `nextmqtt bench-
 | 离线消息丢失 | 非持久会话或队列满 | 设置会话过期、提高队列 |
 | 节点 suspect/dead | 网络/URL/密钥/时钟 | 检查 8080、AdvertiseUrl、密钥 |
 | 丢弃计数上升 | 慢消费者/队列小 | 观察客户端吞吐，谨慎调大 |
+
+## 备份
+
+`Storage:Retained:Mode` 为 `file` 时，`Storage:Retained:Path` 的日志保存全部保留
+消息，可在运行中复制（追加写，压缩使用原子改名）。`Storage:Session:Mode` 为 `file`
+时会话快照写入 `Storage:Session:Path`；`Storage:Replicas:Mode` 为 `file` 时收到的副本
+写入 `Storage:Replicas:Path`。复制这些文件时应停止对应节点，或改用下面的 API。
+
+与存储模式无关的逻辑备份：
+
+```bash
+curl -s http://localhost:8080/api/v1/backup -H "Authorization: Bearer $TOKEN" \
+  > nextmqtt-backup.json
+curl -s -X POST http://localhost:8080/api/v1/backup -H "Authorization: Bearer $TOKEN" \
+  -H 'content-type: application/json' --data @nextmqtt-backup.json
+```
+
+导入会替换保留消息，并补入当前不在线的持久会话。出站 inflight 确认不在备份中，等待
+PUBREL 的入站 QoS 2 会包含。
+
+配置保存在环境变量与 Kubernetes/Compose 文件中，也需要备份。管理令牌密钥与集群密钥
+必须保留，否则会导致令牌失效或节点信任中断。

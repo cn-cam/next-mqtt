@@ -93,16 +93,17 @@ as an admin token.
 - MQTT user properties and metadata are preserved; do not put secrets in topic
   names or user properties.
 - The dashboard displays topic names and payload sizes, not payload contents.
-- Sessions, queues and retained messages are in memory. A crash dump can
-  contain them; restrict access accordingly.
+- Sessions, queues and retained messages live in memory, and optionally in the
+  configured file stores. A crash dump or the data volume can contain them;
+  restrict access accordingly.
 - The cluster deduplication cache holds message ids for up to ten minutes.
 
 ## Denial-of-service considerations
 
 The broker bounds packet size, inflight windows, offline queues and the outbound
-channel; it also enforces a CONNECT timeout and keep-alive. It does **not**
-implement per-IP connection limits or message-rate quotas. Protect the listener
-with:
+channel; it also enforces a CONNECT timeout and keep-alive. Connection rate
+limits per source address, publish rate limits per client and topic quotas are
+available in `RateLimits` but are off by default. Combine them with:
 
 - network policies and load balancer limits;
 - connection rate limiting at the edge;

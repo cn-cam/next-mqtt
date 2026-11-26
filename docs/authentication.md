@@ -180,7 +180,7 @@ password generates a new one. Set `NEXTMQTT_ADMIN_PASSWORD` or
   and logs.
 - MQTT payloads are opaque bytes; payload format indicators are validated only
   for structural correctness.
-- The broker does not implement rate limiting per client. Use connection limits
-  at the edge or extend the connection handler.
+- Connection and publish rate limits are token buckets per source address and per
+  client (`RateLimits`); combine them with edge limits for hostile networks.
 - TLS certificate validation for optional client certificates uses platform
   defaults; mutual TLS policy is deployment-specific.

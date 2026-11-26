@@ -29,7 +29,7 @@ The same HTTP endpoint serves the dashboard and REST API.
 | UNSUBSCRIBE / UNSUBACK | ✅ | ✅ | Per-filter reason codes in 5.0 |
 | PINGREQ / PINGRESP | ✅ | ✅ | Keep-alive |
 | DISCONNECT | ✅ | ✅ | Reason code, session expiry update, will-on-disconnect |
-| AUTH | — | ⚠️ | Rejected with `0x8C`; enhanced auth is not configured |
+| AUTH | — | ✅ | Challenge/response with pluggable providers; built-in `nextmqtt-jwt` |
 
 ## Features
 
@@ -38,6 +38,9 @@ The same HTTP endpoint serves the dashboard and REST API.
 - Clean start and persistent sessions.
 - MQTT 5 session expiry interval, including updates in DISCONNECT.
 - Session takeover: the previous connection receives DISCONNECT `0x8E`.
+- A reconnect with `CleanStart=false` on another node claims the session from
+  its owner or recovers it from a replica; inbound QoS 2 publishes waiting for
+  PUBREL travel with the session.
 - Offline queue for persistent sessions, bounded by `Broker:MaxQueuedMessages`.
 - Broker-assigned client identifiers for zero-length ids (returned in
   `AssignedClientIdentifier`).
@@ -45,8 +48,8 @@ The same HTTP endpoint serves the dashboard and REST API.
 ### Subscriptions
 
 - `+` and `#` wildcards with the leading-`$` exclusion rule.
-- Shared subscriptions: `$share/{group}/{filter}`, round-robin per filter and
-  group.
+- Shared subscriptions: `$share/{group}/{filter}`; each message is assigned to
+  one member of the cluster-wide group.
 - MQTT 5 options: `noLocal`, `retainAsPublished`, retain handling 0/1/2.
 - Subscription identifiers attached to matching deliveries.
 - Overlapping subscriptions are aggregated per client; one message is delivered
@@ -60,8 +63,8 @@ The same HTTP endpoint serves the dashboard and REST API.
   explicitly with reason `0x04`).
 - MQTT 5 user properties, content type, response topic and correlation data are
   preserved end to end.
-- Inbound topic aliases (up to `Broker:MaxTopicAlias`); outbound aliases are not
-  used yet.
+- Inbound and outbound topic aliases, bounded by `Broker:MaxTopicAlias` and the
+  client's Topic Alias Maximum.
 - Maximum packet size enforced per listener via `Broker:MaxPacketSize`.
 - Receive maximum advertised in CONNACK; inbound unacknowledged QoS 2 messages
   are bounded per session.
@@ -109,11 +112,10 @@ failure and are disconnected on protocol errors.
 
 ## Non-goals (current release)
 
-- Enhanced authentication (`AUTH` exchange) and re-authentication.
-- Outbound topic alias assignment.
 - MQTT over QUIC.
-- Cross-node shared-subscription coordination.
-- Durable storage across broker restarts.
-- Bridges, rule engines and plugin APIs.
+- Cross-node ordering or exactly-once delivery guarantees; cluster forwarding is
+  best effort.
+- Runtime compatibility with third-party broker plugins or extension packages.
+- Asymmetric JWT signatures; only HS256 is accepted.
 
 See the [roadmap](/roadmap) for planned work.

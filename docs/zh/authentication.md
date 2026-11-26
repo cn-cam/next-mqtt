@@ -86,8 +86,10 @@ NEXTMQTT_ALLOW_ANONYMOUS=true
 | 规则 | 请求 | 允许 |
 | --- | --- | --- |
 | `sensors/#` | `sensors/+/temperature` | ✅ |
+| `sensors/#` | `sensors/#` | ✅ |
 | `sensors/+` | `sensors/#` | ❌ |
 | `#` | `$SYS/#` | ❌（`$` 规则） |
+| `devices/${clientid}/#` | `devices/device-1/#` | 客户端为 `device-1` 时 ✅ |
 
 保留消息在投递时再次检查 ACL。
 
@@ -107,6 +109,32 @@ NEXTMQTT_ALLOW_ANONYMOUS=true
 
 控制台令牌不是 MQTT 凭据。未设置 `NEXTMQTT_ADMIN_TOKEN_SECRET` 时会生成临时密钥，
 重启后令牌失效。
+
+### 引导密码
+
+未配置密码时：
+
+- Broker 生成随机密码，
+- 在内存中哈希，
+- 把明文写入一次警告日志。
+
+密码不会落盘。未配置密码重启会得到新密码。稳定部署请设置
+`NEXTMQTT_ADMIN_PASSWORD` 或 `Admin:PasswordHash`。
+
+### 令牌安全
+
+- 每个节点设置相同的 `NEXTMQTT_ADMIN_TOKEN_SECRET`。
+- 令牌是 Bearer 凭据，控制台必须使用 HTTPS。
+- 安全要求高时缩短 `TokenLifetimeMinutes`。
+- 退出登录只清除浏览器副本；要让全部令牌失效需轮换令牌密钥。
+
+## 威胁模型提示
+
+- 集群密钥认证节点而非客户端，不要写进镜像或日志。
+- MQTT 负载是不透明字节，负载格式指示符只做结构校验。
+- 连接与发布限流是按来源地址和按客户端的令牌桶（`RateLimits`），在敌意网络中应与
+  边缘限流配合。
+- 可选客户端证书的校验使用平台默认策略；双向 TLS 策略由部署决定。
 
 ## 加固建议
 

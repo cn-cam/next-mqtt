@@ -67,14 +67,15 @@ openssl rand -base64 32
 
 - 负载按不透明字节处理，默认不记录
 - 主题名与用户属性会出现在控制台
-- 会话、队列、保留消息在内存中，崩溃转储可能包含
+- 会话、队列、保留消息在内存中，启用文件存储后也会落盘；崩溃转储或数据卷可能包含
+  这些内容，需限制访问
 - 集群去重缓存保存消息 ID 最多 10 分钟
 
 ## DoS 注意事项
 
-Broker 限制了报文大小、inflight、离线队列、出站 Channel、CONNECT 超时和保活；
-**没有**内置每 IP 连接限制或每客户端消息速率限制。请使用负载均衡、NetworkPolicy、
-边缘限流与资源限制。
+Broker 限制了报文大小、inflight、离线队列、出站 Channel、CONNECT 超时和保活。
+按来源地址的连接限流、按客户端的发布限流与主题配额可在 `RateLimits` 中开启，默认关闭。
+请与负载均衡、NetworkPolicy、边缘限流和资源限制配合使用。
 
 ## 漏洞报告
 
@@ -83,3 +84,9 @@ Broker 限制了报文大小、inflight、离线队列、出站 Channel、CONNEC
 <https://github.com/cn-cam/next-mqtt/security/advisories/new>
 
 请提供版本、部署方式、复现步骤和影响。不要在公开 issue 中披露未修复漏洞。
+
+## 独立性与商标
+
+本项目不包含任何其他 MQTT Broker 产品的源代码、文档文字、配置格式、Logo 或商标。
+品牌规则由 CI 强制，见 [AGENTS.md](https://github.com/cn-cam/next-mqtt/blob/main/AGENTS.md)
+与 [TRADEMARKS.md](https://github.com/cn-cam/next-mqtt/blob/main/TRADEMARKS.md)。

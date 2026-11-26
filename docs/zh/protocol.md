@@ -22,17 +22,17 @@ NextMQTT 实现 OASIS MQTT 3.1.1（level 4）与 MQTT 5.0（level 5）。
 | UNSUBSCRIBE / UNSUBACK | ✅ | ✅ | 5.0 逐过滤器原因码 |
 | PINGREQ / PINGRESP | ✅ | ✅ | 保活 |
 | DISCONNECT | ✅ | ✅ | 原因码、会话过期更新 |
-| AUTH | — | ⚠️ | 返回 `0x8C`，增强认证未启用 |
+| AUTH | — | ✅ | 可插拔提供方的挑战/应答，内置 `nextmqtt-jwt` |
 
 ## 已实现
 
-- 持久会话、会话过期、会话接管、离线队列
+- 持久会话、会话过期、会话接管、离线队列；跨节点重连时向属主或最新副本索要会话，未完成的入站 QoS 2 随会话迁移
 - 保留消息、消息过期、遗嘱与遗嘱延迟
 - `+` / `#` 通配符与 `$` 首层规则
-- 共享订阅 `$share/{group}/{filter}`，节点内轮询
+- 共享订阅 `$share/{group}/{filter}`，每条消息在集群范围内选定一个组成员
 - `noLocal`、`retainAsPublished`、retain handling
 - MQTT 5 用户属性、内容类型、响应主题、关联数据透传
-- 入站主题别名
+- 入站与出站主题别名（受 `MaxTopicAlias` 与客户端 Topic Alias Maximum 限制）
 - 最大报文、inflight、队列、订阅配额
 - 保活 1.5 倍超时断开
 
@@ -66,11 +66,9 @@ MQTT 规范上限仍然生效：remaining length 268,435,455 字节、字段 65,
 
 ## 当前非目标
 
-- 增强认证 / 重新认证
-- 出站主题别名
 - MQTT over QUIC
-- 跨节点全局共享订阅
-- 跨重启持久化
-- 桥接、规则引擎、插件 SDK
+- 跨节点顺序保证与 exactly-once；集群转发为尽力而为
+- 与第三方 Broker 插件或扩展包的运行时兼容
+- 非对称 JWT 签名；只接受 HS256
 
 详见[功能对齐清单](/zh/features)与[路线图](/zh/roadmap)。
