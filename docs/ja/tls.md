@@ -1,5 +1,8 @@
 # TLS
 
+NextMQTT は MQTT とダッシュボードを直接暗号化することも、TLS を終端するリバース
+プロキシの背後に置くこともできます。
+
 ## 証明書
 
 - **PFX/PKCS#12**：`CertificatePath` と `CertificatePassword`
@@ -106,6 +109,8 @@ Upgrade の許可、keep-alive より長い read timeout、`/internal/cluster/*`
 忘れないでください。
 
 ## コンテナ
+
+証明書は読み取り専用でマウントします：
 
 ```bash
 docker run -d --name nextmqtt \

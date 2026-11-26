@@ -1,5 +1,7 @@
 # 认证与 ACL
 
+NextMQTT 提供三种客户端认证方式与有序的主题 ACL。控制台认证是独立体系，见本页末尾。
+
 ## 客户端认证顺序
 
 1. 本地用户名 / PBKDF2 密码
@@ -29,7 +31,9 @@
 nextmqtt hash-password --password 's3cret'
 ```
 
-哈希包含迭代次数与随机盐，校验使用常量时间比较。
+哈希包含迭代次数与随机盐，校验使用常量时间比较。格式为
+`pbkdf2-sha256$迭代次数$salt-base64$hash-base64`，默认 210,000 次；迭代次数随哈希
+保存，因此可以逐步升级旧哈希。
 
 ## JWT
 
@@ -46,10 +50,17 @@ nextmqtt hash-password --password 's3cret'
 }
 ```
 
-客户端把 JWT 放在 MQTT 密码字段：
+客户端把 JWT 放在 MQTT 密码字段，用户名可以任意：
 
-- 仅支持 `HS256`
-- 校验 `exp`、`nbf`、`iss`、`aud`
+```text
+Username: anything
+Password: eyJhbGciOiJIUzI1NiIs...
+```
+
+- 仅支持 `HS256`；非对称签名需在自有网关终止认证并转发短期 HS256 令牌，或扩展
+  `IClientAuthenticator`
+- `exp` 必须在未来（`RequireExpiration=false` 时可不要求）
+- `nbf` 允许 30 秒偏差；配置了 `iss`/`aud` 时会校验
 - `sub` 作为用户名
 - `roles` 包含 `admin` 时成为超级用户
 
@@ -59,7 +70,8 @@ nextmqtt hash-password --password 's3cret'
 NEXTMQTT_ALLOW_ANONYMOUS=true
 ```
 
-匿名主体没有 ACL 特权，除非规则明确允许。公网部署应关闭。
+匿名主体以客户端 ID 为名，除非 ACL 明确允许否则没有权限。它适合本地开发，公网部署
+应关闭。
 
 ## 主题 ACL
 
@@ -80,6 +92,7 @@ NEXTMQTT_ALLOW_ANONYMOUS=true
 - `Action`：`Publish`、`Subscribe`、`Both`。
 - `Username` / `ClientId` 支持 `*`、`?` 通配。
 - `Topic` 支持 `${username}`、`${clientid}`。
+- 没有规则命中时使用 `DefaultPolicy`（`Deny` 或 `Allow`）。
 
 订阅规则必须**覆盖**请求的过滤器：
 
@@ -98,14 +111,14 @@ NEXTMQTT_ALLOW_ANONYMOUS=true
 - `Authentication:Superusers` 中的用户名
 - 本地用户或 JWT 的 `admin` 角色
 
-超级用户绕过全部 ACL。
+超级用户绕过全部 ACL，应把该列表视为管理面的一部分。
 
 ## 控制台认证
 
 - `NEXTMQTT_ADMIN_PASSWORD` 启动时哈希
-- `POST /api/v1/auth/login` 返回 HS256 Bearer Token
-- Token 有效期由 `Admin:TokenLifetimeMinutes` 控制
-- `X-API-Key` 使用 `Admin:ApiKeySha256` 白名单
+- `POST /api/v1/auth/login` 返回 HS256 Bearer Token，有效期由 `Admin:TokenLifetimeMinutes` 控制
+- 令牌保存在浏览器 `localStorage`，以 `Authorization: Bearer` 发送
+- 自动化可用 `X-API-Key`，其 SHA-256 摘要需列入 `Admin:ApiKeySha256`
 
 控制台令牌不是 MQTT 凭据。未设置 `NEXTMQTT_ADMIN_TOKEN_SECRET` 时会生成临时密钥，
 重启后令牌失效。
@@ -131,7 +144,8 @@ NEXTMQTT_ALLOW_ANONYMOUS=true
 ## 威胁模型提示
 
 - 集群密钥认证节点而非客户端，不要写进镜像或日志。
-- MQTT 负载是不透明字节，负载格式指示符只做结构校验。
+- MQTT 负载是不透明字节，负载格式指示符只做结构校验；默认不记录负载。
+- 控制台显示主题名与负载大小，不显示负载内容。
 - 连接与发布限流是按来源地址和按客户端的令牌桶（`RateLimits`），在敌意网络中应与
   边缘限流配合。
 - 可选客户端证书的校验使用平台默认策略；双向 TLS 策略由部署决定。

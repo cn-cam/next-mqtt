@@ -1,5 +1,8 @@
 # TLS
 
+NextMQTT는 MQTT와 대시보드를 직접 암호화하거나, TLS를 종단하는 리버스 프록시 뒤에 둘
+수 있습니다.
+
 ## 인증서
 
 - **PFX/PKCS#12**: `CertificatePath` + `CertificatePassword`
@@ -107,6 +110,8 @@ Upgrade 허용, keep-alive보다 긴 read timeout, `/internal/cluster/*` 차단�
 잊지 마십시오.
 
 ## 컨테이너
+
+인증서는 읽기 전용으로 마운트합니다:
 
 ```bash
 docker run -d --name nextmqtt \

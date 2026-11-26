@@ -112,6 +112,22 @@ http://nextmqtt-1.nextmqtt-headless.nextmqtt.svc.cluster.local:8080
 http://nextmqtt-2.nextmqtt-headless.nextmqtt.svc.cluster.local:8080
 ```
 
+### 创建的资源
+
+| 资源 | 用途 |
+| --- | --- |
+| `StatefulSet/nextmqtt` | 3 个具有稳定 DNS 名称的 Broker Pod |
+| `Service/nextmqtt-headless` | 对端发现与集群寻址 |
+| `Service/nextmqtt-mqtt` | MQTT TCP/TLS/WS，类型 LoadBalancer |
+| `Service/nextmqtt-http` | Ingress 背后的控制台/API |
+| `ConfigMap/nextmqtt-config` | 非敏感设置 |
+| `Secret/nextmqtt-secrets` | 管理员、令牌与集群密钥 |
+| `Ingress` | 控制台与 WebSocket 路由 |
+| `PodDisruptionBudget` | 中断期间至少保留 2 个节点 |
+| `HorizontalPodAutoscaler` | CPU 70% 时 3–9 个 Pod |
+| `NetworkPolicy` | 放行 MQTT/HTTP 端口 |
+| `ServiceAccount` | 不挂载 API 令牌 |
+
 ## Kubernetes（Helm）
 
 ```bash
@@ -139,7 +155,18 @@ helm install nextmqtt deploy/helm/next-mqtt \
 | `mqtt.type` | `LoadBalancer` | MQTT Service 类型 |
 | `ingress.enabled` | `false` | 是否暴露控制台 |
 | `autoscaling.enabled` | `true` | 是否启用 HPA |
+| `podDisruptionBudget.enabled` | `true` | 保持 2 个节点可用 |
 | `existingSecret` | `""` | 使用自建 Secret |
+
+### 升级
+
+```bash
+helm upgrade nextmqtt deploy/helm/next-mqtt -n nextmqtt --reuse-values \
+  --set image.tag=0.21.0
+```
+
+挂载文件存储且副本足够新时，滚动重启会保留持久会话；否则内存中的会话会丢失。
+请逐个节点 drain，并确认客户端能重连。
 
 ## 生产检查清单
 
@@ -151,6 +178,8 @@ helm install nextmqtt deploy/helm/next-mqtt \
 - [ ] MQTT 启用 TLS，控制台使用 HTTPS
 - [ ] Ingress 限制来源或接入 SSO
 - [ ] NetworkPolicy 阻止客户端访问 `/internal/cluster/*`
+- [ ] 在持久卷上启用 `Storage:Retained:Mode=File`、`Storage:Session:Mode=File` 与
+      `Storage:Replicas:Mode=File`
 - [ ] 配置资源限制、HPA 与监控告警
 - [ ] 备份配置与密钥
 

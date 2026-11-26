@@ -113,6 +113,8 @@ server {
 
 ## 容器
 
+以只读方式挂载证书：
+
 ```bash
 docker run -d --name nextmqtt \
   -p 1883:1883 -p 8883:8883 -p 8080:8080 \

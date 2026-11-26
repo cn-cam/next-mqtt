@@ -39,6 +39,18 @@
 | `nextmqtt_cluster_nodes` | gauge | 集群节点数 |
 | `nextmqtt_build_info` | gauge | 版本标签 |
 
+Prometheus 抓取配置示例：
+
+```yaml
+scrape_configs:
+  - job_name: nextmqtt
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["nextmqtt-http:8080"]
+```
+
+Kubernetes 清单已添加 `prometheus.io/scrape` 注解。
+
 ## 控制台
 
 概览页每 3 秒轮询一次 API，显示连接/会话数、订阅与保留消息、最近一分钟发布吞吐、
