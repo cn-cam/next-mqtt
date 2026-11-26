@@ -620,13 +620,12 @@ public sealed class ClusterRouter : IClusterRouter
             .Where(member => member.NodeId != _self.NodeId && member.Status(now, timeout) == "alive")
             .ToList();
 
-        var contacted = new HashSet<string>(StringComparer.Ordinal);
+        var answered = new HashSet<string>(StringComparer.Ordinal);
+        var unreachable = new HashSet<string>(StringComparer.Ordinal);
 
         foreach (var peer in peers)
         {
-            contacted.Add(peer.NodeId);
-
-            var transfer = await PostAsync<ClusterSessionClaim, PersistedSession>(
+            var (reached, transfer) = await TryPostAsync<ClusterSessionClaim, PersistedSession>(
                 peer.AdvertiseUrl,
                 "/internal/cluster/session/claim",
                 claim,
@@ -641,11 +640,22 @@ public sealed class ClusterRouter : IClusterRouter
 
                 return transfer;
             }
+
+            if (reached)
+            {
+                // A 404 means the peer is serving but does not hold the session.
+                answered.Add(peer.NodeId);
+            }
+            else
+            {
+                unreachable.Add(peer.NodeId);
+            }
         }
 
-        // No live owner answered. The previous owner may have crashed, or it may
-        // have restarted without the session (lost disk); either way the newest
-        // replica is the best remaining copy.
+        // No live owner answered. The previous owner may have crashed, may have
+        // restarted without the session (lost disk), or may be unreachable right
+        // now; either way the newest replica is the best remaining copy. A peer
+        // that is alive and still holds the session would have returned it above.
         var replica = _broker?.GetSessionReplica(clientId);
 
         if (replica is null && ReplicatesSessions)
@@ -658,9 +668,10 @@ public sealed class ClusterRouter : IClusterRouter
             return null;
         }
 
-        var ownerAnsweredWithoutSession = contacted.Contains(replica.OwnerNodeId);
+        var ownerAnswered = answered.Contains(replica.OwnerNodeId);
+        var ownerUnreachable = unreachable.Contains(replica.OwnerNodeId);
 
-        if (!IsAlive(replica.OwnerNodeId) || ownerAnsweredWithoutSession)
+        if (!IsAlive(replica.OwnerNodeId) || ownerAnswered || ownerUnreachable)
         {
             _logger.LogInformation(
                 "Session {ClientId} recovered from a replica of {Owner}",
@@ -957,7 +968,29 @@ public sealed class ClusterRouter : IClusterRouter
     }
 
     /// <summary>Signs and posts one cluster request, returning default on any non-success status.</summary>
+    /// <remarks>転送自体の失敗も default として扱い、呼び出し側の処理を止めない。</remarks>
     private async Task<TResponse?> PostAsync<TRequest, TResponse>(
+        string baseUrl,
+        string path,
+        TRequest request,
+        CancellationToken cancellationToken)
+    {
+        var (_, body) = await TryPostAsync<TRequest, TResponse>(
+            baseUrl,
+            path,
+            request,
+            cancellationToken).ConfigureAwait(false);
+
+        return body;
+    }
+
+    /// <summary>Signs and posts one cluster request, reporting whether the peer replied.</summary>
+    /// <remarks>
+    /// セッション引き継ぎでは「応答がなかった」と「セッションを持っていないと答えた」を
+    /// 区別する必要がある。前者は到達不能、後者は 404 などの応答として扱う。
+    /// </remarks>
+    /// <returns><c>true</c> when any HTTP response arrived, plus the parsed body.</returns>
+    private async Task<(bool Reached, TResponse? Body)> TryPostAsync<TRequest, TResponse>(
         string baseUrl,
         string path,
         TRequest request,
@@ -975,26 +1008,38 @@ public sealed class ClusterRouter : IClusterRouter
         httpRequest.Headers.TryAddWithoutValidation(ClusterSignature.TimestampHeader, timestamp);
         httpRequest.Headers.TryAddWithoutValidation(ClusterSignature.SignatureHeader, signature);
 
-        using var response = await _httpClient.SendAsync(httpRequest, cancellationToken).ConfigureAwait(false);
-
-        if (!response.IsSuccessStatusCode)
+        try
         {
-            if (response.StatusCode != HttpStatusCode.Unauthorized)
+            using var response = await _httpClient.SendAsync(httpRequest, cancellationToken).ConfigureAwait(false);
+
+            if (!response.IsSuccessStatusCode)
             {
-                _logger.LogDebug(
-                    "Cluster request to {Url} returned {StatusCode}",
-                    httpRequest.RequestUri,
-                    (int)response.StatusCode);
+                if (response.StatusCode != HttpStatusCode.Unauthorized)
+                {
+                    _logger.LogDebug(
+                        "Cluster request to {Url} returned {StatusCode}",
+                        httpRequest.RequestUri,
+                        (int)response.StatusCode);
+                }
+
+                return (true, default);
             }
 
-            return default;
+            var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+
+            return (true, string.IsNullOrEmpty(body)
+                ? default
+                : JsonSerializer.Deserialize<TResponse>(body, ClusterJson.Options));
         }
-
-        var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-
-        return string.IsNullOrEmpty(body)
-            ? default
-            : JsonSerializer.Deserialize<TResponse>(body, ClusterJson.Options);
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException or JsonException)
+        {
+            _logger.LogDebug(ex, "Cluster request to {Url} could not be completed", httpRequest.RequestUri);
+            return (false, default);
+        }
     }
 
     /// <summary>Filters advertised to peers, capped by MaxFiltersPerHeartbeat.</summary>

@@ -17,6 +17,13 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
   (default 16). Only shards whose content changed are rewritten, and a legacy
   single file is read at startup and replaced on the first save.
 
+### Fixed
+
+- A session claim that cannot reach the recorded owner now falls back to the
+  newest replica instead of aborting. A transport failure is no longer mistaken
+  for the owner answering that it does not hold the session; the two cases are
+  tracked separately.
+
 ## [0.21.0] - 2026-11-26
 
 ### Added

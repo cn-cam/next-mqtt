@@ -79,10 +79,10 @@ view.
   pushes snapshots of its persistent sessions to its peers. If the owner dies
   and a client reconnects elsewhere, the new node claims the session from the
   owner when it is reachable, and otherwise falls back to the newest replica.
-  A replica is used only when its owner is not alive, or when the live owner
-  answers that it does not hold the session (for example after losing its own
-  file). A stale copy therefore cannot resurrect a session that is still
-  running somewhere.
+  A replica is used only when its owner is not alive, cannot be reached during
+  the claim, or answers that it does not hold the session (for example after
+  losing its own file). A stale copy therefore cannot resurrect a session that
+  is still running somewhere.
 
 Sessions follow the client: a reconnect with `CleanStart=false` on another node
 claims the session from its previous owner, so the offline queue and
@@ -98,7 +98,7 @@ clients reconnect on their own. Within that assumption:
 | --- | --- | --- |
 | Client TCP drop | Session goes offline | Queue keeps accepting messages until the expiry interval |
 | Node crash | Its sessions become unreachable; routing stops sending to it | Peers mark it dead within `NodeTimeoutSeconds`; messages for its subscribers are lost until the client reconnects and claims the session elsewhere |
-| Client reconnects elsewhere | Session is on the dead node | The new node claims it, or falls back to the newest replica if the owner is gone or reports no session |
+| Client reconnects elsewhere | Session is on the dead node | The new node claims it, or falls back to the newest replica if the owner is gone, cannot be reached, or reports no session |
 | Owner disk lost, node restarted | Session store empty | Replicas on peers (file-backed if configured) restore it; a peer that answered "no session" does not block the fallback |
 | All nodes restarted | Memory is empty | Each node reloads its session file and its replica file; the newest copy wins by `(lastSeen, nodeId)` |
 | Partition | Two views of membership | Only the side that owns the live client serves it; a replica is never used while its recorded owner is alive in the local view |
