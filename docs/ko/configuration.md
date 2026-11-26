@@ -277,7 +277,7 @@ PUBREL을 기다리는 인바운드 QoS 2 발행이 들어갑니다. 아웃바�
 | `Path` | `data/session-replicas.json` | 기본 경로, 확장자 앞에 샤드 번호가 붙음 |
 | `ShardCount` | 16 | 복제본을 나눌 파일 수, `1`이면 단일 파일 |
 
-각 샤드는 `{ session, ownerNodeId, version, updatedAtUnix }`의 JSON 배열입니다.
+각 샤드는 `{ session, ownerNodeId, version, updatedAtUnix }`의 JSON 배열입니다. 세션은 구독, 오프라인 큐, 인바운드 QoS 2 상태, 확인을 기다리는 아웃바운드 메시지를 포함합니다.
 복제본은 클라이언트 ID 해시로 배정되므로 변경이 있는 샤드만 다시 쓰고 나머지는
 완전히 건너뜁니다. 쓰기는 변경이 있는 동안 최대 5초에 한 번, 종료 시 한 번입니다.
 손상된 샤드는 빈 것으로 보고, 만료된 복제본은 읽을 때 버립니다. 이전 버전의 단일

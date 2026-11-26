@@ -118,12 +118,14 @@ tolerates at QoS 1/2.
 live peers, then reads its own replica file. No operator action is needed.
 
 **Deliberate limits.** The outbound `inflight` acknowledgement state is not
-transferred: those messages are replayed from the queue and may arrive twice,
-which MQTT tolerates at QoS 1/2. Inbound QoS 2 publishes that are still waiting
-for PUBREL are transferred with the session, so the client can finish the
-handshake without resending the payload. Sessions with a zero expiry are not
-replicated, because they cannot outlive the connection by definition. There is
-no cross-node ordering guarantee and no exactly-once delivery.
+transferred: those messages are handed over as queued messages and may arrive
+twice, which MQTT tolerates at QoS 1/2. Replicas also carry unacknowledged
+messages, so crash recovery replays them the same way. Inbound QoS 2 publishes
+that are still waiting for PUBREL are transferred with the session, so the
+client can finish the handshake without resending the payload. Sessions with a
+zero expiry are not replicated, because they cannot outlive the connection by
+definition. There is no cross-node ordering guarantee and no exactly-once
+delivery.
 
 **Split-brain stance.** Session ownership is decided by evidence, not by a
 consensus round: a live owner always wins; if it answers without the session, the

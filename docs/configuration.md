@@ -282,8 +282,10 @@ cluster able to recover a session even when every node restarts at once:
 | `ShardCount` | 16 | Files the replicas are spread over; `1` writes a single file |
 
 Each shard is a JSON array of `{ session, ownerNodeId, version, updatedAtUnix }`.
-Replicas are assigned by a hash of the client id, so a change rewrites only the
-shard it belongs to; unchanged shards are skipped entirely. Writes happen at
+A session carries its subscriptions, offline queue, inbound QoS 2 state and outbound
+messages that were waiting for acknowledgement. Replicas are assigned by a hash of
+the client id, so a change rewrites only the shard it belongs to; unchanged shards
+are skipped entirely. Writes happen at
 most every five seconds while replicas change and once on shutdown. A corrupt
 shard is ignored, and replicas whose session expiry already passed are dropped
 on load. A single file written by an earlier version is read at startup and

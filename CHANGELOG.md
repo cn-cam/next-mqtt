@@ -16,6 +16,10 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 - `Storage:Replicas:ShardCount` spreads replica snapshots over multiple files
   (default 16). Only shards whose content changed are rewritten, and a legacy
   single file is read at startup and replaced on the first save.
+- Session replicas now include outbound messages that were waiting for an
+  acknowledgement, with their absolute expiry, so a crash no longer loses the
+  small window between sending a QoS 1/2 message and receiving its ack. Recovery
+  replays them as queued messages, so a duplicate is possible.
 - `Cluster:SessionReplicaBatchSize` (default 200) and
   `Cluster:SessionReplicaCapacity` (default 20,000) control how many sessions a
   node pushes per round and how many replicas it keeps; the documented recovery

@@ -125,7 +125,7 @@ The claims above are covered by the repository's tests and CI:
 | Container build + health/login smoke | CI `Container image` job |
 | CodeQL | `codeql.yml` |
 
-Current test count: 214 passing tests (63 core, 108 broker, 43 server).
+Current test count: 215 passing tests (63 core, 109 broker, 43 server).
 
 ## Extensibility
 
@@ -151,7 +151,7 @@ integrations use the versioned REST API (`/api/v1`) and the cluster endpoints
 ## Known limitations
 
 - The outbound `inflight` acknowledgement state is not moved between nodes; those
-  messages are replayed from the queue and may arrive twice. Inbound QoS 2
+  messages are replayed from the queue or a replica and may arrive twice. Inbound QoS 2
   publishes waiting for PUBREL move with the session.
 - Replicas are only as fresh as `Cluster:SessionReplicaSeconds`; without
   `Storage:Replicas:Mode=File` they are lost when every node restarts.

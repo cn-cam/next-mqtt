@@ -218,7 +218,8 @@ PUBREL が届いてからルーティングし、その後 PUBCOMP を送りま�
 耐久性はデータ集合ごとにオプトインです：`Storage:Retained:Mode=File` は retained を
 ジャーナルし、`Storage:Session:Mode=File` は永続セッションをスナップショットし、
 `Storage:Replicas:Mode=File` はセッションレプリカを永続化します。送信 inflight の
-確認状態は保存しませんが、PUBREL を待つ受信 QoS 2 の公開はスナップショットに含まれる
+確認状態は保存しませんが、メッセージ自体はレプリカと引き継ぎでキューの形で再送されます
+（重複し得ます）。PUBREL を待つ受信 QoS 2 の公開はスナップショットに含まれる
 ため、ハンドシェイクを完了できます。retained は最後の値の保存であり、永続メッセージ
 ログではありません。
 

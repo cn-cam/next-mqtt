@@ -1440,7 +1440,7 @@ public sealed class MqttBroker : IAsyncDisposable
                 continue;
             }
 
-            snapshot.Add(CreateSessionSnapshot(session, subscriptions));
+            snapshot.Add(CreateSessionSnapshot(session, subscriptions, DateTimeOffset.UtcNow));
         }
 
         return snapshot;
@@ -1449,9 +1449,13 @@ public sealed class MqttBroker : IAsyncDisposable
     /// <summary>Projects one session into the transferable shape.</summary>
     /// <param name="session">Session to project.</param>
     /// <param name="subscriptions">Subscriptions grouped by client id.</param>
+    /// <param name="now">Used to resolve message expiry for inflight entries.</param>
+    /// <param name="includeInflight">True for replicas, which should not lose unacknowledged messages.</param>
     private static PersistedSession CreateSessionSnapshot(
         BrokerSession session,
-        IReadOnlyDictionary<string, List<Subscription>> subscriptions)
+        IReadOnlyDictionary<string, List<Subscription>> subscriptions,
+        DateTimeOffset now,
+        bool includeInflight = false)
     {
         var principal = session.Principal;
 
@@ -1485,7 +1489,7 @@ public sealed class MqttBroker : IAsyncDisposable
                 .ToList();
         }
 
-        record.Queue = session.SnapshotQueue()
+        record.Queue = (includeInflight ? session.SnapshotForTransfer(now) : session.SnapshotQueue())
             .Select(message => new PersistedMessage
             {
                 Topic = message.Topic,
@@ -1637,7 +1641,7 @@ public sealed class MqttBroker : IAsyncDisposable
         {
             var session = sessions[(start + index) % sessions.Count];
             var replica = new ClusterSessionReplica(
-                CreateSessionSnapshot(session, subscriptions),
+                CreateSessionSnapshot(session, subscriptions, now, includeInflight: true),
                 nodeId,
                 Interlocked.Increment(ref _replicaVersion),
                 now.ToUnixTimeSeconds());

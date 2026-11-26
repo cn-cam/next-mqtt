@@ -269,7 +269,7 @@ nextmqtt-server
 | `Path` | `data/session-replicas.json` | 基础路径，分片编号插在扩展名之前 |
 | `ShardCount` | 16 | 副本分散到的文件数；`1` 表示单文件 |
 
-每个分片是 `{ session, ownerNodeId, version, updatedAtUnix }` 的 JSON 数组。副本按
+每个分片是 `{ session, ownerNodeId, version, updatedAtUnix }` 的 JSON 数组。会话包含订阅、离线队列、入站 QoS 2 状态与等待确认的出站消息。副本按
 客户端 ID 的哈希分配，改动只重写所属分片，未变化的分片完全跳过。有变化时最多每
 5 秒写一次，停机时再写一次。损坏的分片按空处理；加载时丢弃已过会话过期时间的
 副本。旧版本写出的单文件仍会在启动时读入，并在首次写入后由分片文件取代。

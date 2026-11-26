@@ -277,7 +277,7 @@ nextmqtt-server
 | `Path` | `data/session-replicas.json` | 基本パス。拡張子の前にシャード番号が入る |
 | `ShardCount` | 16 | レプリカを分散するファイル数。`1` は単一ファイル |
 
-各シャードは `{ session, ownerNodeId, version, updatedAtUnix }` の JSON 配列です。
+各シャードは `{ session, ownerNodeId, version, updatedAtUnix }` の JSON 配列です。セッションは購読、オフラインキュー、受信 QoS 2 状態、確認待ちの送信メッセージを含みます。
 レプリカはクライアント ID のハッシュで割り当てられるため、変更があったシャードだけを
 書き直し、変化のないシャードは完全に飛ばします。書き込みは変化がある間は最大 5 秒に
 1 回、停止時に 1 回です。壊れたシャードは空として扱い、期限切れのレプリカは読み込み時に

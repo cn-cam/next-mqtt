@@ -122,7 +122,7 @@
 | 镜像构建与健康/登录冒烟 | CI `Container image` |
 | CodeQL | `codeql.yml` |
 
-当前共 **214 个测试通过**（63 核心、108 Broker、43 Server 集成）。
+当前共 **215 个测试通过**（63 核心、109 Broker、43 Server 集成）。
 
 ## 扩展性
 
@@ -143,7 +143,7 @@ NextMQTT 同时提供进程内扩展接口与插件宿主。插件由 `plugin.js
 
 ## 已知限制
 
-- 出站 `inflight` 确认状态不跨节点迁移；这些消息从队列重放，可能重复到达。等待
+- 出站 `inflight` 确认状态不跨节点迁移；这些消息从队列或副本重放，可能重复到达。等待
   PUBREL 的入站 QoS 2 发布随会话一起迁移。
 - 副本的新鲜度取决于 `Cluster:SessionReplicaSeconds`；未开启
   `Storage:Replicas:Mode=File` 时，所有节点重启会丢失副本。

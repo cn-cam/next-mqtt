@@ -312,7 +312,7 @@ public sealed class BrokerSession : IDisposable
             {
                 var packetId = AllocatePacketIdLocked();
                 var publish = BuildPublish(message, packetId, duplicate: false);
-                _inflight[packetId] = new OutboundInflight(publish, message.QoS);
+                _inflight[packetId] = new OutboundInflight(publish, message.QoS, message.ExpiresAt);
                 packet = publish;
             }
         }
@@ -375,7 +375,7 @@ public sealed class BrokerSession : IDisposable
 
                 var packetId = AllocatePacketIdLocked();
                 var publish = BuildPublish(queued.Message, packetId, duplicate: false);
-                _inflight[packetId] = new OutboundInflight(publish, queued.Message.QoS);
+                _inflight[packetId] = new OutboundInflight(publish, queued.Message.QoS, queued.Message.ExpiresAt);
                 packets.Add(publish);
             }
         }
@@ -536,9 +536,10 @@ public sealed class BrokerSession : IDisposable
             foreach (var entry in _inflight.Values.OrderBy(item => item.LastSent))
             {
                 var packet = entry.Packet;
-                DateTimeOffset? expiresAt = null;
+                var expiresAt = entry.ExpiresAt;
 
-                if (packet.Properties.GetUInt32(MqttPropertyId.MessageExpiryInterval) is { } seconds and > 0)
+                if (expiresAt is null
+                    && packet.Properties.GetUInt32(MqttPropertyId.MessageExpiryInterval) is { } seconds and > 0)
                 {
                     expiresAt = now.AddSeconds(seconds);
                 }
@@ -733,14 +734,21 @@ public sealed class BrokerSession : IDisposable
     private sealed class OutboundInflight
     {
         /// <summary>Starts tracking a message and picks the handshake step from its QoS.</summary>
-        public OutboundInflight(PublishPacket packet, MqttQoS qos)
+        /// <param name="packet">Packet that was sent.</param>
+        /// <param name="qos">Delivery guarantee of the message.</param>
+        /// <param name="expiresAt">Absolute message expiry, or null when it never expires.</param>
+        public OutboundInflight(PublishPacket packet, MqttQoS qos, DateTimeOffset? expiresAt = null)
         {
             Packet = packet;
+            ExpiresAt = expiresAt;
             State = qos == MqttQoS.AtLeastOnce ? OutboundState.AwaitingPubAck : OutboundState.AwaitingPubRec;
         }
 
         /// <summary>Packet that was sent; resent verbatim with the duplicate flag.</summary>
         public PublishPacket Packet { get; }
+
+        /// <summary>Absolute expiry carried over from the queued message, when it had one.</summary>
+        public DateTimeOffset? ExpiresAt { get; }
 
         /// <summary>Current step of the QoS handshake.</summary>
         public OutboundState State { get; set; }
