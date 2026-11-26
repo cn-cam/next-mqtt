@@ -498,7 +498,13 @@ public sealed class ClusterRouter : IClusterRouter
         if (_self is not null && nodeId != _self.NodeId)
         {
             _members.TryRemove(nodeId, out _);
-            _logger.LogInformation("Cluster node {NodeId} left the cluster", nodeId);
+
+            // The node id comes from an internal request body; logging it
+            // verbatim would allow log injection. Only the resulting count is
+            // written.
+            _logger.LogInformation(
+                "A cluster node left the cluster; {Count} node(s) remain",
+                _members.Count);
         }
     }
 

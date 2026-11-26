@@ -2,7 +2,7 @@
 
 NextMQTT 提供三种客户端认证方式与有序的主题 ACL。控制台认证是独立体系，见本页末尾。
 
-## 客户端认证顺序
+## 客户端认证
 
 1. 本地用户名 / PBKDF2 密码
 2. MQTT 密码字段中的 HS256 JWT
@@ -10,7 +10,7 @@ NextMQTT 提供三种客户端认证方式与有序的主题 ACL。控制台认�
 
 失败返回 CONNACK `0x86`；MQTT 3.1.1 对应返回码 4。
 
-## 密码用户
+### 密码用户
 
 ```json
 {
@@ -35,7 +35,7 @@ nextmqtt hash-password --password 's3cret'
 `pbkdf2-sha256$迭代次数$salt-base64$hash-base64`，默认 210,000 次；迭代次数随哈希
 保存，因此可以逐步升级旧哈希。
 
-## JWT
+### JWT
 
 ```json
 {
@@ -64,7 +64,7 @@ Password: eyJhbGciOiJIUzI1NiIs...
 - `sub` 作为用户名
 - `roles` 包含 `admin` 时成为超级用户
 
-## 匿名
+### 匿名
 
 ```bash
 NEXTMQTT_ALLOW_ANONYMOUS=true
@@ -88,6 +88,8 @@ NEXTMQTT_ALLOW_ANONYMOUS=true
 }
 ```
 
+### 语义
+
 - 规则按顺序匹配，首条命中生效。
 - `Action`：`Publish`、`Subscribe`、`Both`。
 - `Username` / `ClientId` 支持 `*`、`?` 通配。
@@ -106,7 +108,7 @@ NEXTMQTT_ALLOW_ANONYMOUS=true
 
 保留消息在投递时再次检查 ACL。
 
-## 超级用户
+### 超级用户
 
 - `Authentication:Superusers` 中的用户名
 - 本地用户或 JWT 的 `admin` 角色
@@ -149,10 +151,3 @@ NEXTMQTT_ALLOW_ANONYMOUS=true
 - 连接与发布限流是按来源地址和按客户端的令牌桶（`RateLimits`），在敌意网络中应与
   边缘限流配合。
 - 可选客户端证书的校验使用平台默认策略；双向 TLS 策略由部署决定。
-
-## 加固建议
-
-- 公网关闭匿名，ACL 默认拒绝。
-- 为 MQTT、控制台、集群使用不同密钥。
-- 控制台走 HTTPS，限制来源 IP。
-- 定期轮换令牌与密钥。

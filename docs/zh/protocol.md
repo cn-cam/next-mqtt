@@ -20,7 +20,7 @@ WebSocket 客户端连接 `ws://host:8083/mqtt` 或 `wss://host:8084/mqtt`。同
 | --- | --- | --- | --- |
 | CONNECT | ✅ | ✅ | 用户名/密码、遗嘱、clean start、会话过期 |
 | CONNACK | ✅ | ✅ | Session present、原因码、服务器属性 |
-| PUBLISH | ✅ | ✅ | QoS 0/1/2、retain、DUP、主题别名 |
+| PUBLISH | ✅ | ✅ | QoS 0/1/2、retain、DUP、入站与出站主题别名 |
 | PUBACK | ✅ | ✅ | 5.0 含原因码与属性 |
 | PUBREC / PUBREL / PUBCOMP | ✅ | ✅ | 完整 QoS 2 握手 |
 | SUBSCRIBE | ✅ | ✅ | 通配符、共享订阅、订阅标识 |

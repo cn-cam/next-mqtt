@@ -22,7 +22,7 @@ REST API を提供します。
 | --- | --- | --- | --- |
 | CONNECT | ✅ | ✅ | ユーザー名/パスワード、遺言、clean start、セッション期限 |
 | CONNACK | ✅ | ✅ | Session present、理由コード、サーバープロパティ |
-| PUBLISH | ✅ | ✅ | QoS 0/1/2、retain、DUP、トピックエイリアス |
+| PUBLISH | ✅ | ✅ | QoS 0/1/2、retain、DUP、受信と送信のトピックエイリアス |
 | PUBACK | ✅ | ✅ | 5.0 は理由コードとプロパティ |
 | PUBREC / PUBREL / PUBCOMP | ✅ | ✅ | QoS 2 ハンドシェイク全体 |
 | SUBSCRIBE | ✅ | ✅ | ワイルドカード、共有購読、購読識別子 |

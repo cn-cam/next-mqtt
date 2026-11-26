@@ -17,12 +17,12 @@ docker pull ghcr.io/cn-cam/next-mqtt:latest
 标签：
 
 - `latest`：`main` 分支最新稳定构建
-- `0.22.0` / `0.22`：发布标签
+- `0.23.0` / `0.23`：发布标签
 - `sha-<commit>`：不可变提交构建
 
 平台：`linux/amd64`、`linux/arm64`。
 
-本地构建：
+### 本地构建
 
 ```bash
 docker build -f deploy/docker/Dockerfile -t nextmqtt:local .
@@ -31,7 +31,7 @@ docker build -f deploy/docker/Dockerfile -t nextmqtt:local .
 构建阶段会编译 Vue 控制台、发布 .NET 服务，并把前端 bundle 复制到 `wwwroot`；
 运行时以 UID 10001 非 root 用户启动。
 
-## Docker 运行
+### 运行
 
 ```bash
 docker run -d --name nextmqtt \
@@ -55,7 +55,7 @@ docker run -d --name nextmqtt \
 
 ## Docker Compose
 
-单节点：
+### 单节点
 
 ```bash
 cp .env.example .env
@@ -63,12 +63,16 @@ cp .env.example .env
 docker compose up -d
 ```
 
-三节点集群：
+### 三节点集群
 
 ```bash
 export NEXTMQTT_CLUSTER_SECRET='a-long-shared-secret'
 docker compose -f deploy/compose/docker-compose.cluster.yml up -d
 ```
+
+集群 Compose 把控制台发布在 **8080–8082**，HTTPS 发布在 **8086–8088**（容器内仍是
+8084）。node-a 使用 `https://<证书域名>:8086/`；8084 只在容器网络内可达。完整宿主
+机端口表见 `deploy/compose/README.md`。
 
 验证成员：
 
@@ -162,7 +166,7 @@ helm install nextmqtt deploy/helm/next-mqtt \
 
 ```bash
 helm upgrade nextmqtt deploy/helm/next-mqtt -n nextmqtt --reuse-values \
-  --set image.tag=0.22.0
+  --set image.tag=0.23.0
 ```
 
 挂载文件存储且副本足够新时，滚动重启会保留持久会话；否则内存中的会话会丢失。
@@ -180,7 +184,8 @@ helm upgrade nextmqtt deploy/helm/next-mqtt -n nextmqtt --reuse-values \
 - [ ] NetworkPolicy 阻止客户端访问 `/internal/cluster/*`
 - [ ] 在持久卷上启用 `Storage:Retained:Mode=File`、`Storage:Session:Mode=File` 与
       `Storage:Replicas:Mode=File`
-- [ ] 配置资源限制、HPA 与监控告警
+- [ ] 配置资源限制与 HPA
+- [ ] 监控抓取 `/metrics`，并对丢弃与认证失败告警
 - [ ] 备份配置与密钥
 
 ## 验证

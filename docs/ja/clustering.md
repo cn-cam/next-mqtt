@@ -225,7 +225,6 @@ dotnet run --project src/NextMqtt.Cli -- pub --port 1883 --topic cluster/test --
 | リモート購読者がメッセージを逃す | フィルタ未伝播。1 heartbeat 待つ |
 | リモート配信が重複する | メッセージ ID キャッシュの早期削除。ノードの時計と負荷を確認 |
 | 再起動後に制限が低く見える | 停止ピアを 3 倍の `NodeTimeoutSeconds` まで数えている |
-| 制限が低すぎる | `RateLimits` はクラスタ全体の値。ノード数で割られる |
 
 ## 制限
 

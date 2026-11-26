@@ -21,7 +21,7 @@ WebSocket 클라이언트는 `ws://host:8083/mqtt` 또는 `wss://host:8084/mqtt`
 | --- | --- | --- | --- |
 | CONNECT | ✅ | ✅ | 사용자 이름/비밀번호, 유언, clean start, 세션 만료 |
 | CONNACK | ✅ | ✅ | Session present, 이유 코드, 서버 속성 |
-| PUBLISH | ✅ | ✅ | QoS 0/1/2, retain, DUP, 토픽 별칭 |
+| PUBLISH | ✅ | ✅ | QoS 0/1/2, retain, DUP, 인바운드/아웃바운드 토픽 별칭 |
 | PUBACK | ✅ | ✅ | 5.0은 이유 코드와 속성 |
 | PUBREC / PUBREL / PUBCOMP | ✅ | ✅ | QoS 2 핸드셰이크 전체 |
 | SUBSCRIBE | ✅ | ✅ | 와일드카드, 공유 구독, 구독 식별자 |

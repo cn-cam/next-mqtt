@@ -1,7 +1,8 @@
 # REST API
 
 The management API is served on `Server:Http:Port` (default 8080) under
-`/api/v1`. The dashboard uses the same endpoints.
+`/api/v1`. The dashboard uses the same endpoints. Its **System → API console**
+page can send every endpoint below with the signed-in session.
 
 ## Authentication
 

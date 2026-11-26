@@ -85,6 +85,8 @@ tokens. Set the same value on every node in production.
 | `Tcp:Port` | `1883` | MQTT port |
 | `Tls:Enabled` | `false` | TLS MQTT listener |
 | `Tls:CertificatePath` | — | PFX/PKCS#12 or PEM path |
+| `Tls:CertificateKeyPath` | — | PEM private key; a sibling `.key` is used when omitted |
+| `Tls:Domain` | — | Warn at startup when the certificate does not cover this name |
 | `Tls:CertificatePassword` | — | PFX password |
 | `Tls:RequireClientCertificate` | `false` | Request a client certificate (validation is platform default) |
 | `WebSocket:Enabled` | `true` | Serve MQTT over WebSocket |

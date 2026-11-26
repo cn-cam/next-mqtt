@@ -218,8 +218,8 @@ function sidebar(prefix: string, t: Labels) {
         { text: t.adr, link: `${prefix}/adr/` },
         { text: t.roadmap, link: `${prefix}/roadmap` },
         { text: t.faq, link: `${prefix}/faq` },
-        { text: t.changelog, link: '/changelog' },
-        { text: t.developmentLog, link: '/development-log' },
+        { text: t.changelog, link: `${prefix}/changelog` },
+        { text: t.developmentLog, link: `${prefix}/development-log` },
       ],
     },
   ]

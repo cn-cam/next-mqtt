@@ -21,7 +21,7 @@ The same HTTP endpoint serves the dashboard and REST API.
 | --- | --- | --- | --- |
 | CONNECT | ✅ | ✅ | Username/password, will, clean start, session expiry |
 | CONNACK | ✅ | ✅ | Session present, reason code, server properties |
-| PUBLISH | ✅ | ✅ | QoS 0/1/2, retain, DUP, topic alias (inbound) |
+| PUBLISH | ✅ | ✅ | QoS 0/1/2, retain, DUP, topic aliases (inbound and outbound) |
 | PUBACK | ✅ | ✅ | Reason code and properties in 5.0 |
 | PUBREC / PUBREL / PUBCOMP | ✅ | ✅ | Full QoS 2 handshake |
 | SUBSCRIBE | ✅ | ✅ | Wildcards, shared subscriptions, subscription identifier |

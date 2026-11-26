@@ -10,6 +10,7 @@ Broker，并完成第一次消息收发。
 | 容器 | Docker 24+（可选 Compose v2） |
 | 源码运行 | .NET SDK 10.0.100+，Node.js 22+（推荐 24） |
 | Kubernetes | Kubernetes 1.28+，可选 Ingress |
+| 构建镜像 | Docker BuildKit |
 
 ## Docker 运行
 

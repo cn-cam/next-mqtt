@@ -5,15 +5,35 @@ All notable changes to NextMQTT are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and the project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.23.0] - 2026-11-26
 
 ### Added
 
+- The dashboard ships an **API console** (System → API console) that can send
+  every endpoint listed in `docs/api.md` with the signed-in session, including
+  path editing, JSON bodies, status and duration. `scripts/api-surface-check.mjs`
+  keeps the console and the documentation table in sync.
+- `changelog.md` and `development-log.md` are generated for every locale, so the
+  Chinese, Japanese and Korean sites no longer return 404 for those pages.
+- The repository README is available in Chinese (default), English, Japanese and
+  Korean, with explicit single-node and three-node deployment sections.
+- `scripts/docs-consistency.mjs` fails CI when a translated page loses a
+  heading, task-list item or table row relative to English. The rule is also
+  recorded in the `docs-consistency` and `api-console` skills and in `AGENTS.md`.
 - Session snapshots now include outbound messages that were waiting for an
   acknowledgement, with their absolute expiry. A restart with
   `Storage:Session:Mode=File` therefore replays them as queued messages instead
   of losing the window between sending a QoS 1/2 message and receiving its ack;
   a duplicate is possible.
+
+### Changed
+
+- Compose deployment documentation now names the host HTTPS ports 8086–8088
+  instead of the container port 8084, and links to
+  `deploy/compose/README.md`.
+- Dependabot ignores major updates for the web workspace; the previous grouped
+  PR bumped Pinia, Vue Router, TypeScript and Vite across major versions and
+  failed both dashboard and image builds.
 
 ### Fixed
 
@@ -21,6 +41,10 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
   A broker that restarted (and therefore restarted its version counter at zero)
   or a node that took ownership over no longer has its fresh replicas rejected
   by peers holding older, higher-version copies.
+- The cluster leave log no longer writes the node id supplied by the internal
+  request body, closing the CodeQL log-forging alert.
+- The protocol and feature tables no longer describe outbound topic aliases as
+  planned while the implementation and the same pages list them as complete.
 
 ## [0.22.0] - 2026-11-26
 
@@ -601,7 +625,8 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 - GitHub Actions for CI, CodeQL, releases and GitHub Pages.
 - Mechanical brand/trademark compliance scanner and repository policy.
 
-[Unreleased]: https://github.com/cn-cam/next-mqtt/compare/v0.22.0...HEAD
+[Unreleased]: https://github.com/cn-cam/next-mqtt/compare/v0.23.0...HEAD
+[0.23.0]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.23.0
 [0.22.0]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.22.0
 [0.21.0]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.21.0
 [0.20.0]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.20.0

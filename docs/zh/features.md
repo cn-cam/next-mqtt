@@ -23,7 +23,7 @@
 | 离线队列 | ✅ | 每个持久会话有界 |
 | 共享订阅 | ✅ | `$share/{group}/{filter}`，每条消息为每个组选定一个成员 |
 | 订阅选项 | ✅ | `noLocal`、`retainAsPublished`、retain handling |
-| 主题别名 | ⚠️ | 支持入站；出站别名计划中 |
+| 主题别名 | ✅ | 双向支持；出站受客户端的 Topic Alias Maximum 限制 |
 | 增强认证（`AUTH`） | ✅ | 可插拔提供方的挑战/应答；内置 `nextmqtt-jwt` |
 | 服务端 receive-maximum 强制 | ⚠️ | 广播并限制自身 inflight 窗口 |
 | 客户端最大报文限制 | ⚠️ | 入站已限制；出站未按客户端上限裁剪 |

@@ -64,6 +64,12 @@ const router = createRouter({
           meta: { title: 'nav.plugins' },
         },
         {
+          path: 'api-console',
+          name: 'api-console',
+          component: () => import('../views/ApiConsoleView.vue'),
+          meta: { title: 'nav.apiConsole' },
+        },
+        {
           path: 'logs',
           name: 'logs',
           component: () => import('../views/LogsView.vue'),

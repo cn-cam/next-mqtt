@@ -28,6 +28,12 @@ jobs:
       - name: Check documentation translations
         run: pwsh -NoProfile -File scripts/docs-i18n-check.ps1
 
+      - name: Check documentation structure
+        run: node scripts/docs-consistency.mjs
+
+      - name: Check API surface parity
+        run: node scripts/api-surface-check.mjs
+
       - name: Verify licence and notice files exist
         run: |
           test -s LICENSE

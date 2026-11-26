@@ -29,6 +29,9 @@ updates:
           - "vite"
           - "pinia"
           - "typescript"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: npm
     directory: /docs

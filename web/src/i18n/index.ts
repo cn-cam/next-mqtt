@@ -14,6 +14,7 @@ const en: Record<string, string> = {
   'nav.plugins': 'Plugins',
   'nav.logs': 'Logs',
   'nav.settings': 'Settings',
+  'nav.apiConsole': 'API console',
   'nav.operations': 'Operations',
   'nav.messaging': 'Messaging',
   'nav.system': 'System',
@@ -351,6 +352,23 @@ const en: Record<string, string> = {
   'debugger.invalidHex': 'Payload is not valid hex.',
   'debugger.invalidPayload': 'Payload encoding is invalid.',
   'toast.copied': 'Copied to clipboard',
+
+  'apiConsole.title': 'API console',
+  'apiConsole.subtitle': 'Send requests to the management API with your current session.',
+  'apiConsole.endpoints': 'Endpoints',
+  'apiConsole.method': 'Method',
+  'apiConsole.path': 'Path',
+  'apiConsole.body': 'Request body',
+  'apiConsole.bodyHint': 'JSON for POST requests; ignored for GET and DELETE.',
+  'apiConsole.send': 'Send request',
+  'apiConsole.sending': 'Sending...',
+  'apiConsole.response': 'Response',
+  'apiConsole.duration': 'Duration',
+  'apiConsole.emptyResponse': 'Empty response',
+  'apiConsole.requestFailed': 'The request could not be sent.',
+  'apiConsole.invalidJson': 'Request body is not valid JSON.',
+  'apiConsole.auth': 'Authenticated request',
+  'apiConsole.public': 'Public request',
 }
 
 const zh: Record<string, string> = {
@@ -365,6 +383,7 @@ const zh: Record<string, string> = {
   'nav.plugins': '插件',
   'nav.logs': '日志',
   'nav.settings': '设置',
+  'nav.apiConsole': 'API 控制台',
   'nav.operations': '运维',
   'nav.messaging': '消息',
   'nav.system': '系统',
@@ -702,6 +721,23 @@ const zh: Record<string, string> = {
   'debugger.invalidHex': '负载不是有效的 Hex。',
   'debugger.invalidPayload': '负载编码无效。',
   'toast.copied': '已复制到剪贴板',
+
+  'apiConsole.title': 'API 控制台',
+  'apiConsole.subtitle': '使用当前会话向管理 API 发送请求。',
+  'apiConsole.endpoints': '端点',
+  'apiConsole.method': '方法',
+  'apiConsole.path': '路径',
+  'apiConsole.body': '请求体',
+  'apiConsole.bodyHint': 'POST 请求使用 JSON；GET 与 DELETE 会忽略。',
+  'apiConsole.send': '发送请求',
+  'apiConsole.sending': '发送中…',
+  'apiConsole.response': '响应',
+  'apiConsole.duration': '耗时',
+  'apiConsole.emptyResponse': '空响应',
+  'apiConsole.requestFailed': '请求发送失败。',
+  'apiConsole.invalidJson': '请求体不是有效的 JSON。',
+  'apiConsole.auth': '需要认证',
+  'apiConsole.public': '公开请求',
 }
 
 const tables: Record<Locale, Record<string, string>> = { en, zh }

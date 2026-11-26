@@ -14,11 +14,11 @@
 
 ### 凭据
 
-- 设置强 `NEXTMQTT_ADMIN_PASSWORD` 或预先生成哈希
-- 设置稳定且随机的 `NEXTMQTT_ADMIN_TOKEN_SECRET`
-- 不提交 `.env`、私钥、证书、API Key
-- 怀疑泄露后立即轮换
-- 可用时使用硬件保护的密钥存储
+- [ ] 设置强 `NEXTMQTT_ADMIN_PASSWORD` 或预先生成哈希
+- [ ] 设置稳定且随机的 `NEXTMQTT_ADMIN_TOKEN_SECRET`
+- [ ] 不提交 `.env`、私钥、证书、API Key
+- [ ] 怀疑泄露后立即轮换
+- [ ] 可用时使用硬件保护的密钥存储
 
 ```bash
 openssl rand -base64 32
@@ -26,43 +26,51 @@ openssl rand -base64 32
 
 ### MQTT
 
-- 关闭匿名
-- ACL 默认拒绝并写明确规则
-- 外部网络强制 TLS
-- 配置合理的 inflight、队列、报文限制
-- 在边缘做连接/消息速率限制
+- [ ] 关闭匿名
+- [ ] ACL 默认拒绝并写明确规则
+- [ ] 外部网络强制 TLS
+- [ ] 配置合理的 inflight、队列、报文限制
+- [ ] 在边缘做连接/消息速率限制
 
 ### 控制台
 
-- HTTPS + 来源限制
-- 缩短 `Admin:TokenLifetimeMinutes`
-- 暴露 `/metrics` 时开启 `MetricsRequireAuth`
-- 不公开 `/internal/cluster/*`
-- CORS 仅允许实际控制台来源
+- [ ] HTTPS + 来源限制
+- [ ] 缩短 `Admin:TokenLifetimeMinutes`
+- [ ] 暴露 `/metrics` 时开启 `MetricsRequireAuth`
+- [ ] 不公开 `/internal/cluster/*`
+- [ ] CORS 仅允许实际控制台来源
 
 ### 集群
 
-- 每个环境独立密钥，至少 16 字符
-- 节点间 NTP 同步
-- 不可信网络使用 HTTPS
-- 入口屏蔽内部路径
-- 在维护窗口内轮换密钥
+- [ ] 每个环境独立密钥，至少 16 字符
+- [ ] 节点间 NTP 同步
+- [ ] 不可信网络使用 HTTPS
+- [ ] 入口屏蔽内部路径
+- [ ] 在维护窗口内轮换密钥
 
 ### 容器/Kubernetes
 
-- 使用 UID 10001
-- `allowPrivilegeEscalation: false`，丢弃全部 capabilities
-- 设置资源限制
-- 只读根文件系统 + 可写 `/tmp`、`/app/data`
-- 应用 NetworkPolicy 或更严格的 egress 规则
-- 使用 Secret/外部密钥管理（`existingSecret`）
+- [ ] 使用 UID 10001
+- [ ] `allowPrivilegeEscalation: false`，丢弃全部 capabilities
+- [ ] 设置资源限制
+- [ ] 只读根文件系统 + 可写 `/tmp`、`/app/data`
+- [ ] 应用 NetworkPolicy 或更严格的 egress 规则
+- [ ] 使用 Secret/外部密钥管理（`existingSecret`）
 
 ## 认证细节
 
-- PBKDF2-SHA256，随机 16 字节盐，默认 210,000 次迭代
-- JWT 仅 HS256，校验 `exp`、`nbf`、`iss`、`aud`、`sub`
-- 控制台令牌使用 `Admin:TokenSecret` 签名的独立 HS256 JWT，仅 REST API 中间件接受
-- API Key 以 SHA-256 摘要白名单匹配，与管理员令牌同为 Bearer 凭据
+### 密码哈希
+
+PBKDF2-SHA256，随机 16 字节盐，默认 210,000 次迭代。
+
+### JWT
+
+JWT 仅 HS256，校验 `exp`、`nbf`、`iss`、`aud`、`sub`。
+
+### 管理令牌
+
+控制台令牌使用 `Admin:TokenSecret` 签名的独立 HS256 JWT，仅 REST API 中间件接受。
+API Key 以 SHA-256 摘要白名单匹配，与管理员令牌同为 Bearer 凭据。
 
 不要复用 MQTT JWT、集群、控制台三类密钥。
 

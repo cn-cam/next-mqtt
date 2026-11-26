@@ -38,6 +38,7 @@ const groups = computed(() => [
     items: [
       { name: 'cluster', label: t('nav.cluster'), icon: 'cluster' },
       { name: 'plugins', label: t('nav.plugins'), icon: 'plugins' },
+      { name: 'api-console', label: t('nav.apiConsole'), icon: 'terminal' },
       { name: 'logs', label: t('nav.logs'), icon: 'logs' },
       { name: 'settings', label: t('nav.settings'), icon: 'settings' },
     ],

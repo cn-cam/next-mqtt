@@ -1,0 +1,3 @@
+# The dashboard bundle is copied here by `dotnet publish` and by the container
+# build. Keeping the directory present lets `dotnet run` start from a fresh
+# clone before the Vue bundle exists.

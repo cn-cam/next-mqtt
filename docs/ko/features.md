@@ -23,7 +23,7 @@
 | 오프라인 큐 | ✅ | 영속 세션당 유계 |
 | 공유 구독 | ✅ | `$share/{group}/{filter}`, 메시지마다 그룹 멤버 하나 |
 | 구독 옵션 | ✅ | `noLocal`, `retainAsPublished`, retain handling |
-| 토픽 별칭 | ⚠️ | 인바운드 지원, 아웃바운드는 계획 중 |
+| 토픽 별칭 | ✅ | 양방향. 아웃바운드는 클라이언트의 Topic Alias Maximum으로 제한 |
 | 확장 인증(`AUTH`) | ✅ | 교체 가능한 제공자와 챌린지/응답, 내장 `nextmqtt-jwt` |
 | 서버 측 receive-maximum 적용 | ⚠️ | 자체 inflight 윈도를 광고하고 제한 |
 | 전달 시 클라이언트 최대 패킷 | ⚠️ | 인바운드는 제한, 아웃바운드 절단은 미구현 |

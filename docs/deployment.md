@@ -20,7 +20,7 @@ docker pull ghcr.io/cn-cam/next-mqtt:latest
 Available tags:
 
 - `latest` — newest stable build from `main`
-- `0.22.0`, `0.22` — release tags
+- `0.23.0`, `0.23` — release tags
 - `sha-<commit>` — immutable commit builds
 
 Platforms: `linux/amd64`, `linux/arm64`.
@@ -73,6 +73,12 @@ docker compose logs -f nextmqtt
 export NEXTMQTT_CLUSTER_SECRET='a-long-shared-secret'
 docker compose -f deploy/compose/docker-compose.cluster.yml up -d
 ```
+
+The cluster compose file publishes the dashboards on **8080–8082** and HTTPS on
+**8086–8088** (the container still listens on 8084). Open
+`https://<certificate-name>:8086/` for node-a; port 8084 is only reachable inside
+the container network. See [`deploy/compose/README.md`](https://github.com/cn-cam/next-mqtt/blob/main/deploy/compose/README.md)
+for the full host-port table.
 
 Check membership:
 
@@ -176,7 +182,7 @@ Helm creates a secret with keys `admin-password`, `token-secret` and
 
 ```bash
 helm upgrade nextmqtt deploy/helm/next-mqtt -n nextmqtt --reuse-values \
-  --set image.tag=0.22.0
+  --set image.tag=0.23.0
 ```
 
 Rolling restarts keep persistent sessions when the file stores are mounted and

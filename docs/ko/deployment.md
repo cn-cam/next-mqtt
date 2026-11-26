@@ -19,7 +19,7 @@ docker pull ghcr.io/cn-cam/next-mqtt:latest
 사용 가능한 태그:
 
 - `latest` — `main`의 최신 안정 빌드
-- `0.22.0`, `0.22` — 릴리스 태그
+- `0.23.0`, `0.23` — 릴리스 태그
 - `sha-<commit>` — 변경되지 않는 커밋 빌드
 
 플랫폼: `linux/amd64`, `linux/arm64`.
@@ -72,6 +72,11 @@ docker compose logs -f nextmqtt
 export NEXTMQTT_CLUSTER_SECRET='a-long-shared-secret'
 docker compose -f deploy/compose/docker-compose.cluster.yml up -d
 ```
+
+클러스터용 Compose는 대시보드를 **8080–8082**, HTTPS를 **8086–8088**에 게시합니다
+(컨테이너 안에서는 8084 그대로). node-a는 `https://<인증서 이름>:8086/`으로
+여십시오. 8084는 컨테이너 네트워크 안에서만 접근할 수 있습니다. 전체 호스트 포트
+표는 `deploy/compose/README.md`를 참고하십시오.
 
 멤버십을 확인합니다:
 
@@ -175,7 +180,7 @@ helm install nextmqtt deploy/helm/next-mqtt \
 
 ```bash
 helm upgrade nextmqtt deploy/helm/next-mqtt -n nextmqtt --reuse-values \
-  --set image.tag=0.22.0
+  --set image.tag=0.23.0
 ```
 
 파일 저장소를 마운트하고 복제본이 최신이면 롤링 재시작 후에도 영속 세션이 남습니다.

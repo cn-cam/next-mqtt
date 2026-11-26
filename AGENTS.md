@@ -113,3 +113,17 @@ same commit as the behaviour. See
 - Pull requests must update documentation and tests for behaviour changes.
 - Reviewers must reject any change that introduces a forbidden token or
   third-party broker branding, regardless of intent.
+
+## 7. Documentation and API parity
+
+- Every English page under `docs/` must have `zh`, `ja` and `ko` counterparts
+  with the same heading, task-list and table structure. Update all four
+  languages in the same commit; `scripts/docs-consistency.mjs` enforces this in
+  CI.
+- `changelog.md` and `development-log.md` are generated for every locale by
+  `scripts/docs-site.mjs`. Never hand-edit them.
+- Every endpoint in `docs/api.md` must be reachable from the dashboard API
+  console (`web/src/api/endpoints.ts`). `scripts/api-surface-check.mjs` fails
+  when the two lists differ.
+- See `.opencode/skill/docs-consistency/SKILL.md` and
+  `.opencode/skill/api-console/SKILL.md` for the full checklists.

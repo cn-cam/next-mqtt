@@ -24,7 +24,7 @@ Legend: ✅ implemented · ⚠️ partial or with documented limits · ❌ not i
 | Offline queue | ✅ | Bounded per persistent session |
 | Shared subscriptions | ✅ | `$share/{group}/{filter}`, one member per group per message |
 | Subscription options | ✅ | `noLocal`, `retainAsPublished`, retain handling |
-| Topic aliases | ⚠️ | Inbound aliases supported; outbound aliases planned |
+| Topic aliases | ✅ | Both directions; outbound bounded by the client's Topic Alias Maximum |
 | Enhanced authentication (`AUTH`) | ✅ | Challenge/response with pluggable providers; built-in `nextmqtt-jwt` |
 | Server-side receive-maximum enforcement | ⚠️ | Broker advertises and bounds its own inflight window |
 | Client maximum packet size on delivery | ⚠️ | Inbound limit enforced; outbound packet trimming is not |

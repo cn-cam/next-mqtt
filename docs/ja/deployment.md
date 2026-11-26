@@ -20,7 +20,7 @@ docker pull ghcr.io/cn-cam/next-mqtt:latest
 利用できるタグ：
 
 - `latest` — `main` の最新安定ビルド
-- `0.22.0`、`0.22` — リリースタグ
+- `0.23.0`、`0.23` — リリースタグ
 - `sha-<commit>` — 不変のコミットビルド
 
 プラットフォーム：`linux/amd64`、`linux/arm64`。
@@ -73,6 +73,11 @@ docker compose logs -f nextmqtt
 export NEXTMQTT_CLUSTER_SECRET='a-long-shared-secret'
 docker compose -f deploy/compose/docker-compose.cluster.yml up -d
 ```
+
+クラスタ用 Compose はダッシュボードを **8080–8082**、HTTPS を **8086–8088** に
+公開します（コンテナ内は 8084 のまま）。node-a は
+`https://<証明書の名前>:8086/` で開きます。8084 はコンテナネットワーク内でのみ
+到達できます。ホストポートの一覧は `deploy/compose/README.md` を参照してください。
 
 メンバーシップを確認します：
 
@@ -176,7 +181,7 @@ helm install nextmqtt deploy/helm/next-mqtt \
 
 ```bash
 helm upgrade nextmqtt deploy/helm/next-mqtt -n nextmqtt --reuse-values \
-  --set image.tag=0.22.0
+  --set image.tag=0.23.0
 ```
 
 ファイルストアをマウントしレプリカが新しい状態であれば、ローリング再起動でも永続

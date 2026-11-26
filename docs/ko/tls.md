@@ -57,7 +57,7 @@ NextMQTT는 MQTT와 대시보드를 직접 암호화하거나, TLS를 종단하�
 평문 HTTP 포트를 끄지 않으면 Kestrel은 그 포트에서도 계속 수신합니다. 방화벽이나
 리버스 프록시로 제한하십시오.
 
-## 자체 서명(테스트 전용)
+### 자체 서명(테스트 전용)
 
 ```bash
 openssl req -x509 -newkey rsa:2048 -sha256 -days 365 -nodes \
