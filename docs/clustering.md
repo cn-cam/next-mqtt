@@ -82,7 +82,9 @@ view.
   A replica is used only when its owner is not alive, cannot be reached during
   the claim, or answers that it does not hold the session (for example after
   losing its own file). A stale copy therefore cannot resurrect a session that
-  is still running somewhere.
+  is still running somewhere. Replicas are ordered by push time before the
+  per-node version, so an owner that restarted with a fresh version counter still
+  replaces older copies on its peers.
 
 Sessions follow the client: a reconnect with `CleanStart=false` on another node
 claims the session from its previous owner, so the offline queue and

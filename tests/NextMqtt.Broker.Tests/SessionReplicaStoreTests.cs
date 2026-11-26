@@ -27,11 +27,64 @@ public sealed class SessionReplicaStoreTests : IDisposable
     }
 
     private static ClusterSessionReplica Replica(string clientId, string owner, long version)
+        => ReplicaAt(clientId, owner, version, DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+
+    private static ClusterSessionReplica ReplicaAt(
+        string clientId,
+        string owner,
+        long version,
+        long updatedAtUnix)
         => new(
             new PersistedSession { ClientId = clientId, SessionExpiryInterval = 300 },
             owner,
             version,
-            DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+            updatedAtUnix);
+
+    [Fact]
+    public void Newer_timestamp_wins_after_a_version_reset()
+    {
+        var broker = TestBroker.Create();
+        var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+
+        try
+        {
+            // A restarted owner starts its version counter from zero again.
+            broker.StoreSessionReplica(ReplicaAt("s", "node-a", 500, now - 10));
+            broker.StoreSessionReplica(ReplicaAt("s", "node-a", 1, now));
+
+            var replica = broker.GetSessionReplica("s");
+            Assert.NotNull(replica);
+            Assert.Equal(1, replica.Version);
+        }
+        finally
+        {
+            broker.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        }
+    }
+
+    [Fact]
+    public void A_delayed_push_from_the_previous_owner_does_not_win()
+    {
+        var broker = TestBroker.Create();
+        var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+
+        try
+        {
+            broker.StoreSessionReplica(ReplicaAt("s", "node-a", 900, now - 2));
+            broker.StoreSessionReplica(ReplicaAt("s", "node-b", 1, now));
+
+            // The old owner pushed late, but its snapshot predates the handover.
+            broker.StoreSessionReplica(ReplicaAt("s", "node-a", 999, now - 3));
+
+            var replica = broker.GetSessionReplica("s");
+            Assert.NotNull(replica);
+            Assert.Equal("node-b", replica.OwnerNodeId);
+        }
+        finally
+        {
+            broker.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        }
+    }
 
     [Fact]
     public void Snapshot_round_trips()

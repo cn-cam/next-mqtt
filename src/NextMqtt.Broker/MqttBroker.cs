@@ -361,13 +361,17 @@ public sealed class MqttBroker : IAsyncDisposable
     }
 
     /// <summary>Stores a replica pushed by another node.</summary>
-    /// <remarks>只保留版本更新的副本；过期或更旧的推送直接丢弃。</remarks>
+    /// <remarks>
+    /// 副本按更新时间排序，版本号只用于同一秒内的比较：节点重启后本地版本从零开始，
+    /// 只比版本会让对端永久保留重启前的旧副本。所有权转移时新属主的时间戳通常更晚，
+    /// 因此也会被接受。
+    /// </remarks>
     /// <param name="replica">Snapshot received from a peer.</param>
     public void StoreSessionReplica(ClusterSessionReplica replica)
     {
         var existing = _sessionReplicas.GetValueOrDefault(replica.Session.ClientId);
 
-        if (existing is not null && existing.Version >= replica.Version)
+        if (existing is not null && !IsNewerReplica(replica, existing))
         {
             return;
         }
@@ -375,6 +379,25 @@ public sealed class MqttBroker : IAsyncDisposable
         _sessionReplicas[replica.Session.ClientId] = replica;
         TrimReplicas(DateTimeOffset.UtcNow);
         Interlocked.Exchange(ref _replicasDirty, 1);
+    }
+
+    /// <summary>Orders two replicas of the same session.</summary>
+    /// <remarks>先比更新时间，再比版本，最后用属主 ID 保证同秒同版本时结果确定。</remarks>
+    /// <param name="candidate">Replica that arrived.</param>
+    /// <param name="existing">Replica currently held.</param>
+    private static bool IsNewerReplica(ClusterSessionReplica candidate, ClusterSessionReplica existing)
+    {
+        if (candidate.UpdatedAtUnix != existing.UpdatedAtUnix)
+        {
+            return candidate.UpdatedAtUnix > existing.UpdatedAtUnix;
+        }
+
+        if (candidate.Version != existing.Version)
+        {
+            return candidate.Version > existing.Version;
+        }
+
+        return string.CompareOrdinal(candidate.OwnerNodeId, existing.OwnerNodeId) > 0;
     }
 
     /// <summary>Loads persisted replicas at startup.</summary>

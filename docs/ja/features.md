@@ -124,7 +124,7 @@
 | コンテナビルド + ヘルス/ログインのスモーク | CI `Container image` ジョブ |
 | CodeQL | `codeql.yml` |
 
-現在 **217 テスト**（Core 63、Broker 111、Server 43）が通過しています。
+現在 **219 テスト**（Core 63、Broker 113、Server 43）が通過しています。
 
 ## 拡張性
 

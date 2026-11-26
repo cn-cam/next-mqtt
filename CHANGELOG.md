@@ -15,6 +15,13 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
   of losing the window between sending a QoS 1/2 message and receiving its ack;
   a duplicate is possible.
 
+### Fixed
+
+- Replica ordering now compares the push timestamp before the per-node version.
+  A broker that restarted (and therefore restarted its version counter at zero)
+  or a node that took ownership over no longer has its fresh replicas rejected
+  by peers holding older, higher-version copies.
+
 ## [0.22.0] - 2026-11-26
 
 ### Added
