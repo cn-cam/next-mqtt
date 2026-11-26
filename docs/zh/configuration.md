@@ -550,13 +550,17 @@ printf '%s' 'my-api-key' | sha256sum
     "NodeTimeoutSeconds": 20,
     "RequestTimeoutSeconds": 5,
     "MaxFiltersPerHeartbeat": 10000,
-    "SessionReplicaSeconds": 5
+    "SessionReplicaSeconds": 5,
+    "SessionReplicaBatchSize": 200
   }
 }
 ```
 
 `SessionReplicaSeconds` 控制会话副本推送给对端的频率，使节点崩溃时不会丢失它持有
-的会话；`0` 关闭复制。
+的会话；`0` 关闭复制。每轮推送 `SessionReplicaBatchSize` 个会话，并从上一轮结束的
+位置继续。持久会话数超过批大小时，单个会话的副本最多滞后
+`ceil(会话数 / 批大小) × SessionReplicaSeconds`；大节点上可调大批大小，或接受更长的
+恢复点。
 
 启用集群时 `AdvertiseUrl` 必须能被其他节点访问，`Secret` 至少 16 个字符。详见
 [集群](/zh/clustering)。

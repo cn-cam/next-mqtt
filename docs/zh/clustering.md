@@ -84,10 +84,13 @@ NEXTMQTT_CLUSTER__SECRET=shared-secret-at-least-16-chars
 | 属主磁盘丢失并重启 | 本地会话文件为空 | 用对端副本恢复；即使属主还活着，只要它答复没有该会话就允许回退 |
 | 全集群重启 | 内存清空 | 各节点重载自己的会话文件与副本文件，按 `(lastSeen, nodeId)` 选最新副本 |
 | 网络分区 | 两边成员视图不同 | 只有持有真实连接的一侧服务该客户端；副本记录的属主在本地视图里仍存活时绝不使用副本 |
-| 副本推送延迟 | 副本最多滞后 `SessionReplicaSeconds` | 恢复后可能缺最后几秒的排队消息 |
+| 副本推送延迟 | 副本最多滞后一轮批处理（`SessionReplicaSeconds`；会话数超过 `SessionReplicaBatchSize` 时更久） | 恢复后可能缺最近的排队消息 |
 
-**恢复点（RPO）**：副本最多滞后 5 秒；属主自己的会话快照最多滞后 30 秒；保留消息每次
-写入都落盘。已投递但未确认的消息会从队列重放，可能重复一次，QoS 1/2 允许。
+**恢复点（RPO）**：对端副本通常最多滞后 `SessionReplicaSeconds`（默认 5 秒）。每轮推送
+`SessionReplicaBatchSize`（默认 200）个会话，因此持久会话超过该数量时，完整轮询需要
+`ceil(会话数 / 批大小) × SessionReplicaSeconds`，最旧的副本可能滞后这么久。属主自己的
+会话快照最多滞后 30 秒；保留消息每次写入都落盘。已投递但未确认的消息会从队列重放，
+可能重复一次，QoS 1/2 允许。
 
 **恢复时间（RTO）**：一次重连加一次内部往返，不需要人工干预。
 
@@ -190,8 +193,9 @@ dotnet run --project src/NextMqtt.Cli -- pub --port 1883 --topic cluster/test --
 
 - 会话接管覆盖订阅、离线队列，以及仍在等待 PUBREL 的入站 QoS 2 发布；出站 inflight
   确认状态不迁移，消息会从队列重放，客户端可能看到一次重复。
-- 副本最多滞后 `SessionReplicaSeconds`，且只存在对端内存里；所有其他节点同时重启时
-  副本也会丢。设置 `Storage:Replicas:Mode=File` 可跨重启保留。
+- 副本通常最多滞后 `SessionReplicaSeconds`；节点会话数超过 `SessionReplicaBatchSize` 时
+  最旧副本会滞后一整轮。副本只存在对端内存里，所有其他节点同时重启时会丢；设置
+  `Storage:Replicas:Mode=File` 可跨重启保留。
 - 除接管与复制外没有跨节点会话持久化：如果属主、所有副本持有者及其磁盘一起丢失，
   会话就没了。
 - 过滤器广告是全量快照，默认每次心跳最多 10,000 个过滤器。

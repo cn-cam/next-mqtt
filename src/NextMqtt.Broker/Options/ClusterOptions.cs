@@ -44,8 +44,16 @@ public sealed class ClusterOptions
     public int RequestTimeoutSeconds { get; set; } = 5;
 
     /// <summary>How often a session replica is pushed to peers; 0 disables replication.</summary>
-    /// <remarks>关闭后节点崩溃会丢失它持有的会话；开启时每轮最多推送 200 个会话，按顺序轮转。</remarks>
+    /// <remarks>关闭后节点崩溃会丢失它持有的会话；开启时每轮按批大小推送，按顺序轮转。</remarks>
     public int SessionReplicaSeconds { get; set; } = 5;
+
+    /// <summary>Sessions pushed per replica round, one round per replica interval.</summary>
+    /// <remarks>
+    /// 一轮最多推送这么多会话，下一轮从上次位置继续。默认 200 在会话数不超过 200 时保证
+    /// 每轮覆盖全部；会话更多时，单个会话的副本最多滞后
+    /// <c>ceil(会话数 / 批大小) × SessionReplicaSeconds</c>。调大增加带宽和 CPU。
+    /// </remarks>
+    public int SessionReplicaBatchSize { get; set; } = 200;
 
     /// <summary>Cap on filters advertised per heartbeat to bound message size.</summary>
     /// <remarks>订阅极多时会被截断，超出部分对端看不见，表现为跨节点漏投；调大意味着心跳报文更大。</remarks>

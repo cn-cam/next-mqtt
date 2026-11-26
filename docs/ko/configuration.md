@@ -567,13 +567,18 @@ printf '%s' 'my-api-key' | sha256sum
     "NodeTimeoutSeconds": 20,
     "RequestTimeoutSeconds": 5,
     "MaxFiltersPerHeartbeat": 10000,
-    "SessionReplicaSeconds": 5
+    "SessionReplicaSeconds": 5,
+    "SessionReplicaBatchSize": 200
   }
 }
 ```
 
 `SessionReplicaSeconds`는 세션 복제본을 피어로 보내는 주기로, 노드가 죽어도 소유한
-세션을 잃지 않게 합니다. `0`이면 복제를 끕니다.
+세션을 잃지 않게 합니다. `0`이면 복제를 끕니다. 라운드마다
+`SessionReplicaBatchSize`개를 보내고 이전 라운드가 멈춘 지점부터 이어갑니다. 영속
+세션이 배치 크기보다 많으면 한 세션의 복제본은 최대
+`ceil(세션 수 / 배치 크기) × SessionReplicaSeconds`만큼 오래될 수 있습니다. 큰
+노드에서는 배치 크기를 늘리거나 더 긴 복구 지점을 받아들이십시오.
 
 클러스터를 켜면 `AdvertiseUrl`은 피어에서 접근 가능해야 하고 `Secret`은 16자
 이상이어야 합니다. 자세한 내용은 [클러스터](/ko/clustering)를 참고하십시오.

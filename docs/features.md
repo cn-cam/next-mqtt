@@ -125,7 +125,7 @@ The claims above are covered by the repository's tests and CI:
 | Container build + health/login smoke | CI `Container image` job |
 | CodeQL | `codeql.yml` |
 
-Current test count: 212 passing tests (63 core, 106 broker, 43 server).
+Current test count: 213 passing tests (63 core, 107 broker, 43 server).
 
 ## Extensibility
 

@@ -102,13 +102,17 @@ clients reconnect on their own. Within that assumption:
 | Owner disk lost, node restarted | Session store empty | Replicas on peers (file-backed if configured) restore it; a peer that answered "no session" does not block the fallback |
 | All nodes restarted | Memory is empty | Each node reloads its session file and its replica file; the newest copy wins by `(lastSeen, nodeId)` |
 | Partition | Two views of membership | Only the side that owns the live client serves it; a replica is never used while its recorded owner is alive in the local view |
-| Slow replica push | Replica up to `SessionReplicaSeconds` old | A recovered session may miss the last few seconds of queued messages |
+| Slow replica push | Replica up to one batch round old (`SessionReplicaSeconds`, longer when the session count exceeds `SessionReplicaBatchSize`) | A recovered session may miss recent queued messages |
 
-**Recovery point.** Session state is at most `SessionReplicaSeconds` (default 5)
-old on the replica side; the owner's own file is at most `SessionSnapshotSeconds`
-(30) old. Retained messages are journaled per write. Messages already delivered
-but not yet acknowledged are replayed from the queue; a duplicate is possible,
-which MQTT tolerates at QoS 1/2.
+**Recovery point.** On the replica side a session is normally at most
+`SessionReplicaSeconds` (default 5) old. Each round pushes
+`SessionReplicaBatchSize` (default 200) sessions, so a node with more persistent
+sessions than that has a full sweep of
+`ceil(sessions / batch size) × SessionReplicaSeconds`; the oldest replica can be
+that old. The owner's own file is at most `SessionSnapshotSeconds` (30) old.
+Retained messages are journaled per write. Messages already delivered but not yet
+acknowledged are replayed from the queue; a duplicate is possible, which MQTT
+tolerates at QoS 1/2.
 
 **Recovery time.** A reconnect plus one internal round trip: the new node asks
 live peers, then reads its own replica file. No operator action is needed.
@@ -235,9 +239,10 @@ Wait at least one heartbeat after subscribing before publishing.
   publishes still awaiting PUBREL. The outbound `inflight` acknowledgement state
   is not transferred; those messages are replayed from the queue and the client
   may see a duplicate.
-- A replica is at most `SessionReplicaSeconds` old. Without the file store it
-  lives only in memory, so a restart of every node loses the replicas; set
-  `Storage:Replicas:Mode` to `File` to keep them across restarts.
+- A replica is normally at most `SessionReplicaSeconds` old, or one full sweep
+  when the node has more sessions than `SessionReplicaBatchSize`. Without the
+  file store it lives only in memory, so a restart of every node loses the
+  replicas; set `Storage:Replicas:Mode` to `File` to keep them across restarts.
 - No cross-node session persistence beyond handover and replication: if the
   owner and every replica holder and their disks are lost together, the session
   is gone.

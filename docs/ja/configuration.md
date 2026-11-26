@@ -569,13 +569,18 @@ printf '%s' 'my-api-key' | sha256sum
     "NodeTimeoutSeconds": 20,
     "RequestTimeoutSeconds": 5,
     "MaxFiltersPerHeartbeat": 10000,
-    "SessionReplicaSeconds": 5
+    "SessionReplicaSeconds": 5,
+    "SessionReplicaBatchSize": 200
   }
 }
 ```
 
 `SessionReplicaSeconds` はセッションレプリカをピアへ送る間隔で、ノード停止時に
-所有セッションを失わないようにします。`0` で複製を無効にします。
+所有セッションを失わないようにします。`0` で複製を無効にします。1 ラウンドで
+`SessionReplicaBatchSize` 個を送り、前回の続きから進みます。永続セッションが
+バッチサイズより多い場合、1 セッションのレプリカは最大
+`ceil(セッション数 / バッチサイズ) × SessionReplicaSeconds` 古くなります。大きな
+ノードではバッチサイズを上げるか、長めの復旧点を受け入れてください。
 
 クラスタを有効にすると、`AdvertiseUrl` はピアから到達可能で、`Secret` は 16 文字
 以上である必要があります。詳しくは[クラスタ](/ja/clustering)を参照してください。

@@ -1630,7 +1630,7 @@ public sealed class MqttBroker : IAsyncDisposable
             .ToDictionary(group => group.Key, group => group.ToList(), StringComparer.Ordinal);
 
         var nodeId = Cluster.GetSnapshot().NodeId;
-        var budget = Math.Min(200, sessions.Count);
+        var budget = Math.Min(Cluster.ReplicaBatchSize, sessions.Count);
         var start = _replicaCursor % sessions.Count;
 
         for (var index = 0; index < budget; index++)

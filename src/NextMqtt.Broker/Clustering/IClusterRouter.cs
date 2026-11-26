@@ -48,6 +48,10 @@ public interface IClusterRouter
     /// <remarks>0 表示关闭复制。</remarks>
     TimeSpan ReplicaInterval { get; }
 
+    /// <summary>Sessions pushed per replica round.</summary>
+    /// <remarks>一轮推送这么多会话，下一轮从上次位置继续；值过大会增加带宽。</remarks>
+    int ReplicaBatchSize { get; }
+
     /// <summary>Sends one session replica to every live peer.</summary>
     /// <remarks>尽力而为：失败只记日志，下一次轮询会重发。</remarks>
     /// <param name="replica">Snapshot to send.</param>
@@ -126,6 +130,10 @@ public sealed class NullClusterRouter : IClusterRouter
     /// <summary>No replication, so the interval is unused.</summary>
     /// <remarks>固定返回 0。</remarks>
     public TimeSpan ReplicaInterval => TimeSpan.Zero;
+
+    /// <summary>No replication, so the batch size is unused.</summary>
+    /// <remarks>返回 1，避免调用方除以零。</remarks>
+    public int ReplicaBatchSize => 1;
 
     /// <summary>Discards the replica.</summary>
     /// <remarks>直接完成，不产生等待。</remarks>

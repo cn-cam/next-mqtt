@@ -145,6 +145,30 @@ public class ClusterTests
     }
 
     [Fact]
+    public void Replica_batch_size_is_clamped()
+    {
+        var http = new HttpClient(new ClusterHttpNetwork());
+        var logger = Microsoft.Extensions.Logging.Abstractions.NullLogger<ClusterRouter>.Instance;
+
+        var options = new NextMqtt.Broker.Options.ClusterOptions
+        {
+            Enabled = true,
+            NodeId = "node-a",
+            AdvertiseUrl = "http://node-a",
+            Secret = "cluster-test-secret-1234567890",
+        };
+
+        options.SessionReplicaBatchSize = 0;
+        Assert.Equal(1, new ClusterRouter(options, logger, http).ReplicaBatchSize);
+
+        options.SessionReplicaBatchSize = 64;
+        Assert.Equal(64, new ClusterRouter(options, logger, http).ReplicaBatchSize);
+
+        options.SessionReplicaBatchSize = int.MaxValue;
+        Assert.Equal(5_000, new ClusterRouter(options, logger, http).ReplicaBatchSize);
+    }
+
+    [Fact]
     public async Task Two_nodes_share_membership_and_route_publishes()
     {
         const string secret = "cluster-test-secret-1234567890";
@@ -839,6 +863,8 @@ public class ClusterTests
         public bool ReplicatesSessions => true;
 
         public TimeSpan ReplicaInterval => TimeSpan.FromSeconds(5);
+
+        public int ReplicaBatchSize => 200;
 
         public Task ReplicateSessionAsync(ClusterSessionReplica replica, CancellationToken cancellationToken = default)
             => Task.CompletedTask;

@@ -91,11 +91,14 @@ NEXTMQTT_CLUSTER__SECRET=shared-secret-at-least-16-chars
 | 소유자 디스크 손실, 재시작 | 세션 저장소가 비어 있음 | 피어 복제본(설정 시 파일 저장)으로 복원. "없음"이라고 답한 피어가 대체를 막지 않음 |
 | 전체 재시작 | 메모리 비움 | 각 노드가 세션과 복제본 파일을 다시 읽고 `(lastSeen, nodeId)`로 최신 선택 |
 | 네트워크 분할 | 멤버십이 둘로 나뉨 | 실제 연결을 가진 쪽만 서비스. 기록된 소유자가 로컬 뷰에서 살아 있으면 복제본 사용 안 함 |
-| 복제본 전송 지연 | 복제본이 최대 `SessionReplicaSeconds`만큼 오래됨 | 복구한 세션이 마지막 몇 초의 큐를 놓칠 수 있음 |
+| 복제본 전송 지연 | 복제본이 최대 한 배치 라운드(`SessionReplicaSeconds`, 세션 수가 `SessionReplicaBatchSize`를 넘으면 더 오래)만큼 오래됨 | 복구한 세션이 최근 큐를 놓칠 수 있음 |
 
-**RPO**: 복제본 쪽 세션 상태는 최대 `SessionReplicaSeconds`(기본 5초), 소유자 자체
-파일은 최대 `SessionSnapshotSeconds`(30초) 지연. retained는 쓰기마다 저장. 전달되었지만
-확인되지 않은 메시지는 큐에서 재생되며 중복될 수 있지만 MQTT QoS 1/2는 이를 허용합니다.
+**RPO**: 복제본 쪽 세션은 보통 최대 `SessionReplicaSeconds`(기본 5초) 지연됩니다.
+라운드마다 `SessionReplicaBatchSize`(기본 200) 세션을 보내므로, 영속 세션이 그보다 많은
+노드는 한 바퀴에 `ceil(세션 수 / 배치 크기) × SessionReplicaSeconds`가 걸리고 가장 오래된
+복제본은 그만큼 지연될 수 있습니다. 소유자 자체 파일은 최대
+`SessionSnapshotSeconds`(30초) 지연. retained는 쓰기마다 저장. 전달되었지만 확인되지 않은
+메시지는 큐에서 재생되며 중복될 수 있지만 MQTT QoS 1/2는 이를 허용합니다.
 
 **RTO**: 재연결과 내부 왕복 1회. 새 노드가 살아 있는 피어에 묻고, 그다음 자기 복제본
 파일을 읽습니다. 운영자 개입은 필요 없습니다.
@@ -211,9 +214,10 @@ dotnet run --project src/NextMqtt.Cli -- pub --port 1883 --topic cluster/test --
 - 세션 인계는 구독, 오프라인 큐, PUBREL 대기 인바운드 QoS 2를 포함합니다. 아웃바운드
   `inflight` 확인 상태는 이전되지 않으며 큐에서 재생되어 클라이언트가 중복을 볼 수
   있습니다.
-- 복제본은 최대 `SessionReplicaSeconds`만큼 오래됩니다. 파일 저장소가 없으면 메모리에만
-  있어 모든 노드 재시작 시 복제본이 사라집니다. `Storage:Replicas:Mode`를 `File`로 두면
-  재시작을 넘어 유지됩니다.
+- 복제본은 보통 최대 `SessionReplicaSeconds`만큼 오래됩니다. 세션 수가
+  `SessionReplicaBatchSize`를 넘으면 가장 오래된 복제본은 한 바퀴만큼 지연됩니다. 파일
+  저장소가 없으면 메모리에만 있어 모든 노드 재시작 시 복제본이 사라집니다.
+  `Storage:Replicas:Mode`를 `File`로 두면 재시작을 넘어 유지됩니다.
 - 인계와 복제 외의 노드 간 세션 영속화는 없습니다. 소유자와 모든 복제본 보유자, 그
   디스크가 함께 사라지면 세션도 사라집니다.
 - 필터 광고는 전량 스냅숏이며 기본적으로 heartbeat당 10,000 필터가 상한입니다.
