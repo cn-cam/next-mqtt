@@ -251,11 +251,12 @@ Persistent sessions are snapshotted separately:
 | `Path` | `data/sessions.json` | Snapshot file, replaced atomically |
 | `SnapshotSeconds` | 30 | Rewrite interval; unchanged state is skipped |
 
-A snapshot holds every persistent session: identity, expiry, subscriptions and
-the offline queue with its MQTT 5 properties. Inflight QoS handshakes are not
-persisted — after a restart those messages are delivered again on the next
-publish rather than resumed, and the window is bounded by
-`MaxInflightMessages`. Snapshots are also written on graceful shutdown.
+A snapshot holds every persistent session: identity, expiry, subscriptions, the
+offline queue with its MQTT 5 properties, and inbound QoS 2 publishes that are
+waiting for PUBREL. Outbound `inflight` acknowledgements are not persisted —
+after a restart those messages are delivered again on the next publish rather
+than resumed, and the window is bounded by `MaxInflightMessages`. Snapshots are
+also written on graceful shutdown.
 
 ### Session replicas
 

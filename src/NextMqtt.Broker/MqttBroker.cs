@@ -547,6 +547,18 @@ public sealed class MqttBroker : IAsyncDisposable
             })
             .ToList();
 
+        record.InboundQos2 = session.SnapshotInboundQos2()
+            .Select(entry => new PersistedInboundPublish
+            {
+                PacketId = entry.PacketId,
+                Topic = entry.Publish.Topic,
+                Payload = Convert.ToBase64String(entry.Publish.Payload),
+                QoS = (int)entry.Publish.QoS,
+                Retain = entry.Publish.Retain,
+                Properties = PropertyRecord.FromProperties(entry.Publish.Properties),
+            })
+            .ToList();
+
         return record;
     }
 
@@ -1200,7 +1212,8 @@ public sealed class MqttBroker : IAsyncDisposable
                 record.SessionExpiryInterval,
                 record.ExpiresAt,
                 record.LastSeen,
-                record.Queue.Select(TryToOutbound).OfType<OutboundMessage>());
+                record.Queue.Select(TryToOutbound).OfType<OutboundMessage>(),
+                record.InboundQos2.Select(TryToInbound).OfType<BrokerSession.InboundQos2Entry>());
 
             if (!Sessions.TryAdd(session))
             {
@@ -1484,6 +1497,18 @@ public sealed class MqttBroker : IAsyncDisposable
             })
             .ToList();
 
+        record.InboundQos2 = session.SnapshotInboundQos2()
+            .Select(entry => new PersistedInboundPublish
+            {
+                PacketId = entry.PacketId,
+                Topic = entry.Publish.Topic,
+                Payload = Convert.ToBase64String(entry.Publish.Payload),
+                QoS = (int)entry.Publish.QoS,
+                Retain = entry.Publish.Retain,
+                Properties = PropertyRecord.FromProperties(entry.Publish.Properties),
+            })
+            .ToList();
+
         return record;
     }
 
@@ -1501,6 +1526,35 @@ public sealed class MqttBroker : IAsyncDisposable
                 ExpiresAt = message.ExpiresAt,
                 Properties = PropertyRecord.ToProperties(message.Properties),
             };
+        }
+        catch (FormatException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>Converts a stored inbound QoS 2 publish, or null when its payload is not valid base64.</summary>
+    /// <remarks>包 ID 超出范围或主题为空时同样丢弃，避免恢复出无法完成的握手。</remarks>
+    private static BrokerSession.InboundQos2Entry? TryToInbound(PersistedInboundPublish message)
+    {
+        if (message.PacketId is < 1 or > ushort.MaxValue || string.IsNullOrEmpty(message.Topic))
+        {
+            return null;
+        }
+
+        try
+        {
+            return new BrokerSession.InboundQos2Entry(
+                (ushort)message.PacketId,
+                new PublishPacket
+                {
+                    Topic = message.Topic,
+                    Payload = Convert.FromBase64String(message.Payload),
+                    QoS = MqttQoS.ExactlyOnce,
+                    Retain = message.Retain,
+                    PacketId = (ushort)message.PacketId,
+                    Properties = PropertyRecord.ToProperties(message.Properties),
+                });
         }
         catch (FormatException)
         {

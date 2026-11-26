@@ -5,7 +5,10 @@ using NextMqtt.Core.Protocol;
 namespace NextMqtt.Broker.Storage;
 
 /// <summary>One persistent session as written to disk.</summary>
-/// <remarks>仅保存不依赖连接的会话状态；inflight 握手不落盘。</remarks>
+/// <remarks>
+/// 仅保存不依赖连接的会话状态；出站 inflight 握手不落盘，入站 QoS 2 中等待 PUBREL
+/// 的消息会保存，否则客户端重连后发送 PUBREL 时消息就会丢失。
+/// </remarks>
 public sealed class PersistedSession
 {
     /// <summary>Client identifier that owns the session.</summary>
@@ -51,6 +54,13 @@ public sealed class PersistedSession
     /// <summary>Offline queue in delivery order.</summary>
     /// <remarks>顺序必须保留，否则重连后消息会乱序到达。</remarks>
     public List<PersistedMessage> Queue { get; set; } = [];
+
+    /// <summary>Inbound QoS 2 publishes still waiting for PUBREL.</summary>
+    /// <remarks>
+    /// 迁移或重启后，客户端可能直接发送 PUBREL；保存消息本身才能完成路由，光有包 ID
+    /// 不够。顺序无关，按包 ID 恢复。
+    /// </remarks>
+    public List<PersistedInboundPublish> InboundQos2 { get; set; } = [];
 }
 
 /// <summary>One subscription inside a persisted session.</summary>
@@ -108,6 +118,35 @@ public sealed class PersistedMessage
 
     /// <summary>MQTT 5 properties to replay with the message.</summary>
     /// <remarks>只保存可持久化的属性，订阅标识等连接级属性不在这里。</remarks>
+    public List<PropertyRecord>? Properties { get; set; }
+}
+
+/// <summary>One inbound QoS 2 publish inside a persisted session.</summary>
+/// <remarks>只有收到 PUBREL 才会路由，因此必须保留原始负载和属性。</remarks>
+public sealed class PersistedInboundPublish
+{
+    /// <summary>Packet identifier the client will use in PUBREL.</summary>
+    /// <remarks>1–65535；重复的 ID 表示客户端在重传。</remarks>
+    public int PacketId { get; set; }
+
+    /// <summary>Topic name.</summary>
+    /// <remarks>存展开后的真实主题，主题别名不落盘。</remarks>
+    public string Topic { get; set; } = string.Empty;
+
+    /// <summary>Base64 payload.</summary>
+    /// <remarks>JSON 不能放原始字节，恢复时解码。</remarks>
+    public string Payload { get; set; } = string.Empty;
+
+    /// <summary>QoS stored with the message.</summary>
+    /// <remarks>恒为 2；保留字段是为了和队列消息同形。</remarks>
+    public int QoS { get; set; }
+
+    /// <summary>Retain flag from the original publish.</summary>
+    /// <remarks>PUBREL 之后按正常发布路径处理。</remarks>
+    public bool Retain { get; set; }
+
+    /// <summary>MQTT 5 properties to route with the message.</summary>
+    /// <remarks>与离线队列相同的可持久化属性集合。</remarks>
     public List<PropertyRecord>? Properties { get; set; }
 }
 

@@ -249,9 +249,10 @@ nextmqtt-server
 | `Path` | `data/sessions.json` | 스냅숏, 원자적으로 교체 |
 | `SnapshotSeconds` | 30 | 다시 쓰는 주기, 변화가 없으면 생략 |
 
-스냅숏에는 모든 영속 세션의 ID, 만료, 구독, MQTT 5 속성이 있는 오프라인 큐가
-들어갑니다. inflight QoS 핸드셰이크는 저장하지 않으므로 재시작 후 다음 발행 때 다시
-전달되며, 윈도는 `MaxInflightMessages`로 제한됩니다. 정상 종료 시에도 한 번 씁니다.
+스냅숏에는 모든 영속 세션의 ID, 만료, 구독, MQTT 5 속성이 있는 오프라인 큐, 그리고
+PUBREL을 기다리는 인바운드 QoS 2 발행이 들어갑니다. 아웃바운드 `inflight` 확인 상태는
+저장하지 않으므로 재시작 후 다음 발행 때 다시 전달되며, 윈도는
+`MaxInflightMessages`로 제한됩니다. 정상 종료 시에도 한 번 씁니다.
 
 ### 세션 복제본
 

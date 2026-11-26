@@ -62,7 +62,9 @@ NEXTMQTT_CLUSTER__SECRET=shared-secret-at-least-16-chars
 
 **RPO**: 복제본 최대 5초, 소유자 스냅샷 최대 30초 지연. retained는 쓰기마다 저장.
 **RTO**: 재연결 + 내부 왕복 1회, 운영자 개입 불필요.
-**제외**: 인바운드 QoS 2와 inflight 이전, 만료 0 세션, 순서 보장, exactly-once.
+**제외**: 아웃바운드 inflight 확인 상태 이전(큐에서 재생되어 중복될 수 있음), 만료 0
+세션, 순서 보장, exactly-once. PUBREL을 기다리는 인바운드 QoS 2는 세션과 함께
+이전됩니다.
 **분할 결정**: 살아 있는 소유자 우선, 없으면 최신 복제본, 동률은 `(lastSeen, nodeId)`로 결정적으로 해결.
 
 ## 라우팅
@@ -74,7 +76,7 @@ NEXTMQTT_CLUSTER__SECRET=shared-secret-at-least-16-chars
 ## 전달 의미
 
 - 노드 간 HTTP 최선 노력
-- 세션은 `CleanStart=false` 재연결 시 인계(인바운드 QoS 2와 inflight 제외)
+- 세션은 `CleanStart=false` 재연결 시 인계(PUBREL 대기 인바운드 QoS 2 포함, 아웃바운드 inflight 확인 상태 제외)
 - 공유 구독은 클러스터 전체에서 한 노드만
 - 필터 전파는 최대 1 heartbeat 지연
 
@@ -114,7 +116,7 @@ nextmqtt pub --port 1883 --topic cluster/test --message hello --qos 1
 
 ## 제한
 
-- 세션 인계는 구독과 오프라인 큐만 대상(인바운드 QoS 2와 inflight 제외, 클라이언트가 재전송)
+- 세션 인계는 구독, 오프라인 큐, PUBREL 대기 인바운드 QoS 2를 포함. 아웃바운드 inflight 확인 상태는 제외되며 큐에서 재생되어 중복될 수 있음
 - 복제본은 기본적으로 메모리에 있음. `Storage:Replicas:Mode`를 `File`로 두면 전체 재시작에도 유지
 - retained는 최선 노력 복제
 - 필터 전체 전송, 최대 10,000

@@ -118,6 +118,112 @@ public class SessionTests
     }
 
     [Fact]
+    public async Task Inbound_qos2_survives_a_handover()
+    {
+        var brokerA = TestBroker.Create();
+        var brokerB = TestBroker.Create();
+
+        try
+        {
+            var (_, session, _) = await TestBroker.ConnectAsync(
+                "c1", sessionExpiry: 60, broker: brokerA);
+
+            var publish = new PublishPacket
+            {
+                Topic = "a/b",
+                Payload = [1, 2, 3],
+                QoS = MqttQoS.ExactlyOnce,
+                PacketId = 9,
+            };
+
+            Assert.True(session.RegisterInboundQos2(9, publish));
+
+            var record = await brokerA.DetachSessionAsync("c1");
+
+            Assert.NotNull(record);
+            var stored = Assert.Single(record!.InboundQos2);
+            Assert.Equal(9, stored.PacketId);
+
+            Assert.True(brokerB.InstallSession(record));
+
+            var restored = brokerB.Sessions.Get("c1");
+            Assert.NotNull(restored);
+            Assert.True(restored!.TryCompleteInboundQos2(9, out var completed));
+            Assert.NotNull(completed);
+            Assert.Equal("a/b", completed!.Topic);
+            Assert.Equal([1, 2, 3], completed.Payload);
+        }
+        finally
+        {
+            await brokerA.DisposeAsync();
+            await brokerB.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task Inbound_qos2_survives_a_session_snapshot()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "nextmqtt-inbound-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+
+        try
+        {
+            var path = Path.Combine(directory, "sessions.json");
+            var store = new NextMqtt.Broker.Storage.FileSessionSnapshotStore(path);
+            var brokerA = TestBroker.Create(sessionStore: store);
+
+            try
+            {
+                var (_, session, connection) = await TestBroker.ConnectAsync(
+                    "c1", sessionExpiry: 60, broker: brokerA);
+
+                var publish = new PublishPacket
+                {
+                    Topic = "a/b",
+                    Payload = [4, 5],
+                    QoS = MqttQoS.ExactlyOnce,
+                    PacketId = 11,
+                };
+
+                Assert.True(session.RegisterInboundQos2(11, publish));
+                await brokerA.OnConnectionClosedAsync(session, connection, null, graceful: true);
+                await brokerA.StopAsync();
+            }
+            finally
+            {
+                await brokerA.DisposeAsync();
+            }
+
+            Assert.NotEmpty(store.Load());
+
+            var brokerB = TestBroker.Create(sessionStore: store);
+
+            try
+            {
+                var restored = brokerB.Sessions.Get("c1");
+                Assert.NotNull(restored);
+                Assert.True(restored!.TryCompleteInboundQos2(11, out var completed));
+                Assert.Equal([4, 5], completed!.Payload);
+            }
+            finally
+            {
+                await brokerB.DisposeAsync();
+            }
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+            catch (IOException)
+            {
+                // Left behind when a handle is still open.
+            }
+        }
+    }
+
+    [Fact]
     public async Task Session_takeover_disconnects_previous_connection()
     {
         var broker = TestBroker.Create();

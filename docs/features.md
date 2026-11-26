@@ -47,7 +47,7 @@ Legend: ✅ implemented · ⚠️ partial or with documented limits · ❌ not i
 | Packet-id allocation | ✅ | Skips ids already inflight |
 | Offline queue bounds | ✅ | Oldest messages dropped and counted |
 | Overlapping subscription aggregation | ✅ | One delivery per client at maximum QoS |
-| Persistent state across restart | ✅ | Retained journal plus session and replica snapshots; inflight QoS state is still replayed by the client |
+| Persistent state across restart | ✅ | Retained journal plus session and replica snapshots; outbound inflight is replayed by the client |
 | Session backup and restore | ✅ | `GET`/`POST /api/v1/backup` export and import retained and session state |
 | Graceful shutdown drain | ✅ | Waits up to `Server:DrainTimeoutSeconds` for inflight acknowledgements |
 | Cross-node session migration | ✅ | `CleanStart=false` claims the session from its owner or the newest replica |
@@ -82,7 +82,7 @@ Legend: ✅ implemented · ⚠️ partial or with documented limits · ❌ not i
 | Message deduplication | ✅ | Bounded seen-message cache |
 | Loop prevention | ✅ | Remote publishes are not re-forwarded |
 | Global shared subscriptions | ✅ | One node per shared group is chosen per message |
-| Session handover on reconnect | ✅ | CleanStart=false claims the session from the previous node, including its offline queue |
+| Session handover on reconnect | ✅ | CleanStart=false claims the session from the previous node, including its offline queue and pending inbound QoS 2 |
 | Durable session replicas | ✅ | Optional file store keeps replicas across a full-cluster restart |
 | Cross-node QoS guarantee | ❌ | Forwarding is best-effort HTTP |
 | Cluster secret rotation without restart | ❌ | Single shared secret per deployment |
@@ -125,7 +125,7 @@ The claims above are covered by the repository's tests and CI:
 | Container build + health/login smoke | CI `Container image` job |
 | CodeQL | `codeql.yml` |
 
-Current test count: 209 passing tests (63 core, 103 broker, 43 server).
+Current test count: 211 passing tests (63 core, 105 broker, 43 server).
 
 ## Extensibility
 
@@ -150,9 +150,9 @@ integrations use the versioned REST API (`/api/v1`) and the cluster endpoints
 
 ## Known limitations
 
-- The inbound QoS 2 handshake and the outbound `inflight` window are not moved
-  between nodes; those messages are replayed from the queue and the client
-  retries.
+- The outbound `inflight` acknowledgement state is not moved between nodes; those
+  messages are replayed from the queue and may arrive twice. Inbound QoS 2
+  publishes waiting for PUBREL move with the session.
 - Replicas are only as fresh as `Cluster:SessionReplicaSeconds`; without
   `Storage:Replicas:Mode=File` they are lost when every node restarts.
 - Cluster forwarding is best effort; shared subscriptions are coordinated across

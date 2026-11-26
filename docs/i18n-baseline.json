@@ -5,9 +5,9 @@
     "ko": 0.993
   },
   "architecture.md": {
-    "zh": 0.709,
+    "zh": 0.71,
     "ja": 0.964,
-    "ko": 0.928
+    "ko": 0.925
   },
   "authentication.md": {
     "zh": 0.624,
@@ -20,13 +20,13 @@
     "ko": 0.691
   },
   "clustering.md": {
-    "zh": 0.634,
+    "zh": 0.632,
     "ja": 0.506,
     "ko": 0.494
   },
   "configuration.md": {
     "zh": 0.953,
-    "ja": 0.985,
+    "ja": 0.984,
     "ko": 0.981
   },
   "deployment.md": {
@@ -46,8 +46,8 @@
   },
   "features.md": {
     "zh": 0.933,
-    "ja": 0.97,
-    "ko": 0.963
+    "ja": 0.976,
+    "ko": 0.97
   },
   "getting-started.md": {
     "zh": 0.917,

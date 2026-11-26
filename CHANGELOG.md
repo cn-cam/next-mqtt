@@ -5,6 +5,18 @@ All notable changes to NextMQTT are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- Inbound QoS 2 publishes that are waiting for PUBREL now travel with the
+  session: on a handover, a crash recovery from a replica, or a restart with
+  session snapshots, the client can send PUBREL and the message is routed by the
+  new owner instead of being lost.
+- `Storage:Replicas:ShardCount` spreads replica snapshots over multiple files
+  (default 16). Only shards whose content changed are rewritten, and a legacy
+  single file is read at startup and replaced on the first save.
+
 ## [0.21.0] - 2026-11-26
 
 ### Added
@@ -22,6 +34,7 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
   covers a node that restarted with an empty or lost session store.
 - Japanese and Korean guides caught up on TLS key paths, certificate domains,
   session replicas and the plugin and log endpoints.
+
 ## [0.20.0] - 2026-11-26
 
 ### Added
@@ -353,23 +366,6 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 - Rate-limited publishes are acknowledged but not routed, so publishers do not
   retransmit. MQTT 5 QoS 2 rejections carry `0x96 Message rate too high`.
 
-## [0.21.0] - 2026-11-26
-
-### Added
-
-- `Storage:Replicas` (`Mode`, `Path`) persists session replicas received from
-  peers. With `Mode = File` a restarted node reloads them, so the cluster can
-  still recover a session after every node restarted at once, or after the
-  owner's own session file was lost. Snapshots are written at most every five
-  seconds and once on shutdown.
-
-### Changed
-
-- A session claim now accepts a replica when the recorded owner answered the
-  probe without holding the session, not only when that owner is dead. This
-  covers a node that restarted with an empty or lost session store.
-- Japanese and Korean guides caught up on TLS key paths, certificate domains,
-  session replicas and the plugin and log endpoints.
 ## [0.20.0] - 2026-11-26
 
 ### Added

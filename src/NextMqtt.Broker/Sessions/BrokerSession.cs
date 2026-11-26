@@ -228,14 +228,15 @@ public sealed class BrokerSession : IDisposable
     }
 
     /// <summary>Rebuilds a restored session from disk (always offline).</summary>
-    /// <remarks>恢复后没有连接，重连时再由 Bind 接管。</remarks>
+    /// <remarks>恢复后没有连接，重连时再由 Bind 接管；入站 QoS 2 中等待 PUBREL 的消息一并恢复。</remarks>
     public void Restore(
         ClientPrincipal principal,
         MqttProtocolVersion protocolVersion,
         uint sessionExpiryInterval,
         DateTimeOffset? expiresAt,
         DateTimeOffset lastSeen,
-        IEnumerable<OutboundMessage> queued)
+        IEnumerable<OutboundMessage> queued,
+        IEnumerable<InboundQos2Entry>? inboundQos2 = null)
     {
         lock (_gate)
         {
@@ -249,6 +250,14 @@ public sealed class BrokerSession : IDisposable
             foreach (var message in queued)
             {
                 EnqueueLocked(message);
+            }
+
+            if (inboundQos2 is not null)
+            {
+                foreach (var entry in inboundQos2)
+                {
+                    _inboundQos2[entry.PacketId] = entry.Publish;
+                }
             }
         }
     }
@@ -488,10 +497,33 @@ public sealed class BrokerSession : IDisposable
         }
     }
 
+    /// <summary>One inbound QoS 2 publish waiting for PUBREL.</summary>
+    /// <remarks>包 ID 由客户端在 PUBREL 中回传，消息体必须原样保留。</remarks>
+    /// <param name="PacketId">Identifier from the original PUBLISH.</param>
+    /// <param name="Publish">Stored publish, routed when PUBREL arrives.</param>
+    public sealed record InboundQos2Entry(ushort PacketId, PublishPacket Publish);
+
+    /// <summary>Exports the inbound QoS 2 handshakes that are still open.</summary>
+    /// <remarks>
+    /// 迁移或落盘时使用。客户端可能在重连后直接发送 PUBREL，因此不能只记包 ID，
+    /// 必须带上消息本身。
+    /// </remarks>
+    /// <returns>Entries ordered by packet id.</returns>
+    public IReadOnlyList<InboundQos2Entry> SnapshotInboundQos2()
+    {
+        lock (_gate)
+        {
+            return _inboundQos2
+                .OrderBy(pair => pair.Key)
+                .Select(pair => new InboundQos2Entry(pair.Key, pair.Value))
+                .ToList();
+        }
+    }
+
     /// <summary>Exports queued and unacknowledged messages for a handover to another node.</summary>
     /// <remarks>
     /// 未确认的消息排在最前：它们在原节点上先于队列被发送，重放顺序必须保持。
-    /// 入站 QoS 2 握手不迁移，客户端会带 DUP 重发，新节点按新消息处理。
+    /// 入站 QoS 2 握手由 <see cref="SnapshotInboundQos2"/> 单独导出。
     /// </remarks>
     /// <param name="now">Used to turn a relative expiry into an absolute one.</param>
     /// <returns>Messages in delivery order.</returns>

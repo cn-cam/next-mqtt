@@ -226,9 +226,10 @@ clustering is enabled.
 
 Durability is opt-in per data set: `Storage:Retained:Mode=File` journals retained
 messages, `Storage:Session:Mode=File` snapshots persistent sessions, and
-`Storage:Replicas:Mode=File` persists session replicas. Inflight QoS handshakes
-are never persisted; they are replayed from the queue and retried by the client.
-Retained messages are a last-known-value store, not a durable message log.
+`Storage:Replicas:Mode=File` persists session replicas. Outbound `inflight`
+acknowledgements are not persisted; inbound QoS 2 publishes waiting for PUBREL
+are part of the session snapshot, so the handshake can complete. Retained
+messages are a last-known-value store, not a durable message log.
 
 ## Scaling
 

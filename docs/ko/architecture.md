@@ -208,9 +208,9 @@ SUBSCRIBE의 구독 식별자는 MQTT 5 클라이언트로 가는 메시지에 �
 
 내구성은 데이터 집합별로 켭니다: `Storage:Retained:Mode=File`은 retained를 저널링하고,
 `Storage:Session:Mode=File`은 영속 세션을 스냅숏하며, `Storage:Replicas:Mode=File`은
-세션 복제본을 영속화합니다. inflight QoS 핸드셰이크는 저장하지 않고 큐에서 재생해
-클라이언트가 재시도합니다. retained는 마지막 값 저장소이지 영속 메시지 로그가
-아닙니다.
+세션 복제본을 영속화합니다. 아웃바운드 inflight 확인 상태는 저장하지 않지만,
+PUBREL을 기다리는 인바운드 QoS 2 발행은 스냅숏에 포함되므로 핸드셰이크를 완료할 수
+있습니다. retained는 마지막 값 저장소이지 영속 메시지 로그가 아닙니다.
 
 ## 확장
 

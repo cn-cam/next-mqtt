@@ -65,7 +65,9 @@ NEXTMQTT_CLUSTER__SECRET=shared-secret-at-least-16-chars
 
 **RPO**: レプリカは最大 5 秒、所有者のスナップショットは最大 30 秒古い。retained は書き込みごとに保存。
 **RTO**: 再接続と内部往復 1 回。運用者の操作は不要。
-**対象外**: インバウンド QoS 2 と inflight ウィンドウの移行、期限 0 のセッション、順序保証、exactly-once。
+**対象外**: アウトバウンド inflight の確認状態の移行（キューから再送され、重複し得る）、
+期限 0 のセッション、順序保証、exactly-once。PUBREL 待ちのインバウンド QoS 2 は
+セッションと一緒に移行します。
 **分断時の判断**: 生存所有者を優先し、無い場合は最新レプリカ、同点は `(lastSeen, nodeId)` で決定的に解決します。
 
 ## ルーティング
@@ -77,7 +79,7 @@ NEXTMQTT_CLUSTER__SECRET=shared-secret-at-least-16-chars
 ## 配信セマンティクス
 
 - ノード間は HTTP ベストエフォート
-- セッションは `CleanStart=false` の再接続時に引き継がれる（入站 QoS 2 と inflight は対象外）
+- セッションは `CleanStart=false` の再接続時に引き継がれる（PUBREL 待ちの受信 QoS 2 は含み、送信 inflight の確認状態は対象外）
 - 共有サブスクリプションはクラスタ全体で 1 ノードのみ
 - フィルタ伝播は最大 1 heartbeat 遅延
 
@@ -117,7 +119,7 @@ nextmqtt pub --port 1883 --topic cluster/test --message hello --qos 1
 
 ## 制限
 
-- セッション引き継ぎは購読とオフラインキューのみ（インバウンド QoS 2 と inflight は対象外、クライアントが再送）
+- セッション引き継ぎは購読、オフラインキュー、PUBREL 待ちの受信 QoS 2 を含む。送信 inflight の確認状態は対象外で、キューから再送され重複し得る。
 - レプリカは既定でメモリ上。`Storage:Replicas:Mode` を `File` にすると全体再起動にも耐える
 - retained はベストエフォート
 - フィルタは全量・上限 10,000

@@ -161,8 +161,9 @@ PUBLISH ──► 校验主题/别名 ──► ACL 发布检查
 
 持久化按数据集合分别开启：`Storage:Retained:Mode=File` 记录保留消息日志，
 `Storage:Session:Mode=File` 为持久会话做快照，`Storage:Replicas:Mode=File` 持久化
-会话副本。inflight QoS 握手从不落盘，而是从队列重放、由客户端重试。保留消息是
-最后已知值存储，不是持久化消息日志。
+会话副本。出站 inflight 确认状态不落盘，从队列重放、由客户端重试；等待 PUBREL 的
+入站 QoS 2 发布属于快照的一部分，因此握手可以完成。保留消息是最后已知值存储，
+不是持久化消息日志。
 
 ## 扩展性
 

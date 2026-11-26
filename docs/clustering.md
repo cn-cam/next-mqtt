@@ -111,11 +111,13 @@ which MQTT tolerates at QoS 1/2.
 **Recovery time.** A reconnect plus one internal round trip: the new node asks
 live peers, then reads its own replica file. No operator action is needed.
 
-**Deliberate limits.** Inbound QoS 2 handshakes and the outbound `inflight`
-window are not transferred; they become queued messages and the client retries.
-Sessions with a zero expiry are not replicated, because they cannot outlive the
-connection by definition. There is no cross-node ordering guarantee and no
-exactly-once delivery.
+**Deliberate limits.** The outbound `inflight` acknowledgement state is not
+transferred: those messages are replayed from the queue and may arrive twice,
+which MQTT tolerates at QoS 1/2. Inbound QoS 2 publishes that are still waiting
+for PUBREL are transferred with the session, so the client can finish the
+handshake without resending the payload. Sessions with a zero expiry are not
+replicated, because they cannot outlive the connection by definition. There is
+no cross-node ordering guarantee and no exactly-once delivery.
 
 **Split-brain stance.** Session ownership is decided by evidence, not by a
 consensus round: a live owner always wins; if it answers without the session, the
@@ -161,7 +163,8 @@ node receives the retained value after its SUBACK. Deleting a retained message
   another node, that node claims the session from its previous owner, restores
   its subscriptions and offline queue, and reports `session present = 1`. The
   old connection is closed with 0x8E and its will is not published. Inbound QoS 2
-  handshakes are not transferred; the client retries with `DUP`.
+  publishes that are waiting for PUBREL travel with the session, so the client
+  can send PUBREL on the new node and the message is routed there.
 - **Shared subscriptions span the cluster.** Nodes advertise their `$share`
   groups in heartbeats; each message is assigned to exactly one node that hosts
   the group, chosen by hashing the message id and group name, so a group member
@@ -226,9 +229,10 @@ Wait at least one heartbeat after subscribing before publishing.
 
 ## Limitations
 
-- Session handover covers subscriptions and the offline queue, not the inbound
-  QoS 2 handshake or the `inflight` acknowledgement state; those messages are
-  replayed from the queue and the client retries.
+- Session handover covers subscriptions, the offline queue and inbound QoS 2
+  publishes still awaiting PUBREL. The outbound `inflight` acknowledgement state
+  is not transferred; those messages are replayed from the queue and the client
+  may see a duplicate.
 - A replica is at most `SessionReplicaSeconds` old. Without the file store it
   lives only in memory, so a restart of every node loses the replicas; set
   `Storage:Replicas:Mode` to `File` to keep them across restarts.
