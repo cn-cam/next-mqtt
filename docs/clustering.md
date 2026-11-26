@@ -191,10 +191,12 @@ Wait at least one heartbeat after subscribing before publishing.
 - Session handover covers subscriptions and the offline queue, not the inbound
   QoS 2 handshake or the `inflight` acknowledgement state; those messages are
   replayed from the queue and the client retries.
-- A replica is at most `SessionReplicaSeconds` old and lives in memory on the
-  peers, so a replica itself is lost if every other node restarts at once.
+- A replica is at most `SessionReplicaSeconds` old. Without the file store it
+  lives only in memory, so a restart of every node loses the replicas; set
+  `Storage:Replicas:Mode` to `File` to keep them across restarts.
 - No cross-node session persistence beyond handover and replication: if the
-  owner and all replica holders die together, the session is lost.
+  owner and every replica holder and their disks are lost together, the session
+  is gone.
 - Filter advertisements are full snapshots, capped at 10,000 filters per
   heartbeat by default.
 - Cluster routing is at-least-once per link with a deduplication cache, not a

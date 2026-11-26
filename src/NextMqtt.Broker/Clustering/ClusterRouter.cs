@@ -618,13 +618,16 @@ public sealed class ClusterRouter : IClusterRouter
 
         var peers = _members.Values
             .Where(member => member.NodeId != _self.NodeId && member.Status(now, timeout) == "alive")
-            .Select(member => member.AdvertiseUrl)
             .ToList();
+
+        var contacted = new HashSet<string>(StringComparer.Ordinal);
 
         foreach (var peer in peers)
         {
+            contacted.Add(peer.NodeId);
+
             var transfer = await PostAsync<ClusterSessionClaim, PersistedSession>(
-                peer,
+                peer.AdvertiseUrl,
                 "/internal/cluster/session/claim",
                 claim,
                 cancellationToken).ConfigureAwait(false);
@@ -634,14 +637,15 @@ public sealed class ClusterRouter : IClusterRouter
                 _logger.LogInformation(
                     "Session {ClientId} claimed from {Peer}; it will resume on this node",
                     clientId,
-                    peer);
+                    peer.AdvertiseUrl);
 
                 return transfer;
             }
         }
 
-        // No live owner answered. The previous owner may have crashed, so use
-        // the newest replica, but only when that owner is not alive in our view.
+        // No live owner answered. The previous owner may have crashed, or it may
+        // have restarted without the session (lost disk); either way the newest
+        // replica is the best remaining copy.
         var replica = _broker?.GetSessionReplica(clientId);
 
         if (replica is null && ReplicatesSessions)
@@ -649,7 +653,14 @@ public sealed class ClusterRouter : IClusterRouter
             replica = await FindSessionReplicaAsync(clientId, cancellationToken).ConfigureAwait(false);
         }
 
-        if (replica is not null && !IsAlive(replica.OwnerNodeId))
+        if (replica is null)
+        {
+            return null;
+        }
+
+        var ownerAnsweredWithoutSession = contacted.Contains(replica.OwnerNodeId);
+
+        if (!IsAlive(replica.OwnerNodeId) || ownerAnsweredWithoutSession)
         {
             _logger.LogInformation(
                 "Session {ClientId} recovered from a replica of {Owner}",

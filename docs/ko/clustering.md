@@ -96,7 +96,7 @@ nextmqtt pub --port 1883 --topic cluster/test --message hello --qos 1
 
 ## 제한
 
-- 세션 이전/영구 저장 없음
-- 전역 공유 구독 없음
+- 세션 인계는 구독과 오프라인 큐만 대상(인바운드 QoS 2와 inflight 제외, 클라이언트가 재전송)
+- 복제본은 기본적으로 메모리에 있음. `Storage:Replicas:Mode`를 `File`로 두면 전체 재시작에도 유지
 - retained는 최선 노력 복제
 - 필터 전체 전송, 최대 10,000

@@ -15,6 +15,10 @@ public sealed class StorageOptions
     /// <summary>Persistent session snapshots.</summary>
     /// <remarks>只管会话与订阅；在途 QoS 报文不落盘，重启后由客户端重传。</remarks>
     public SessionStorageOptions Session { get; set; } = new();
+
+    /// <summary>Durable copy of session replicas received from peers.</summary>
+    /// <remarks>落盘后所有节点同时重启也不会丢副本；内存模式适合能接受该风险的部署。</remarks>
+    public SessionReplicaStorageOptions Replicas { get; set; } = new();
 }
 
 /// <summary>Selects between an in-memory store and a durable one.</summary>
@@ -62,4 +66,17 @@ public sealed class SessionStorageOptions
     /// <summary>How often a changed session set is written, in seconds.</summary>
     /// <remarks>有变更才写；间隔越短丢得越少，但每次都要整表序列化。</remarks>
     public int SnapshotSeconds { get; set; } = 30;
+}
+
+/// <summary>Session replica snapshot settings.</summary>
+/// <remarks>副本由对端推送，落盘只是让它们在节点重启后仍然可用。</remarks>
+public sealed class SessionReplicaStorageOptions
+{
+    /// <summary>Memory or file-backed replica storage.</summary>
+    /// <remarks>内存模式在重启后需要重新等待对端推送。</remarks>
+    public StorageMode Mode { get; set; } = StorageMode.Memory;
+
+    /// <summary>Snapshot location; relative paths resolve against the working directory.</summary>
+    /// <remarks>与会话快照放在同一卷上，重启恢复的顺序比较直观。</remarks>
+    public string Path { get; set; } = "data/session-replicas.json";
 }

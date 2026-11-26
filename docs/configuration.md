@@ -253,6 +253,27 @@ persisted — after a restart those messages are delivered again on the next
 publish rather than resumed, and the window is bounded by
 `MaxInflightMessages`. Snapshots are also written on graceful shutdown.
 
+### Session replicas
+
+Replicas received from peers are in memory by default. Persisting them keeps the
+cluster able to recover a session even when every node restarts at once:
+
+```json
+{
+  "Storage": {
+    "Replicas": {
+      "Mode": "File",
+      "Path": "data/session-replicas.json"
+    }
+  }
+}
+```
+
+The snapshot is a JSON array of `{ session, ownerNodeId, version, updatedAtUnix }`.
+It is rewritten at most every five seconds while replicas change and once on
+shutdown. A corrupt file is ignored, and replicas whose session expiry already
+passed are dropped on load.
+
 ## Backups
 
 `GET /api/v1/backup` returns a portable JSON document with retained messages and

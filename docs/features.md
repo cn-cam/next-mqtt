@@ -82,6 +82,7 @@ Legend: ✅ implemented · ⚠️ partial or with documented limits · ❌ not i
 | Loop prevention | ✅ | Remote publishes are not re-forwarded |
 | Global shared subscriptions | ✅ | One node per shared group is chosen per message |
 | Session handover on reconnect | ✅ | CleanStart=false claims the session from the previous node, including its offline queue |
+| Durable session replicas | ✅ | Optional file store keeps replicas across a full-cluster restart |
 | Cross-node QoS guarantee | ❌ | Forwarding is best-effort HTTP |
 | Cluster secret rotation without restart | ❌ | Single shared secret per deployment |
 | Large filter-set routing | ⚠️ | Full filter snapshot per heartbeat, capped at 10,000 |

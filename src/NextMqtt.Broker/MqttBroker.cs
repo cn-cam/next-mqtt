@@ -72,7 +72,8 @@ public sealed class MqttBroker : IAsyncDisposable
         RuleEngine? rules = null,
         NatsBridge? nats = null,
         KafkaBridge? kafka = null,
-        RabbitBridge? rabbit = null)
+        RabbitBridge? rabbit = null,
+        ISessionReplicaStore? replicaStore = null)
     {
         Options = options;
         Authenticator = authenticator;
@@ -83,6 +84,7 @@ public sealed class MqttBroker : IAsyncDisposable
         Retained = new RetainedMessageStore(retainedJournal);
         _logger = logger;
         _sessionStore = sessionStore;
+        _replicaStore = replicaStore;
         Webhooks = webhooks;
         Rules = rules;
         Nats = nats;
@@ -101,6 +103,11 @@ public sealed class MqttBroker : IAsyncDisposable
         if (sessionStore is not null)
         {
             RestoreSessions(sessionStore.Load());
+        }
+
+        if (replicaStore is not null)
+        {
+            RestoreReplicas(replicaStore.Load());
         }
     }
 
@@ -196,6 +203,18 @@ public sealed class MqttBroker : IAsyncDisposable
 
     /// <summary>Background loop that pushes session replicas.</summary>
     private Task? _replicaTask;
+
+    /// <summary>Durable replica store, or null when replicas stay in memory.</summary>
+    private readonly ISessionReplicaStore? _replicaStore;
+
+    /// <summary>Set when replicas changed and the snapshot is stale.</summary>
+    private int _replicasDirty;
+
+    /// <summary>Earliest time the next replica snapshot may be written.</summary>
+    private DateTimeOffset _nextReplicaPersist = DateTimeOffset.MinValue;
+
+    /// <summary>Interval between replica snapshots, matching the storage options.</summary>
+    private static readonly TimeSpan ReplicaPersistInterval = TimeSpan.FromSeconds(5);
 
     /// <summary>Returns the provider registered for an authentication method, if any.</summary>
     /// <remarks>未注册返回 null，由连接层回 0x8C。</remarks>
@@ -352,6 +371,69 @@ public sealed class MqttBroker : IAsyncDisposable
 
         _sessionReplicas[replica.Session.ClientId] = replica;
         TrimReplicas(DateTimeOffset.UtcNow);
+        Interlocked.Exchange(ref _replicasDirty, 1);
+    }
+
+    /// <summary>Loads persisted replicas at startup.</summary>
+    /// <remarks>过期条目在读取时丢弃；数量超过上限时按更新时间裁剪。</remarks>
+    /// <param name="replicas">Replicas read from the store.</param>
+    private void RestoreReplicas(IReadOnlyList<ClusterSessionReplica> replicas)
+    {
+        var now = DateTimeOffset.UtcNow;
+
+        foreach (var replica in replicas)
+        {
+            if (string.IsNullOrWhiteSpace(replica.Session.ClientId))
+            {
+                continue;
+            }
+
+            var expiry = replica.Session.ExpiresAt;
+
+            if (expiry is { } expiresAt && expiresAt <= now)
+            {
+                continue;
+            }
+
+            _sessionReplicas[replica.Session.ClientId] = replica;
+        }
+
+        TrimReplicas(now);
+    }
+
+    /// <summary>Writes the replica snapshot when it changed and the interval elapsed.</summary>
+    /// <param name="now">Current time.</param>
+    private void PersistReplicasIfDue(DateTimeOffset now)
+    {
+        if (_replicaStore is null
+            || Volatile.Read(ref _replicasDirty) == 0
+            || now < _nextReplicaPersist)
+        {
+            return;
+        }
+
+        _nextReplicaPersist = now + ReplicaPersistInterval;
+        PersistReplicas();
+    }
+
+    /// <summary>Writes every held replica to the store.</summary>
+    /// <remarks>整表覆盖写，因此只适合在内存副本变化后调用；失败只记日志。</remarks>
+    private void PersistReplicas()
+    {
+        if (_replicaStore is null)
+        {
+            return;
+        }
+
+        try
+        {
+            _replicaStore.Save(_sessionReplicas.Values.ToList());
+            Interlocked.Exchange(ref _replicasDirty, 0);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _logger.LogWarning(ex, "Session replica snapshot could not be written");
+        }
     }
 
     /// <summary>Returns the newest replica this node holds for a session.</summary>
@@ -799,6 +881,7 @@ public sealed class MqttBroker : IAsyncDisposable
             try
             {
                 ReplicateSessionBatch(DateTimeOffset.UtcNow);
+                PersistReplicasIfDue(DateTimeOffset.UtcNow);
                 await Task.Delay(Cluster.ReplicaInterval, cancellationToken).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
@@ -936,6 +1019,8 @@ public sealed class MqttBroker : IAsyncDisposable
                 // Expected on shutdown.
             }
         }
+
+        PersistReplicas();
     }
 
     /// <summary>Samples counters and gauges for the statistics endpoint.</summary>

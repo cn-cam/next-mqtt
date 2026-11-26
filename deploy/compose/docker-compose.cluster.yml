@@ -21,6 +21,9 @@ x-node: &node
     NEXTMQTT_STORAGE__RETAINED__PATH: /app/data/retained.log
     NEXTMQTT_STORAGE__SESSION__MODE: ${NEXTMQTT_SESSION_MODE:-memory}
     NEXTMQTT_STORAGE__SESSION__PATH: /app/data/sessions.json
+    # Keep session replicas across restarts, including a whole-cluster restart.
+    NEXTMQTT_STORAGE__REPLICAS__MODE: ${NEXTMQTT_REPLICA_MODE:-file}
+    NEXTMQTT_STORAGE__REPLICAS__PATH: /app/data/session-replicas.json
     # Integration bridges; disabled unless the matching .env values are set.
     NEXTMQTT_INTEGRATIONS__KAFKA__ENABLED: ${NEXTMQTT_KAFKA_ENABLED:-false}
     NEXTMQTT_INTEGRATIONS__KAFKA__BOOTSTRAPSERVERS: ${NEXTMQTT_KAFKA_BOOTSTRAP:-127.0.0.1:9092}

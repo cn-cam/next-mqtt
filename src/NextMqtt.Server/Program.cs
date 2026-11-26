@@ -143,6 +143,12 @@ if (storageOptions.Retained.Mode == StorageMode.File)
     });
 }
 
+if (storageOptions.Replicas.Mode == StorageMode.File)
+{
+    builder.Services.AddSingleton<ISessionReplicaStore>(
+        _ => new FileSessionReplicaStore(storageOptions.Replicas.Path));
+}
+
 if (integrationsOptions.Webhooks.Count > 0)
 {    builder.Services.AddSingleton(sp =>
     {
@@ -233,7 +239,8 @@ builder.Services.AddSingleton(sp =>
         sp.GetService<RuleEngine>(),
         sp.GetService<NatsBridge>(),
         sp.GetService<KafkaBridge>(),
-        sp.GetService<RabbitBridge>());
+        sp.GetService<RabbitBridge>(),
+        sp.GetService<ISessionReplicaStore>());
 
     if (cluster is ClusterRouter clusterRouter)
     {

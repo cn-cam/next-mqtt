@@ -99,7 +99,7 @@ nextmqtt pub --port 1883 --topic cluster/test --message hello --qos 1
 
 ## 制限
 
-- セッション移行/永続化なし
-- グローバル共有サブスクリプションなし
+- セッション引き継ぎは購読とオフラインキューのみ（インバウンド QoS 2 と inflight は対象外、クライアントが再送）
+- レプリカは既定でメモリ上。`Storage:Replicas:Mode` を `File` にすると全体再起動にも耐える
 - retained はベストエフォート
 - フィルタは全量・上限 10,000

@@ -3,7 +3,15 @@
 ## 인증서
 
 - **PFX/PKCS#12**: `CertificatePath` + `CertificatePassword`
-- **PEM**: 인증서 경로 지정, 같은 디렉터리의 `.key` 자동 사용
+- **PEM**: `CertificatePath`에 인증서, `CertificateKeyPath`에 개인 키. 키 경로를 생략하면 같은 디렉터리의 같은 이름 `.key`를 사용
+- PEM에 중간 인증서를 함께 넣으면 클라이언트로 그대로 전송됩니다
+- `Domain`을 설정하면 시작 시 인증서가 그 이름을 포함하는지 확인하고, 아니면 경고합니다(연결을 거부하지는 않음)
+
+```text
+/certs/server.pfx
+/certs/server.pem        리프 + 중간 인증서
+/certs/server.key        개인 키
+```
 
 ## MQTT TLS
 
@@ -13,14 +21,15 @@
     "Tls": {
       "Enabled": true,
       "Port": 8883,
-      "CertificatePath": "/certs/server.pfx",
-      "CertificatePassword": "change-me"
+      "CertificatePath": "/certs/server.pem",
+      "CertificateKeyPath": "/certs/server.key",
+      "Domain": "mqtt.example.com"
     }
   }
 }
 ```
 
-`mqtts://host:8883`으로 접속합니다. TLS 1.2/1.3 지원.
+`mqtts://mqtt.example.com:8883`으로 접속합니다. TLS 1.2/1.3 지원.
 
 ## 관리 UI / WSS
 
@@ -31,8 +40,9 @@
       "Port": 8080,
       "WebSocketPort": 8083,
       "TlsPort": 8084,
-      "CertificatePath": "/certs/server.pfx",
-      "CertificatePassword": "change-me"
+      "CertificatePath": "/certs/server.pem",
+      "CertificateKeyPath": "/certs/server.key",
+      "Domain": "mqtt.example.com"
     }
   }
 }

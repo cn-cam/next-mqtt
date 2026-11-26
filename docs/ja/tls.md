@@ -3,7 +3,15 @@
 ## 証明書
 
 - **PFX/PKCS#12**：`CertificatePath` と `CertificatePassword`
-- **PEM**：証明書パスを指定。同ディレクトリの `.key` を自動使用
+- **PEM**：`CertificatePath` に証明書、`CertificateKeyPath` に秘密鍵。鍵パスを省略すると同ディレクトリの同名 `.key` を使用
+- PEM に中間証明書を含めると、そのままクライアントへ送信されます
+- `Domain` を設定すると起動時に証明書がその名前をカバーするか確認し、不足していれば警告します（接続は拒否しません）
+
+```text
+/certs/server.pfx
+/certs/server.pem        リーフ + 中間証明書
+/certs/server.key        秘密鍵
+```
 
 ## MQTT TLS
 
@@ -13,14 +21,15 @@
     "Tls": {
       "Enabled": true,
       "Port": 8883,
-      "CertificatePath": "/certs/server.pfx",
-      "CertificatePassword": "change-me"
+      "CertificatePath": "/certs/server.pem",
+      "CertificateKeyPath": "/certs/server.key",
+      "Domain": "mqtt.example.com"
     }
   }
 }
 ```
 
-`mqtts://host:8883` で接続。TLS 1.2/1.3 対応。
+`mqtts://mqtt.example.com:8883` で接続。TLS 1.2/1.3 対応。
 
 ## 管理 UI / WSS
 
@@ -31,8 +40,9 @@
       "Port": 8080,
       "WebSocketPort": 8083,
       "TlsPort": 8084,
-      "CertificatePath": "/certs/server.pfx",
-      "CertificatePassword": "change-me"
+      "CertificatePath": "/certs/server.pem",
+      "CertificateKeyPath": "/certs/server.key",
+      "Domain": "mqtt.example.com"
     }
   }
 }

@@ -616,7 +616,7 @@ public class ClusterTests
     }
 
     [Fact]
-    public async Task Replica_from_a_live_owner_is_not_used()
+    public async Task Replica_is_used_when_the_live_owner_reports_no_session()
     {
         const string secret = "cluster-test-secret-1234567890";
         var network = new ClusterHttpNetwork();
@@ -689,8 +689,8 @@ public class ClusterTests
                 await Task.Delay(200);
             }
 
-            // The owner is still alive but the session is gone: a replica must
-            // not resurrect it.
+            // The owner is alive but its store lost the session (for example a
+            // wiped volume), so the replica is the only remaining copy.
             brokerA.Sessions.Remove("stale");
             brokerA.Subscriptions.RemoveAll("stale");
 
@@ -699,7 +699,7 @@ public class ClusterTests
                 NextMqtt.Broker.Security.ClientPrincipal.Anonymous("stale"),
                 new FakeConnection { ProtocolVersion = MqttProtocolVersion.V500 });
 
-            Assert.False(attach.SessionPresent);
+            Assert.True(attach.SessionPresent);
         }
         finally
         {
