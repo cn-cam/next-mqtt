@@ -5,6 +5,15 @@ All notable changes to NextMQTT are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.19.3] - 2026-11-26
+
+### Fixed
+
+- The session-owner probe answered with the client id instead of the node id.
+  The reconcile logic still picked the right copy when the timestamps differed,
+  but the tie-break compared unrelated strings, so two nodes that restarted at
+  the same moment could both drop the session. The probe now reports the real
+  node id.
 ## [0.19.2] - 2026-11-26
 
 ### Fixed
@@ -307,6 +316,15 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 - Rate-limited publishes are acknowledged but not routed, so publishers do not
   retransmit. MQTT 5 QoS 2 rejections carry `0x96 Message rate too high`.
 
+## [0.19.3] - 2026-11-26
+
+### Fixed
+
+- The session-owner probe answered with the client id instead of the node id.
+  The reconcile logic still picked the right copy when the timestamps differed,
+  but the tie-break compared unrelated strings, so two nodes that restarted at
+  the same moment could both drop the session. The probe now reports the real
+  node id.
 ## [0.19.2] - 2026-11-26
 
 ### Fixed
@@ -477,7 +495,8 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 - GitHub Actions for CI, CodeQL, releases and GitHub Pages.
 - Mechanical brand/trademark compliance scanner and repository policy.
 
-[Unreleased]: https://github.com/cn-cam/next-mqtt/compare/v0.19.2...HEAD
+[Unreleased]: https://github.com/cn-cam/next-mqtt/compare/v0.19.3...HEAD
+[0.19.3]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.19.3
 [0.19.2]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.19.2
 [0.19.1]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.19.1
 [0.19.0]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.19.0

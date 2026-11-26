@@ -268,7 +268,7 @@ public static class ClusterEndpoints
             }
 
             await context.Response.WriteAsJsonAsync(
-                new ClusterSessionOwner(session.ClientId, session.LastSeen.ToUnixTimeSeconds()),
+                new ClusterSessionOwner(router.GetSnapshot().NodeId, session.LastSeen.ToUnixTimeSeconds()),
                 ClusterJson.Options);
         });
 

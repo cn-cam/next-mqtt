@@ -16,7 +16,7 @@
     <Company>NextMQTT contributors</Company>
     <Authors>NextMQTT contributors</Authors>
     <Copyright>Copyright (c) 2026 NextMQTT contributors</Copyright>
-    <VersionPrefix>0.19.2</VersionPrefix>
+    <VersionPrefix>0.19.3</VersionPrefix>
     <RepositoryType>git</RepositoryType>
     <RepositoryUrl>https://github.com/cn-cam/next-mqtt</RepositoryUrl>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
