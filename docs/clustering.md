@@ -78,9 +78,11 @@ view.
 - **Session replicas survive a crash.** Every `SessionReplicaSeconds` a node
   pushes snapshots of its persistent sessions to its peers. If the owner dies
   and a client reconnects elsewhere, the new node claims the session from the
-  owner when it is reachable, and otherwise falls back to the newest replica —
-  but only when the replica's owner is no longer alive, so a stale copy cannot
-  resurrect a session that is still running somewhere.
+  owner when it is reachable, and otherwise falls back to the newest replica.
+  A replica is used only when its owner is not alive, or when the live owner
+  answers that it does not hold the session (for example after losing its own
+  file). A stale copy therefore cannot resurrect a session that is still
+  running somewhere.
 
 Sessions follow the client: a reconnect with `CleanStart=false` on another node
 claims the session from its previous owner, so the offline queue and
