@@ -146,7 +146,9 @@ if (storageOptions.Retained.Mode == StorageMode.File)
 if (storageOptions.Replicas.Mode == StorageMode.File)
 {
     builder.Services.AddSingleton<ISessionReplicaStore>(
-        _ => new FileSessionReplicaStore(storageOptions.Replicas.Path));
+        _ => new FileSessionReplicaStore(
+            storageOptions.Replicas.Path,
+            storageOptions.Replicas.ShardCount));
 }
 
 if (integrationsOptions.Webhooks.Count > 0)

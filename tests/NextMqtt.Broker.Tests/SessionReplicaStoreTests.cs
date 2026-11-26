@@ -59,6 +59,56 @@ public sealed class SessionReplicaStoreTests : IDisposable
     }
 
     [Fact]
+    public void Unchanged_content_is_not_rewritten()
+    {
+        var store = new FileSessionReplicaStore(PathFor("steady.json"), shardCount: 4);
+        var replicas = new[] { Replica("a", "node-a", 1), Replica("b", "node-b", 2) };
+
+        store.Save(replicas);
+        Assert.True(store.ShardWrites > 0);
+
+        store.Save(replicas);
+        Assert.Equal(0, store.ShardWrites);
+    }
+
+    [Fact]
+    public void Changing_one_replica_rewrites_only_its_shard()
+    {
+        var store = new FileSessionReplicaStore(PathFor("partial.json"), shardCount: 4);
+        var replicas = new List<ClusterSessionReplica>
+        {
+            Replica("a", "node-a", 1),
+            Replica("b", "node-b", 2),
+        };
+
+        store.Save(replicas);
+
+        replicas[1] = Replica("b", "node-b", 3);
+        store.Save(replicas);
+
+        Assert.Equal(1, store.ShardWrites);
+    }
+
+    [Fact]
+    public void Legacy_single_file_is_read_then_replaced_by_shards()
+    {
+        var path = PathFor("legacy.json");
+        File.WriteAllText(
+            path,
+            """[{"Session":{"ClientId":"old"},"OwnerNodeId":"node-a","Version":1,"UpdatedAtUnix":1}]""");
+
+        var store = new FileSessionReplicaStore(path, shardCount: 2);
+
+        Assert.Single(store.Load());
+
+        store.Save([Replica("new", "node-b", 2)]);
+
+        Assert.False(File.Exists(path));
+        Assert.Single(store.Load());
+        Assert.Contains(store.Load(), replica => replica.Session.ClientId == "new");
+    }
+
+    [Fact]
     public void Broker_restores_replicas_from_the_store()
     {
         var store = new FileSessionReplicaStore(PathFor("restore.json"));

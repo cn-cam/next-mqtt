@@ -57,8 +57,10 @@ tokens. Set the same value on every node in production.
       "Enabled": false,
       "Host": "0.0.0.0",
       "Port": 8883,
-      "CertificatePath": "/certs/server.pfx",
-      "CertificatePassword": "secret",
+      "CertificatePath": "/certs/server.pem",
+      "CertificateKeyPath": "/certs/server.key",
+      "Domain": "mqtt.example.com",
+      "CertificatePassword": null,
       "RequireClientCertificate": false
     },
     "WebSocket": { "Enabled": true, "Path": "/mqtt" },
@@ -67,6 +69,8 @@ tokens. Set the same value on every node in production.
       "WebSocketPort": 8083,
       "TlsPort": 8084,
       "CertificatePath": null,
+      "CertificateKeyPath": null,
+      "Domain": null,
       "CertificatePassword": null,
       "AllowedOrigins": ["http://localhost:5173"]
     }
@@ -194,8 +198,8 @@ counter. A standalone broker uses the configured values unchanged.
 ## Storage
 
 Retained messages live in memory by default. Set the store to `File` to journal
-them to disk so they survive a restart; sessions, queues and subscriptions stay
-in memory in this release.
+them to disk so they survive a restart. Sessions and replicas have their own
+settings further down.
 
 ```json
 {
@@ -263,16 +267,26 @@ cluster able to recover a session even when every node restarts at once:
   "Storage": {
     "Replicas": {
       "Mode": "File",
-      "Path": "data/session-replicas.json"
+      "Path": "data/session-replicas.json",
+      "ShardCount": 16
     }
   }
 }
 ```
 
-The snapshot is a JSON array of `{ session, ownerNodeId, version, updatedAtUnix }`.
-It is rewritten at most every five seconds while replicas change and once on
-shutdown. A corrupt file is ignored, and replicas whose session expiry already
-passed are dropped on load.
+| Option | Default | Description |
+| --- | --- | --- |
+| `Mode` | `Memory` | `Memory` or `File` |
+| `Path` | `data/session-replicas.json` | Base path; shard numbers are inserted before the extension |
+| `ShardCount` | 16 | Files the replicas are spread over; `1` writes a single file |
+
+Each shard is a JSON array of `{ session, ownerNodeId, version, updatedAtUnix }`.
+Replicas are assigned by a hash of the client id, so a change rewrites only the
+shard it belongs to; unchanged shards are skipped entirely. Writes happen at
+most every five seconds while replicas change and once on shutdown. A corrupt
+shard is ignored, and replicas whose session expiry already passed are dropped
+on load. A single file written by an earlier version is read at startup and
+replaced by shards on the first save.
 
 ## Backups
 
@@ -333,6 +347,7 @@ Delivery is at-least-once per event per rule, with up to three attempts and
 backoff; failures are logged and counted. The body is JSON:
 `{ name, topic, qos, retain, receivedAt, payload }`. Only the node that first
 accepted the publish posts the event, so a cluster does not duplicate webhooks.
+
 ### Routing rules
 
 ```json
@@ -340,7 +355,8 @@ accepted the publish posts the event, so a cluster does not duplicate webhooks.
   "Integrations": {
     "Rules": [
       { "Filter": "debug/#", "Action": "drop" },
-      { "Filter": "health/ping", "Action": "drop" },`n      { "Filter": "legacy/#", "Action": "rewrite", "Target": "modern/" }
+      { "Filter": "health/ping", "Action": "drop" },
+      { "Filter": "legacy/#", "Action": "rewrite", "Target": "modern/" }
     ]
   }
 }
@@ -352,6 +368,7 @@ the literal part of the filter with `Target` and keeps the remainder, so
 `legacy/a/b` becomes `modern/a/b`; a filter without wildcards replaces the whole
 topic. Drop rules win over rewrite rules, and a rewrite that produces an invalid
 topic drops the message.
+
 ## Plugins
 
 Plugins run in-process, in a collectible load context, and are discovered from
@@ -383,6 +400,7 @@ plugins/audit/
 A plugin is loaded only if its manifest names an existing assembly and the
 contract version matches; otherwise it is logged and skipped. Plugins run with
 broker privileges — this is an extension mechanism, not a sandbox.
+
 ### NATS bridge
 
 ```json
@@ -403,6 +421,7 @@ Publishes matching the filter are forwarded as `PUB` frames over the NATS text
 protocol; `/` becomes `.` and unsafe characters become `_`. A bounded queue
 absorbs bursts, the worker reconnects every two seconds, and only the node that
 first accepted the message forwards, so clusters do not duplicate.
+
 ### Kafka bridge
 
 ```json
@@ -423,6 +442,7 @@ first accepted the message forwards, so clusters do not duplicate.
 in ADR 0007. Topics map the same way as NATS (`/` → `.`, unsafe characters →
 `_`), a bounded queue absorbs bursts, and a broken broker address only logs a
 warning at startup instead of failing the listener.
+
 ### RabbitMQ bridge
 
 ```json
@@ -446,6 +466,7 @@ Messages are published to a durable `topic` exchange with publisher confirms,
 so `Forwarded` only counts what RabbitMQ accepted. Routing keys use the same
 mapping as NATS (`/` → `.`, unsafe characters → `_`). Kafka and RabbitMQ can
 run at the same time.
+
 ## Authentication
 
 ```json

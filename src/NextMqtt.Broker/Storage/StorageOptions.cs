@@ -79,4 +79,8 @@ public sealed class SessionReplicaStorageOptions
     /// <summary>Snapshot location; relative paths resolve against the working directory.</summary>
     /// <remarks>与会话快照放在同一卷上，重启恢复的顺序比较直观。</remarks>
     public string Path { get; set; } = "data/session-replicas.json";
+
+    /// <summary>Number of shard files used to spread writes.</summary>
+    /// <remarks>1 表示单文件；分片越多单次写入越小，但文件数也越多。</remarks>
+    public int ShardCount { get; set; } = 16;
 }
