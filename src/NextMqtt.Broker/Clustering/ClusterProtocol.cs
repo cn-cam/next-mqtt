@@ -208,6 +208,12 @@ public sealed record ClusterSessionReplica(
     long Version,
     long UpdatedAtUnix);
 
+/// <summary>Where a session currently lives, used when a node restarts.</summary>
+/// <remarks>只报告位置与最后活动时间，不交还会话，以免踢掉在线的客户端。</remarks>
+/// <param name="NodeId">Node that holds the session.</param>
+/// <param name="LastSeenUnix">Last activity of that copy.</param>
+public sealed record ClusterSessionOwner(string NodeId, long LastSeenUnix);
+
 /// <summary>HMAC-SHA256 request signing with a five minute clock skew window.</summary>
 /// <remarks>时间戳超出窗口直接拒绝，用来挡住重放。</remarks>
 public static class ClusterSignature

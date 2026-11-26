@@ -710,15 +710,15 @@ public class ClusterTests
         }
     }
 
-    /// <summary>Cluster router stub that only serves replicas and liveness.</summary>
-    private sealed class ReplicaStub : IClusterRouter
+    /// <summary>Cluster router stub that only reports where a session lives.</summary>
+    private sealed class OwnerStub : IClusterRouter
     {
-        private readonly ClusterSessionReplica? _replica;
+        private readonly ClusterSessionOwner? _owner;
         private readonly bool _alive;
 
-        public ReplicaStub(ClusterSessionReplica? replica, bool alive)
+        public OwnerStub(ClusterSessionOwner? owner, bool alive)
         {
-            _replica = replica;
+            _owner = owner;
             _alive = alive;
         }
 
@@ -742,7 +742,10 @@ public class ClusterTests
             => Task.CompletedTask;
 
         public Task<ClusterSessionReplica?> FindSessionReplicaAsync(string clientId, CancellationToken cancellationToken = default)
-            => Task.FromResult(_replica);
+            => Task.FromResult<ClusterSessionReplica?>(null);
+
+        public Task<ClusterSessionOwner?> FindSessionOwnerAsync(string clientId, CancellationToken cancellationToken = default)
+            => Task.FromResult(_owner);
 
         public bool IsNodeAlive(string nodeId) => _alive;
 
@@ -762,7 +765,9 @@ public class ClusterTests
     public async Task Restored_session_owned_by_a_live_peer_is_dropped()
     {
         var now = DateTimeOffset.UtcNow;
-        var broker = TestBroker.Create(cluster: new ReplicaStub(Replica("ghost", "node-b", now.AddSeconds(5).ToUnixTimeSeconds()), alive: true));
+        var broker = TestBroker.Create(cluster: new OwnerStub(
+            new ClusterSessionOwner("node-b", now.AddSeconds(5).ToUnixTimeSeconds()),
+            alive: true));
 
         var (_, session, connection) = await TestBroker.ConnectAsync(
             "ghost",
@@ -779,10 +784,12 @@ public class ClusterTests
     }
 
     [Fact]
-    public async Task Restored_session_is_kept_when_the_owner_is_this_node()
+    public async Task Restored_session_is_kept_when_the_peer_copy_is_older()
     {
         var now = DateTimeOffset.UtcNow;
-        var broker = TestBroker.Create(cluster: new ReplicaStub(Replica("ghost", "node-x", now.AddSeconds(5).ToUnixTimeSeconds()), alive: true));
+        var broker = TestBroker.Create(cluster: new OwnerStub(
+            new ClusterSessionOwner("node-b", now.AddMinutes(-5).ToUnixTimeSeconds()),
+            alive: true));
 
         var (_, session, connection) = await TestBroker.ConnectAsync(
             "ghost",

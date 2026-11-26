@@ -191,11 +191,11 @@ public sealed class MqttBroker : IAsyncDisposable
     /// <summary>Version counter for replicas produced by this node.</summary>
     private long _replicaVersion;
 
-    /// <summary>Earliest time the next replica round may start.</summary>
-    private DateTimeOffset _nextReplicaPush = DateTimeOffset.MinValue;
-
     /// <summary>Round-robin cursor over the session snapshot.</summary>
     private int _replicaCursor;
+
+    /// <summary>Background loop that pushes session replicas.</summary>
+    private Task? _replicaTask;
 
     /// <summary>Returns the provider registered for an authentication method, if any.</summary>
     /// <remarks>未注册返回 null，由连接层回 0x8C。</remarks>
@@ -779,15 +779,75 @@ public sealed class MqttBroker : IAsyncDisposable
         if (Cluster.Enabled)
         {
             // A session restored from local disk may have been taken over by a
-            // peer while this node was down; reconcile before clients arrive.
-            _ = Task.Run(() => DropStaleRestoredSessionsAsync(_lifetime.Token), CancellationToken.None);
+            // peer while this node was down; reconcile once membership is known.
+            _ = Task.Run(() => ReconcileWithPeersAsync(_lifetime.Token), CancellationToken.None);
+        }
+
+        if (Cluster.ReplicatesSessions)
+        {
+            _replicaTask ??= Task.Run(() => ReplicaLoopAsync(_lifetime.Token), CancellationToken.None);
+        }
+    }
+
+    /// <summary>Pushes a batch of replicas every configured interval.</summary>
+    /// <remarks>独立于清扫循环，否则 ReplicaInterval 会被 10 秒一次的清扫吞掉。</remarks>
+    /// <param name="cancellationToken">Stops the loop.</param>
+    private async Task ReplicaLoopAsync(CancellationToken cancellationToken)
+    {
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            try
+            {
+                ReplicateSessionBatch(DateTimeOffset.UtcNow);
+                await Task.Delay(Cluster.ReplicaInterval, cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Session replication round failed; retrying on the next tick");
+            }
+        }
+    }
+
+    /// <summary>Waits for peers, then drops restored sessions they already own.</summary>
+    /// <remarks>启动时成员表还是空的，直接查副本会漏掉对端；等心跳收敛后再比对，并复查一次。</remarks>
+    /// <param name="cancellationToken">Stops the reconciliation.</param>
+    private async Task ReconcileWithPeersAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var deadline = DateTimeOffset.UtcNow.AddSeconds(30);
+
+            while (DateTimeOffset.UtcNow < deadline && Cluster.GetSnapshot().Nodes.Count <= 1)
+            {
+                await Task.Delay(500, cancellationToken).ConfigureAwait(false);
+            }
+
+            var dropped = await DropStaleRestoredSessionsAsync(cancellationToken).ConfigureAwait(false);
+
+            // The new owner may not have replicated yet; check once more later.
+            await Task.Delay(TimeSpan.FromSeconds(15), cancellationToken).ConfigureAwait(false);
+            dropped += await DropStaleRestoredSessionsAsync(cancellationToken).ConfigureAwait(false);
+
+            if (dropped > 0)
+            {
+                _logger.LogInformation("Dropped {Count} stale restored session(s)", dropped);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Shutdown.
         }
     }
 
     /// <summary>Drops restored sessions that a live peer now owns.</summary>
     /// <remarks>
-    /// 节点停机期间会话可能已被对端接管；本机文件里的旧副本会导致重复投递，
-    /// 因此启动后先比对副本：属主是别人且仍然存活、副本不比本地旧，就删除本地会话。
+    /// 节点停机期间会话可能已被对端接管；本机文件里的旧副本会导致重复投递。
+    /// 启动后向存活对端查询会话位置：对端副本更新（或时间相同但节点名更大）时删除本地副本。
+    /// 只读探测，不会踢掉对端在线的客户端。
     /// </remarks>
     /// <param name="cancellationToken">Stops the reconciliation.</param>
     /// <returns>Number of sessions dropped.</returns>
@@ -813,20 +873,26 @@ public sealed class MqttBroker : IAsyncDisposable
                 continue;
             }
 
-            var replica = await Cluster.FindSessionReplicaAsync(session.ClientId, cancellationToken).ConfigureAwait(false);
+            var owner = await Cluster.FindSessionOwnerAsync(session.ClientId, cancellationToken).ConfigureAwait(false);
 
-            if (replica is null
-                || string.Equals(replica.OwnerNodeId, self, StringComparison.Ordinal)
-                || !Cluster.IsNodeAlive(replica.OwnerNodeId)
-                || replica.UpdatedAtUnix < session.LastSeen.ToUnixTimeSeconds())
+            if (owner is null)
+            {
+                continue;
+            }
+
+            var localTimestamp = session.LastSeen.ToUnixTimeSeconds();
+
+            if (owner.LastSeenUnix < localTimestamp
+                || (owner.LastSeenUnix == localTimestamp
+                    && string.CompareOrdinal(owner.NodeId, self) <= 0))
             {
                 continue;
             }
 
             _logger.LogInformation(
-                "Dropping restored session {ClientId}: it is now owned by {Owner}",
+                "Dropping restored session {ClientId}: the live copy is on {Owner}",
                 session.ClientId,
-                replica.OwnerNodeId);
+                owner.NodeId);
 
             RemoveSession(session);
             dropped++;
@@ -852,6 +918,18 @@ public sealed class MqttBroker : IAsyncDisposable
             try
             {
                 await _maintenanceTask.ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                // Expected on shutdown.
+            }
+        }
+
+        if (_replicaTask is not null)
+        {
+            try
+            {
+                await _replicaTask.ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {
@@ -1376,7 +1454,6 @@ public sealed class MqttBroker : IAsyncDisposable
     {
         Retained.PruneExpired(now);
         PersistSessionsIfDue(now);
-        ReplicateSessionsIfDue(now);
         ApplyClusterRateScale();
 
         foreach (var session in Sessions.Snapshot())
@@ -1395,18 +1472,11 @@ public sealed class MqttBroker : IAsyncDisposable
         }
     }
 
-    /// <summary>Pushes a batch of session replicas to peers when the interval elapsed.</summary>
+    /// <summary>Pushes one batch of session replicas to peers.</summary>
     /// <remarks>按快照顺序轮转，每轮最多 200 个，避免大量会话时把心跳和转发挤掉。</remarks>
     /// <param name="now">Current time.</param>
-    private void ReplicateSessionsIfDue(DateTimeOffset now)
+    private void ReplicateSessionBatch(DateTimeOffset now)
     {
-        if (!Cluster.ReplicatesSessions || now < _nextReplicaPush)
-        {
-            return;
-        }
-
-        _nextReplicaPush = now + Cluster.ReplicaInterval;
-
         var sessions = Sessions.Snapshot()
             .Where(session => session.Persistent)
             .ToList();

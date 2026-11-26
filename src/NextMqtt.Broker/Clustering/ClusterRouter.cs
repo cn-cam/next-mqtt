@@ -730,6 +730,45 @@ public sealed class ClusterRouter : IClusterRouter
     /// <param name="nodeId">Node identifier to test.</param>
     public bool IsNodeAlive(string nodeId) => IsAlive(nodeId);
 
+    /// <summary>Finds the newest copy of a session across live peers.</summary>
+    /// <remarks>只读探测；返回最后活动时间最新的一份，相同时间按节点名排序。</remarks>
+    /// <param name="clientId">Session to look for.</param>
+    /// <param name="cancellationToken">Cancels the peer requests.</param>
+    public async Task<ClusterSessionOwner?> FindSessionOwnerAsync(string clientId, CancellationToken cancellationToken = default)
+    {
+        if (!Enabled || _self is null)
+        {
+            return null;
+        }
+
+        var claim = new ClusterSessionClaim(clientId, _self.NodeId);
+        ClusterSessionOwner? best = null;
+
+        foreach (var peer in AlivePeerUrls())
+        {
+            var owner = await PostAsync<ClusterSessionClaim, ClusterSessionOwner>(
+                peer,
+                "/internal/cluster/session/owner",
+                claim,
+                cancellationToken).ConfigureAwait(false);
+
+            if (owner is null)
+            {
+                continue;
+            }
+
+            if (best is null
+                || owner.LastSeenUnix > best.LastSeenUnix
+                || (owner.LastSeenUnix == best.LastSeenUnix
+                    && string.CompareOrdinal(owner.NodeId, best.NodeId) > 0))
+            {
+                best = owner;
+            }
+        }
+
+        return best;
+    }
+
     /// <summary>True when the peer is currently considered alive.</summary>
     /// <param name="nodeId">Node identifier to test.</param>
     private bool IsAlive(string nodeId)

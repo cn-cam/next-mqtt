@@ -65,6 +65,12 @@ public interface IClusterRouter
     /// <param name="nodeId">Node identifier to test.</param>
     bool IsNodeAlive(string nodeId);
 
+    /// <summary>Finds the newest copy of a session across live peers.</summary>
+    /// <remarks>只读探测，不交还会话，也不会断开在线客户端。</remarks>
+    /// <param name="clientId">Session to look for.</param>
+    /// <param name="cancellationToken">Cancels the peer requests.</param>
+    Task<ClusterSessionOwner?> FindSessionOwnerAsync(string clientId, CancellationToken cancellationToken = default);
+
     /// <summary>Starts the heartbeat loop and joins the cluster.</summary>
     /// <remarks>幂等；重复调用不会起第二个循环。</remarks>
     /// <param name="cancellationToken">Stops the startup handshake.</param>
@@ -139,6 +145,13 @@ public sealed class NullClusterRouter : IClusterRouter
     /// <remarks>始终返回 false。</remarks>
     /// <param name="nodeId">Ignored.</param>
     public bool IsNodeAlive(string nodeId) => false;
+
+    /// <summary>No peers, so no other copy exists.</summary>
+    /// <remarks>返回 null。</remarks>
+    /// <param name="clientId">Ignored.</param>
+    /// <param name="cancellationToken">Ignored.</param>
+    public Task<ClusterSessionOwner?> FindSessionOwnerAsync(string clientId, CancellationToken cancellationToken = default)
+        => Task.FromResult<ClusterSessionOwner?>(null);
 
     /// <summary>No-op start.</summary>
     /// <remarks>返回已完成的任务。</remarks>

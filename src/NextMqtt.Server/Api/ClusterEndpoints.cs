@@ -227,6 +227,51 @@ public static class ClusterEndpoints
             context.Response.StatusCode = StatusCodes.Status202Accepted;
         });
 
+        app.MapPost("/internal/cluster/session/owner", async context =>
+        {
+            var body = await ReadBodyAsync(context);
+
+            if (body is null)
+            {
+                return;
+            }
+
+            if (!Verify(context, router.Secret, body))
+            {
+                return;
+            }
+
+            ClusterSessionClaim? claim;
+
+            try
+            {
+                claim = JsonSerializer.Deserialize<ClusterSessionClaim>(body, ClusterJson.Options);
+            }
+            catch (JsonException)
+            {
+                context.Response.StatusCode = StatusCodes.Status400BadRequest;
+                return;
+            }
+
+            if (claim is null || string.IsNullOrEmpty(claim.ClientId))
+            {
+                context.Response.StatusCode = StatusCodes.Status400BadRequest;
+                return;
+            }
+
+            var session = broker.Sessions.Get(claim.ClientId);
+
+            if (session is null)
+            {
+                context.Response.StatusCode = StatusCodes.Status404NotFound;
+                return;
+            }
+
+            await context.Response.WriteAsJsonAsync(
+                new ClusterSessionOwner(session.ClientId, session.LastSeen.ToUnixTimeSeconds()),
+                ClusterJson.Options);
+        });
+
         app.MapPost("/internal/cluster/session/replica", async context =>
         {
             var body = await ReadBodyAsync(context);
