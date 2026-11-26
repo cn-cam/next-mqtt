@@ -102,7 +102,9 @@ NEXTMQTT_CLUSTER__SECRET=shared-secret-at-least-16-chars
 **RPO**：レプリカ側のセッションは通常、最大 `SessionReplicaSeconds`（既定 5 秒）古い。
 1 ラウンドで `SessionReplicaBatchSize`（既定 200）セッションを送るため、永続セッションが
 それを超えるノードでは 1 周に `ceil(セッション数 / バッチサイズ) × SessionReplicaSeconds`
-かかり、最も古いレプリカはその分古くなり得ます。所有者自身のファイルは最大
+かかり、最も古いレプリカはその分古くなり得ます。キューまたは未確認メッセージを持つ
+セッションは先に更新され、それらがバッチを埋める場合は 1 割を巡回用に残すため、アイドル
+のセッションもピアへ届きます。所有者自身のファイルは最大
 `SessionSnapshotSeconds`（30 秒）古い。retained は書き込みごとに保存。配信済みで未確認
 のメッセージはキューから再送され、重複し得ますが MQTT は QoS 1/2 で許容します。
 

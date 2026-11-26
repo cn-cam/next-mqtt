@@ -934,6 +934,104 @@ public class ClusterTests
     }
 
     [Fact]
+    public async Task Replica_batch_prefers_sessions_with_pending_messages()
+    {
+        const string secret = "cluster-test-secret-1234567890";
+        var network = new ClusterHttpNetwork();
+
+        var optionsA = new NextMqtt.Broker.Options.ClusterOptions
+        {
+            Enabled = true,
+            NodeId = "node-a",
+            AdvertiseUrl = "http://node-a",
+            Secret = secret,
+            Seeds = ["http://node-b"],
+            HeartbeatSeconds = 1,
+            NodeTimeoutSeconds = 10,
+            SessionReplicaSeconds = 1,
+            SessionReplicaBatchSize = 1,
+        };
+
+        var optionsB = new NextMqtt.Broker.Options.ClusterOptions
+        {
+            Enabled = true,
+            NodeId = "node-b",
+            AdvertiseUrl = "http://node-b",
+            Secret = secret,
+            Seeds = ["http://node-a"],
+            HeartbeatSeconds = 1,
+            NodeTimeoutSeconds = 10,
+        };
+
+        var http = new HttpClient(network) { Timeout = TimeSpan.FromSeconds(5) };
+        var routerA = new ClusterRouter(optionsA, Microsoft.Extensions.Logging.Abstractions.NullLogger<ClusterRouter>.Instance, http);
+        var routerB = new ClusterRouter(optionsB, Microsoft.Extensions.Logging.Abstractions.NullLogger<ClusterRouter>.Instance, http);
+
+        network.Register("node-a", routerA);
+        network.Register("node-b", routerB);
+
+        var brokerA = TestBroker.Create(cluster: routerA);
+        var brokerB = TestBroker.Create(cluster: routerB);
+
+        network.RegisterBroker("node-a", brokerA);
+        network.RegisterBroker("node-b", brokerB);
+
+        routerA.AttachBroker(brokerA);
+        routerB.AttachBroker(brokerB);
+
+        await routerA.StartAsync();
+        await routerB.StartAsync();
+        await brokerA.StartAsync(CancellationToken.None);
+        await brokerB.StartAsync(CancellationToken.None);
+
+        try
+        {
+            await routerA.ProcessHeartbeatAsync(new ClusterHeartbeatRequest(
+                "node-b",
+                "http://node-b",
+                DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+                []));
+
+            await routerB.ProcessHeartbeatAsync(new ClusterHeartbeatRequest(
+                "node-a",
+                "http://node-a",
+                DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+                []));
+
+            var (_, idle, idleConnection) = await TestBroker.ConnectAsync(
+                "idle", cleanStart: false, sessionExpiry: 300, broker: brokerA);
+            idle.Detach(idleConnection);
+
+            var (_, queued, queuedConnection) = await TestBroker.ConnectAsync(
+                "queued", cleanStart: false, sessionExpiry: 300, broker: brokerA);
+            queued.Detach(queuedConnection);
+            queued.Deliver(new NextMqtt.Broker.Sessions.OutboundMessage
+            {
+                Topic = "replica/pending",
+                Payload = "pending"u8.ToArray(),
+                QoS = MqttQoS.AtLeastOnce,
+            });
+
+            var deadline = DateTimeOffset.UtcNow.AddSeconds(15);
+
+            while (DateTimeOffset.UtcNow < deadline && brokerB.SessionReplicaCount == 0)
+            {
+                await Task.Delay(200);
+            }
+
+            Assert.NotNull(brokerB.GetSessionReplica("queued"));
+            Assert.Null(brokerB.GetSessionReplica("idle"));
+        }
+        finally
+        {
+            await brokerA.DisposeAsync();
+            await brokerB.DisposeAsync();
+            await routerA.StopAsync();
+            await routerB.StopAsync();
+        }
+    }
+
+    [Fact]
     public async Task Replica_is_used_when_the_live_owner_reports_no_session()
     {
         const string secret = "cluster-test-secret-1234567890";

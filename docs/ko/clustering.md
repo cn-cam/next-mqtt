@@ -96,9 +96,11 @@ NEXTMQTT_CLUSTER__SECRET=shared-secret-at-least-16-chars
 **RPO**: 복제본 쪽 세션은 보통 최대 `SessionReplicaSeconds`(기본 5초) 지연됩니다.
 라운드마다 `SessionReplicaBatchSize`(기본 200) 세션을 보내므로, 영속 세션이 그보다 많은
 노드는 한 바퀴에 `ceil(세션 수 / 배치 크기) × SessionReplicaSeconds`가 걸리고 가장 오래된
-복제본은 그만큼 지연될 수 있습니다. 소유자 자체 파일은 최대
-`SessionSnapshotSeconds`(30초) 지연. retained는 쓰기마다 저장. 전달되었지만 확인되지 않은
-메시지는 큐에서 재생되며 중복될 수 있지만 MQTT QoS 1/2는 이를 허용합니다.
+복제본은 그만큼 지연될 수 있습니다. 큐나 확인되지 않은 메시지가 있는 세션을 먼저
+갱신하며, 그런 세션이 배치를 채우면 10분의 1을 순환용으로 남겨 유휴 세션도 피어에
+도달합니다. 소유자 자체 파일은 최대 `SessionSnapshotSeconds`(30초) 지연. retained는
+쓰기마다 저장. 전달되었지만 확인되지 않은 메시지는 큐에서 재생되며 중복될 수 있지만
+MQTT QoS 1/2는 이를 허용합니다.
 
 **RTO**: 재연결과 내부 왕복 1회. 새 노드가 살아 있는 피어에 묻고, 그다음 자기 복제본
 파일을 읽습니다. 운영자 개입은 필요 없습니다.

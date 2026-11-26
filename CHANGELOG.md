@@ -5,7 +5,7 @@ All notable changes to NextMQTT are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and the project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.22.0] - 2026-11-26
 
 ### Added
 
@@ -25,6 +25,9 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
   node pushes per round and how many replicas it keeps; the documented recovery
   point now reflects the full sweep on large nodes instead of promising a fixed
   five seconds.
+- Replica rounds refresh sessions with queued or unacknowledged messages first,
+  then continue the rotating sweep over the rest, so the sessions that would
+  lose data on a crash are the ones with the shortest recovery point.
 
 ### Fixed
 
@@ -581,7 +584,8 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 - GitHub Actions for CI, CodeQL, releases and GitHub Pages.
 - Mechanical brand/trademark compliance scanner and repository policy.
 
-[Unreleased]: https://github.com/cn-cam/next-mqtt/compare/v0.21.0...HEAD
+[Unreleased]: https://github.com/cn-cam/next-mqtt/compare/v0.22.0...HEAD
+[0.22.0]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.22.0
 [0.21.0]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.21.0
 [0.20.0]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.20.0
 [0.19.3]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.19.3

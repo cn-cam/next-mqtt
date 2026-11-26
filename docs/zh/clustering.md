@@ -88,9 +88,10 @@ NEXTMQTT_CLUSTER__SECRET=shared-secret-at-least-16-chars
 
 **恢复点（RPO）**：对端副本通常最多滞后 `SessionReplicaSeconds`（默认 5 秒）。每轮推送
 `SessionReplicaBatchSize`（默认 200）个会话，因此持久会话超过该数量时，完整轮询需要
-`ceil(会话数 / 批大小) × SessionReplicaSeconds`，最旧的副本可能滞后这么久。属主自己的
-会话快照最多滞后 30 秒；保留消息每次写入都落盘。已投递但未确认的消息会从队列重放，
-可能重复一次，QoS 1/2 允许。
+`ceil(会话数 / 批大小) × SessionReplicaSeconds`，最旧的副本可能滞后这么久。有排队或
+未确认消息的会话优先刷新；当它们占满一批时，会预留十分之一给轮询，保证空闲会话也能
+到达对端。属主自己的会话快照最多滞后 30 秒；保留消息每次写入都落盘。已投递但未确认的
+消息会从队列重放，可能重复一次，QoS 1/2 允许。
 
 **恢复时间（RTO）**：一次重连加一次内部往返，不需要人工干预。
 

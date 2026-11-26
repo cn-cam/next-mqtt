@@ -201,6 +201,9 @@ public sealed class MqttBroker : IAsyncDisposable
     /// <summary>Round-robin cursor over the session snapshot.</summary>
     private int _replicaCursor;
 
+    /// <summary>Round-robin cursor over sessions with queued or inflight messages.</summary>
+    private int _replicaCriticalCursor;
+
     /// <summary>Background loop that pushes session replicas.</summary>
     private Task? _replicaTask;
 
@@ -1635,11 +1638,65 @@ public sealed class MqttBroker : IAsyncDisposable
 
         var nodeId = Cluster.GetSnapshot().NodeId;
         var budget = Math.Min(Cluster.ReplicaBatchSize, sessions.Count);
-        var start = _replicaCursor % sessions.Count;
+        var count = sessions.Count;
 
-        for (var index = 0; index < budget; index++)
+        // Sessions with queued or unacknowledged messages are the ones a crash
+        // would actually lose data for, so they refresh first. A slice of the
+        // batch stays available for the plain sweep, otherwise idle sessions
+        // would never reach a peer while busy ones keep filling the budget.
+        var critical = sessions
+            .Where(session => session.QueuedCount + session.InflightCount > 0)
+            .OrderByDescending(session => session.QueuedCount + session.InflightCount)
+            .ThenByDescending(session => session.LastSeen)
+            .ToList();
+
+        var sweepReserve = budget >= 10 && critical.Count < count
+            ? Math.Max(1, budget / 10)
+            : 0;
+
+        var criticalBudget = critical.Count >= budget
+            ? Math.Max(0, budget - sweepReserve)
+            : critical.Count;
+
+        var toPush = new List<BrokerSession>(budget);
+        var pushed = new HashSet<string>(StringComparer.Ordinal);
+
+        if (criticalBudget > 0)
         {
-            var session = sessions[(start + index) % sessions.Count];
+            var criticalStart = _replicaCriticalCursor % critical.Count;
+            var taken = Math.Min(criticalBudget, critical.Count);
+
+            for (var index = 0; index < taken; index++)
+            {
+                var session = critical[(criticalStart + index) % critical.Count];
+
+                if (pushed.Add(session.ClientId))
+                {
+                    toPush.Add(session);
+                }
+            }
+
+            _replicaCriticalCursor = (criticalStart + taken) % critical.Count;
+        }
+
+        var start = _replicaCursor % count;
+        var scanned = 0;
+
+        for (var offset = 0; offset < count && toPush.Count < budget; offset++)
+        {
+            var session = sessions[(start + offset) % count];
+            scanned = offset + 1;
+
+            if (pushed.Add(session.ClientId))
+            {
+                toPush.Add(session);
+            }
+        }
+
+        _replicaCursor = scanned > 0 ? (start + scanned) % count : start;
+
+        foreach (var session in toPush)
+        {
             var replica = new ClusterSessionReplica(
                 CreateSessionSnapshot(session, subscriptions, now, includeInflight: true),
                 nodeId,
@@ -1648,8 +1705,6 @@ public sealed class MqttBroker : IAsyncDisposable
 
             _ = PushReplicaAsync(replica);
         }
-
-        _replicaCursor = (start + budget) % sessions.Count;
     }
 
     /// <summary>Sends one replica and swallows transport failures.</summary>

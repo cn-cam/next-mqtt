@@ -77,9 +77,15 @@ JSON 日志导出。它使用普通 MQTT 凭据，同样受认证与 ACL 约束�
 | 1 万 QoS 1 活跃连接 | 1–2 核 | 512 MiB–1 GiB |
 | 大保留集/离线队列 | 1+ 核 | 按负载估算 |
 
-内存主要由会话、离线队列、保留消息和 inflight 窗口占用。内存紧张时降低队列上限或
-会话过期时间。当前版本没有保留消息总量配额，请监控 `nextmqtt_retained_messages` 与
-负载大小。
+内存主要由以下内容占用：
+
+- 会话对象与订阅条目
+- 离线队列（每个持久会话的 `MaxQueuedMessages`）
+- 保留消息负载
+- inflight 窗口
+
+内存紧张时降低队列上限或会话过期时间。当前版本没有保留消息总量配额，请监控
+`nextmqtt_retained_messages` 与负载大小。
 
 ### 实测参考数据
 
@@ -104,6 +110,7 @@ Linux 和专用主机上会更高。可用 `nextmqtt bench` 与 `nextmqtt bench-
 
 - 持久会话在过期前保留在内存；启用 `Storage:Session:Mode=File` 后也会写入磁盘快照
 - 重连时由新节点接管；属主已死时使用最新副本（副本同样可落盘）
+- 副本包含离线队列、等待 PUBREL 的入站 QoS 2，以及已发送未确认的出站消息
 - 维护循环每 `SweepInterval`（默认 30 秒）检查过期
 - `cleanStart=true` 会在下次连接时丢弃旧会话
 - 控制台“断开”发送 `0x98`，之后按正常过期规则处理
@@ -131,6 +138,7 @@ Linux 和专用主机上会更高。可用 `nextmqtt bench` 与 `nextmqtt bench-
 | 离线消息丢失 | 非持久会话或队列满 | 设置会话过期、提高队列 |
 | 节点 suspect/dead | 网络/URL/密钥/时钟 | 检查 8080、AdvertiseUrl、密钥 |
 | 丢弃计数上升 | 慢消费者/队列小 | 观察客户端吞吐，谨慎调大 |
+| `nextmqtt_connections_rejected_total` 上升 | 认证或客户端 ID 失败 | 检查认证日志与客户端 ID 规则 |
 
 ## 备份
 

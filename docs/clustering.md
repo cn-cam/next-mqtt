@@ -109,10 +109,12 @@ clients reconnect on their own. Within that assumption:
 `SessionReplicaBatchSize` (default 200) sessions, so a node with more persistent
 sessions than that has a full sweep of
 `ceil(sessions / batch size) × SessionReplicaSeconds`; the oldest replica can be
-that old. The owner's own file is at most `SessionSnapshotSeconds` (30) old.
-Retained messages are journaled per write. Messages already delivered but not yet
-acknowledged are replayed from the queue; a duplicate is possible, which MQTT
-tolerates at QoS 1/2.
+that old. Sessions with queued or unacknowledged messages are refreshed first;
+when they fill the batch, a tenth of it is reserved for the rotating sweep so
+idle sessions still reach a peer. The owner's own file is at most
+`SessionSnapshotSeconds` (30) old. Retained messages are journaled per write.
+Messages already delivered but not yet acknowledged are replayed from the queue;
+a duplicate is possible, which MQTT tolerates at QoS 1/2.
 
 **Recovery time.** A reconnect plus one internal round trip: the new node asks
 live peers, then reads its own replica file. No operator action is needed.

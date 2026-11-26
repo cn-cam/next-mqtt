@@ -17,7 +17,7 @@ docker pull ghcr.io/cn-cam/next-mqtt:latest
 标签：
 
 - `latest`：`main` 分支最新稳定构建
-- `0.21.0` / `0.21`：发布标签
+- `0.22.0` / `0.22`：发布标签
 - `sha-<commit>`：不可变提交构建
 
 平台：`linux/amd64`、`linux/arm64`。
@@ -162,7 +162,7 @@ helm install nextmqtt deploy/helm/next-mqtt \
 
 ```bash
 helm upgrade nextmqtt deploy/helm/next-mqtt -n nextmqtt --reuse-values \
-  --set image.tag=0.21.0
+  --set image.tag=0.22.0
 ```
 
 挂载文件存储且副本足够新时，滚动重启会保留持久会话；否则内存中的会话会丢失。

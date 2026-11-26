@@ -124,7 +124,7 @@
 | 컨테이너 빌드 + 헬스/로그인 스모크 | CI `Container image` 작업 |
 | CodeQL | `codeql.yml` |
 
-현재 **215개 테스트**가 통과합니다(Core 63, Broker 109, Server 43).
+현재 **216개 테스트**가 통과합니다(Core 63, Broker 110, Server 43).
 
 ## 확장성
 
