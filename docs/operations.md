@@ -194,8 +194,8 @@ curl -s -X POST http://localhost:8080/api/v1/backup -H "Authorization: Bearer $T
 ```
 
 Import replaces retained messages and adds persistent sessions that are not
-currently online. Outbound inflight acknowledgements are not part of a backup;
-inbound QoS 2 publishes waiting for PUBREL are.
+currently online. Messages that were waiting for acknowledgement are included as
+queued messages; the acknowledgement state itself is not part of a backup.
 
 Configuration lives in environment variables and Kubernetes/Compose files; back
 those up. The admin token secret and cluster secret must be preserved to avoid

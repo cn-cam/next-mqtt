@@ -182,9 +182,8 @@ curl -s -X POST http://localhost:8080/api/v1/backup -H "Authorization: Bearer $T
   -H 'content-type: application/json' --data @nextmqtt-backup.json
 ```
 
-가져오기는 retained를 교체하고 현재 온라인이 아닌 영속 세션을 추가합니다. 아웃바운드
-inflight 확인 상태는 백업에 포함되지 않지만 PUBREL을 기다리는 인바운드 QoS 2는
-포함됩니다.
+가져오기는 retained를 교체하고 현재 온라인이 아닌 영속 세션을 추가합니다. 확인을
+기다리는 아웃바운드 메시지는 큐 형태로 포함되지만 확인 상태 자체는 포함되지 않습니다.
 
 설정은 환경 변수와 Kubernetes/Compose 파일에 있습니다. 이것도 백업하십시오. 관리자
 토큰 시크릿과 클러스터 시크릿은 토큰 무효화나 노드 신뢰 붕괴를 막기 위해 보존해야

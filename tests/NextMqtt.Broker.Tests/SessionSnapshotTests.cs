@@ -81,6 +81,53 @@ public sealed class SessionSnapshotTests : IDisposable
     }
 
     [Fact]
+    public async Task Online_inflight_message_survives_a_restart()
+    {
+        var store = new FileSessionSnapshotStore(SnapshotPath);
+        var broker = TestBroker.Create(sessionStore: store);
+
+        var (_, session, connection) = await TestBroker.ConnectAsync(
+            "inflight",
+            cleanStart: false,
+            sessionExpiry: 300,
+            broker: broker);
+
+        session.Deliver(new NextMqtt.Broker.Sessions.OutboundMessage
+        {
+            Topic = "jobs/live",
+            Payload = "inflight"u8.ToArray(),
+            QoS = MqttQoS.AtLeastOnce,
+        });
+
+        Assert.Single(connection.Publishes());
+        Assert.Equal(1, session.InflightCount);
+
+        await broker.DisposeAsync();
+
+        var restoredBroker = TestBroker.Create(sessionStore: new FileSessionSnapshotStore(SnapshotPath));
+
+        try
+        {
+            var restored = restoredBroker.Sessions.Get("inflight");
+            Assert.NotNull(restored);
+            Assert.Equal(1, restored.QueuedCount);
+
+            var (_, _, newConnection) = await TestBroker.ConnectAsync(
+                "inflight",
+                cleanStart: false,
+                sessionExpiry: 300,
+                broker: restoredBroker);
+
+            var publish = Assert.Single(newConnection.Publishes());
+            Assert.Equal("jobs/live", publish.Topic);
+        }
+        finally
+        {
+            await restoredBroker.DisposeAsync();
+        }
+    }
+
+    [Fact]
     public async Task Expired_sessions_are_not_restored()
     {
         var store = new FileSessionSnapshotStore(SnapshotPath);

@@ -5,6 +5,16 @@ All notable changes to NextMQTT are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- Session snapshots now include outbound messages that were waiting for an
+  acknowledgement, with their absolute expiry. A restart with
+  `Storage:Session:Mode=File` therefore replays them as queued messages instead
+  of losing the window between sending a QoS 1/2 message and receiving its ack;
+  a duplicate is possible.
+
 ## [0.22.0] - 2026-11-26
 
 ### Added

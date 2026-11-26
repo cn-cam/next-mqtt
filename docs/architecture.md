@@ -227,8 +227,8 @@ clustering is enabled.
 Durability is opt-in per data set: `Storage:Retained:Mode=File` journals retained
 messages, `Storage:Session:Mode=File` snapshots persistent sessions, and
 `Storage:Replicas:Mode=File` persists session replicas. Outbound `inflight`
-acknowledgements are not written to the session file; the messages themselves
-are carried by replicas and by handover as queued messages, so recovery replays
+acknowledgement state is not stored; the messages themselves are captured in
+session snapshots, replicas and handover as queued messages, so recovery replays
 them (a duplicate is possible). Inbound QoS 2 publishes waiting for PUBREL are
 part of the snapshot, so the handshake can complete. Retained messages are a
 last-known-value store, not a durable message log.

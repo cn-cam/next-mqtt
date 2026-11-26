@@ -46,7 +46,7 @@
 | 包 ID 分配 | ✅ | 跳过 inflight 中已用 ID |
 | 离线队列上限 | ✅ | 丢弃最旧消息并计数 |
 | 重叠订阅聚合 | ✅ | 每客户端一条，取最高 QoS |
-| 重启后状态保留 | ✅ | 保留日志 + 会话/副本快照；出站 inflight 仍由客户端重传 |
+| 重启后状态保留 | ✅ | 保留日志 + 会话/副本快照；未确认消息从快照重放 |
 | 会话备份与恢复 | ✅ | `GET`/`POST /api/v1/backup` 导入导出保留消息与会话 |
 | 优雅停机 | ✅ | 关闭前等待 inflight 确认，上限 `Server:DrainTimeoutSeconds` |
 | 跨节点会话迁移 | ✅ | `CleanStart=false` 时向属主或最新副本索要会话 |
@@ -122,7 +122,7 @@
 | 镜像构建与健康/登录冒烟 | CI `Container image` |
 | CodeQL | `codeql.yml` |
 
-当前共 **216 个测试通过**（63 核心、110 Broker、43 Server 集成）。
+当前共 **217 个测试通过**（63 核心、111 Broker、43 Server 集成）。
 
 ## 扩展性
 
@@ -143,7 +143,7 @@ NextMQTT 同时提供进程内扩展接口与插件宿主。插件由 `plugin.js
 
 ## 已知限制
 
-- 出站 `inflight` 确认状态不跨节点迁移；这些消息从队列或副本重放，可能重复到达。等待
+- 出站 `inflight` 确认状态不跨节点迁移；这些消息从队列、副本或快照重放，可能重复到达。等待
   PUBREL 的入站 QoS 2 发布随会话一起迁移。
 - 副本的新鲜度取决于 `Cluster:SessionReplicaSeconds`；未开启
   `Storage:Replicas:Mode=File` 时，所有节点重启会丢失副本。

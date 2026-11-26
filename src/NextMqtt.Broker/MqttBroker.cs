@@ -1443,7 +1443,7 @@ public sealed class MqttBroker : IAsyncDisposable
                 continue;
             }
 
-            snapshot.Add(CreateSessionSnapshot(session, subscriptions, DateTimeOffset.UtcNow));
+            snapshot.Add(CreateSessionSnapshot(session, subscriptions, DateTimeOffset.UtcNow, includeInflight: true));
         }
 
         return snapshot;

@@ -156,8 +156,8 @@ curl -s -X POST http://localhost:8080/api/v1/backup -H "Authorization: Bearer $T
   -H 'content-type: application/json' --data @nextmqtt-backup.json
 ```
 
-导入会替换保留消息，并补入当前不在线的持久会话。出站 inflight 确认不在备份中，等待
-PUBREL 的入站 QoS 2 会包含。
+导入会替换保留消息，并补入当前不在线的持久会话。等待确认的出站消息会作为队列
+消息包含，确认状态本身不包含。
 
 配置保存在环境变量与 Kubernetes/Compose 文件中，也需要备份。管理令牌密钥与集群密钥
 必须保留，否则会导致令牌失效或节点信任中断。

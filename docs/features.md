@@ -47,7 +47,7 @@ Legend: ✅ implemented · ⚠️ partial or with documented limits · ❌ not i
 | Packet-id allocation | ✅ | Skips ids already inflight |
 | Offline queue bounds | ✅ | Oldest messages dropped and counted |
 | Overlapping subscription aggregation | ✅ | One delivery per client at maximum QoS |
-| Persistent state across restart | ✅ | Retained journal plus session and replica snapshots; outbound inflight is replayed by the client |
+| Persistent state across restart | ✅ | Retained journal plus session and replica snapshots; unacknowledged messages are replayed from the snapshot |
 | Session backup and restore | ✅ | `GET`/`POST /api/v1/backup` export and import retained and session state |
 | Graceful shutdown drain | ✅ | Waits up to `Server:DrainTimeoutSeconds` for inflight acknowledgements |
 | Cross-node session migration | ✅ | `CleanStart=false` claims the session from its owner or the newest replica |
@@ -125,7 +125,7 @@ The claims above are covered by the repository's tests and CI:
 | Container build + health/login smoke | CI `Container image` job |
 | CodeQL | `codeql.yml` |
 
-Current test count: 216 passing tests (63 core, 110 broker, 43 server).
+Current test count: 217 passing tests (63 core, 111 broker, 43 server).
 
 ## Extensibility
 
@@ -151,7 +151,7 @@ integrations use the versioned REST API (`/api/v1`) and the cluster endpoints
 ## Known limitations
 
 - The outbound `inflight` acknowledgement state is not moved between nodes; those
-  messages are replayed from the queue or a replica and may arrive twice. Inbound QoS 2
+  messages are replayed from the queue, a replica or a snapshot and may arrive twice. Inbound QoS 2
   publishes waiting for PUBREL move with the session.
 - Replicas are only as fresh as `Cluster:SessionReplicaSeconds`; without
   `Storage:Replicas:Mode=File` they are lost when every node restarts.
