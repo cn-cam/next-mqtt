@@ -1,84 +1,233 @@
 # 아키텍처
 
-NextMQTT는 모듈형 모놀리스입니다. 데이터 플레인(MQTT)과 제어 플레인(API/UI)을
-분리하고 단일 프로세스로 동작합니다.
+NextMQTT는 모듈러 모놀리스입니다. 하나의 프로세스, 소수의 명확한 컴포넌트, 데이터
+플레인과 컨트롤 플레인 사이의 분명한 경계로 구성됩니다. 이 페이지는 설계, 데이터 구조,
+전달 경로, 트레이드오프를 설명합니다.
 
-## 원칙
+## 설계 원칙
 
-1. **데이터 플레인 분리**: 관리 요청이 publish를 막지 않음
-2. **모든 것에 유계**: inflight, 큐, 패킷 크기, 송신 채널
-3. **세션 단일 소유**: 클라이언트 ID는 한 노드에 속함
-4. **제어면 교체 가능**: API/UI는 동일 Broker 파사드 사용
-5. **클린룸**: OASIS MQTT 사양 준수
+1. **데이터 플레인 분리**: MQTT 연결, 세션, 라우팅은 HTTP API와 대시보드와 독립적으로
+   동작합니다. 느린 관리 요청이 발행을 막지 않습니다.
+2. **모든 것에 상한**: 세션별 inflight 윈도, 오프라인 큐, 패킷 크기 제한, 연결별 유계
+   송신 채널. 백프레셔는 조용한 메모리 증가가 아니라 드롭 지표로 드러납니다.
+3. **세션 소유자는 하나**: 클라이언트 ID는 동시에 한 노드만 소유합니다. 세션 인계는
+   명시적이며 노드 안에서는 경쟁하지 않습니다.
+4. **컨트롤 플레인은 교체 가능**: REST API와 대시보드는 프로토콜 엔진과 같은 Broker
+   파사드를 사용합니다. 뒷문은 없습니다.
+5. **클린룸 독립성**: 동작은 OASIS MQTT 명세를 따르며 다른 MQTT 제품의 내부 구현에
+   의존하지 않습니다.
 
-## 구성
+## 컴포넌트 구성
 
 ```text
-MQTT/TCP/TLS ──► Server listeners ──► ClientConnection
-Browser WS ────► Kestrel /mqtt ─────► ClientConnection
-                                              │
-              ┌───────────────────────────────▼─────────────┐
-              │ Broker: sessions, routing, retained,        │
-              │ auth/ACL, cluster, metrics                  │
-              └───────────────────────────────┬─────────────┘
-              ┌───────────────────────────────▼─────────────┐
-              │ Core: codec, topic filters, topic trie      │
-              └─────────────────────────────────────────────┘
+                         ┌─────────────────────────────────────────────┐
+   MQTT/TCP, MQTT/TLS    │                 NextMqtt.Server             │
+   ────────────────────► │  Kestrel (API, 대시보드, WS /mqtt)            │
+                         │  TCP/TLS 리스너 (BackgroundService)          │
+                         └──────────────────────┬──────────────────────┘
+                                                │ 소켓당 ClientConnection 하나
+                         ┌──────────────────────▼──────────────────────┐
+                         │                 NextMqtt.Broker             │
+                         │                                             │
+                         │  ClientConnection ──► BrokerSession         │
+                         │        │                    │               │
+                         │        ▼                    ▼               │
+                         │  MqttBroker.RouteAsync ──► SubscriptionIndex│
+                         │        │                    │               │
+                         │        ├──► RetainedMessageStore            │
+                         │        └──► ClusterRouter ──► 피어          │
+                         │                                             │
+                         │  ClientAuthenticator / TopicAuthorizer      │
+                         │  BrokerMetrics / RateTracker                │
+                         └──────────────────────┬──────────────────────┘
+                                                │
+                         ┌──────────────────────▼──────────────────────┐
+                         │                  NextMqtt.Core              │
+                         │  MQTT 코덱, 토픽 필터, 토픽 트라이          │
+                         └─────────────────────────────────────────────┘
 ```
 
-- **Core**: MQTT 3.1.1/5.0 코덱, UTF-8/속성 검증, 토픽 Trie
-- **Broker**: 연결 상태, 세션, QoS, retained, 인증, ACL, 클러스터
-- **Server**: TCP/TLS, Kestrel, REST, UI, 내부 API
-- **Cli**: pub/sub/bench/hash
+### `NextMqtt.Core`
 
-## 연결 수명주기
+- MQTT 3.1.1/5.0 패킷 모델, 디코더, 인코더, `PipeReader` 프레임 리더.
+- 엄격한 UTF-8과 속성 검증.
+- 토픽 필터 파싱·일치와, 구독·retained 색인이 함께 쓰는 범용 토픽 트라이.
+- 네트워크도 로깅도 서드파티 의존성도 없습니다.
 
-1. TCP/TLS/WS 수신
-2. `ConnectTimeout` 내 CONNECT 수신
-3. 클라이언트 ID 검증/생성
-4. 인증(비밀번호 → JWT → 익명)
-5. 세션 연결(clean start/재개/탈취)
-6. CONNACK 후 송신 루프와 재전송
-7. DISCONNECT/keep-alive/오류 시 정리
-8. 세션 만료/삭제, will 발행
+### `NextMqtt.Broker`
+
+- `ClientConnection`: 소켓 하나, 프로토콜 상태 기계, keep-alive, 토픽 별칭, 송신
+  채널, 정상 종료.
+- `BrokerSession`: 영속 세션 상태, inflight 윈도, 오프라인 큐, 인바운드 QoS 2
+  중복 제거.
+- `MqttBroker`: 인증, 세션 연결/인계, 라우팅, retained, 관리, 유지 보수.
+- `SubscriptionIndex`, `RetainedMessageStore`, `TopicAuthorizer`,
+  `ClientAuthenticator`, `ClusterRouter`, 지표.
+
+### `NextMqtt.Server`
+
+- REST, 대시보드 정적 파일, MQTT over WebSocket을 위해 Kestrel을 호스팅합니다.
+- 원시 TCP와 TLS 리스너를 실행합니다.
+- 서명된 내부 클러스터 API를 매핑합니다.
+- 관리자 자격 증명을 초기화하고 Vue 번들을 제공합니다.
+
+### `NextMqtt.Cli`
+
+- 공유 코덱을 사용하는 `pub`, `sub`, `bench`, `hash-password`.
+- 스모크 테스트, 클러스터 확인, 부하 실험에 유용합니다.
+
+## 연결 수명 주기
+
+1. 리스너가 소켓을 받아 `ClientConnection`을 만듭니다.
+2. 첫 패킷은 `Broker:ConnectTimeout` 안의 CONNECT여야 합니다.
+3. 클라이언트 ID를 검증하거나 생성합니다. 허용되면 0 길이 ID에 브로커가 할당합니다.
+4. `ClientAuthenticator`는 비밀번호 인증, 비밀번호 필드의 JWT, 활성화된 익명 접근
+   순으로 시도합니다.
+5. `MqttBroker.AttachSessionAsync`가 노드 안의 세션 연결을 직렬화합니다:
+   - clean start 또는 프로토콜 변경이면 이전 세션을 버림;
+   - 아니면 기존 세션을 재개(`session present = 1`);
+   - 세션이 다른 노드에 있으면 그 노드에서 인계하거나, 소유자가 죽었거나 보유하지
+     않는다고 답하면 최신 복제본으로 대체;
+   - 살아 있는 이전 연결은 DISCONNECT `0x8E`를 받습니다(세션 인계).
+6. CONNACK을 직접 쓰고 송신 라이터를 시작해 inflight와 오프라인 큐를 비웁니다.
+7. 읽기 루프는 DISCONNECT, keep-alive 시간 초과, 프로토콜 오류, 소켓 실패까지 패킷을
+   처리합니다.
+8. 정리 단계에서 연결을 분리하고, 유언을 예약하고, 세션을 만료시키거나 보존하며,
+   세션이 끝나면 구독을 해제합니다.
 
 ## 데이터 구조
 
-- **TopicTrie**: 구독 매칭과 retained 검색
-- **SubscriptionIndex**: 일반/공유 구독, 클라이언트별 색인
-- **BrokerSession**: inflight, 오프라인 큐, 인바운드 QoS 2 중복 제거
-- **RetainedMessageStore**: 토픽별 Trie, 만료, 삭제
+### 토픽 트라이
 
-## publish 경로
+`TopicTrie<TValue>`는 토픽 레벨을 키로 하는 접두사 트리입니다.
+
+- 구독 일치는 토픽을 따라가며 정확한 노드, `+` 자식, `#` 자식의 값을 모읍니다.
+- retained 조회는 필터를 따라갑니다. `#`은 부분 트리, `+`는 자식 반복, 리터럴은
+  하강입니다.
+- `$` 토픽 규칙은 루트에서 적용되며, 와일드카드는 선두 `$SYS` 스타일 레벨과 절대
+  일치하지 않습니다.
+- 삭제는 빈 가지를 치우고, 노드의 버킷은 여러 값을 담을 수 있습니다.
+
+### 구독 색인
+
+- 일반 구독은 실효 필터를 키로 하는 하나의 트라이에 있습니다.
+- 공유 구독은 `(group, filter)`로 묶이며, 각 그룹은 라운드 로빈 멤버 목록입니다.
+- 클라이언트별 사전이 O(1) 조회와 연결 해제 시 정리를 제공합니다.
+- 발행은 `(subscription, sharedGroup)` 일치 목록을 만들고, 브로커가 클라이언트별로
+  집계해 겹치는 필터의 중복 전달을 막습니다.
+
+### 세션
+
+`BrokerSession`이 소유하는 것:
+
+| 필드 | 용도 |
+| --- | --- |
+| `_inflight` | PUBACK/PUBREC/PUBCOMP를 기다리는 아웃바운드 QoS 1/2 패킷 |
+| `_queue` | 영속 세션의 유계 오프라인 큐 |
+| `_inboundQos2` | PUBREL을 기다리는 패킷 ID, 중복 전달 방지 |
+| `_nextPacketId` | inflight ID를 건너뛰는 단조 패킷 ID 할당기 |
+| `ExpiresAt` | 유지 보수 루프가 평가하는 절대 세션 만료 |
+
+세션 변경은 모두 세션별 잠금을 잡습니다. 송신 채널로의 전달은 비블로킹이며, 가득 찬
+채널은 라우터를 멈추지 않고 드롭으로 기록됩니다.
+
+### retained 저장소
+
+retained 메시지는 정확한 토픽을 키로 토픽 트라이에 저장합니다. 조회는 구독과 같은
+와일드카드 의미를 씁니다. 빈 페이로드의 retained 발행은 항목을 삭제합니다. 메시지
+만료는 절대 기한으로 변환되어 읽기와 유지 보수 시 적용됩니다.
+
+## 발행 경로
 
 ```text
-PUBLISH → topic/alias 검증 → ACL → retained 갱신
-        → 구독 매칭 → 클라이언트 단위 집계
-        → 세션/큐 → 연결 채널 → 클러스터 전달
+PUBLISH ──► 토픽/별칭 검증 ──► ACL publish
+        ──► retained 갱신(retain 시)
+        ──► 구독 트라이 일치
+        ──► 클라이언트별 집계(최대 QoS, RAP, 구독 ID)
+        ──► 세션 큐/inflight ──► 연결 송신 채널
+        ──► 클러스터 전달(일반 구독 + retained 복제)
 ```
 
-전달 QoS는 `min(publish, subscription)`. RAP이 없으면 retain을 해제합니다.
+전달 QoS는 `min(publish QoS, subscription QoS)`입니다. 구독이
+`retainAsPublished`를 설정하지 않으면 라이브 전달에서 retain 플래그를 지웁니다.
+SUBSCRIBE의 구독 식별자는 MQTT 5 클라이언트로 가는 메시지에 붙습니다.
+
+## QoS 상태 기계
+
+**아웃바운드 QoS 1:** PUBLISH → PUBACK. 확인되지 않은 패킷은
+`Broker:RetransmitInterval` 후 DUP=1로 재전송합니다.
+
+**아웃바운드 QoS 2:** PUBLISH → PUBREC → PUBREL → PUBCOMP. PUBREL은 PUBCOMP까지
+재전송합니다.
+
+**인바운드 QoS 2:** PUBLISH를 패킷 ID로 저장하고 PUBREC를 보냅니다. 메시지는 PUBREL이
+도착해야 라우팅하고 그 뒤 PUBCOMP를 보냅니다. 같은 ID의 PUBLISH가 반복되어도 두 번째
+전달을 만들지 않습니다.
 
 ## 클러스터
 
-- heartbeat로 일반 구독 필터 광고
-- gossip으로 멤버 전파
-- retain은 모든 노드, 일반은 일치 필터만
-- 메시지 ID로 중복 제거, 재전달 없음
-- 공유 구독은 노드 단위
+노드는 서명된 HTTP 메시를 만듭니다:
 
-## 내구성
+- 각 노드는 heartbeat에서 **일반** 구독 필터를 광고합니다.
+- 멤버십은 gossip 기반이며 응답에 보낸 노드의 멤버 표가 들어가므로, 도달 가능한 seed
+  하나면 충분합니다.
+- 발행은 일치 필터를 광고한 살아 있는 노드로만 전달합니다. retained 발행은 모든
+  살아 있는 노드로 복제해 retained 상태를 수렴시킵니다.
+- 세션 스냅숏은 `SessionReplicaSeconds`마다 피어로 전송됩니다. 새 노드는 소유자에게서
+  세션을 인계하고, 소유자가 살아 있지 않거나 보유하지 않는다고 답할 때만 최신
+  복제본을 씁니다.
+- 메시지 ID가 중복 제거를 제공하고 원격 발행은 다시 전달하지 않으므로 루프를
+  막습니다.
+- 공유 구독은 클러스터 전체에서 조정됩니다. 메시지마다 공유 그룹의 노드 하나를
+  선택하므로 노드마다 한 번 전달되지 않습니다.
+  [클러스터](/ko/clustering)를 참고하십시오.
+
+내부 API는 타임스탬프와 원시 본문에 대한 HMAC-SHA256으로 보호되며 시계 오차는 5분까지
+허용합니다. 클러스터를 켜면 공유 시크릿이 필수입니다.
+
+## 동시성과 백프레셔
+
+- 연결마다 읽기 루프 하나, 쓰기 루프 하나.
+- `System.IO.Pipelines`가 프레이밍 계층에서 패킷별 할당 없이 프레임을 재조립합니다.
+- 유계 채널(1024 프레임)이 라우팅과 소켓 쓰기를 분리합니다.
+- 세션별 inflight 윈도가 확인되지 않은 QoS 트래픽을 제한합니다.
+- 유지 보수 루프가 만료된 retained와 세션을 정리하고 재전송을 촉발합니다.
+- 지표가 드롭과 재전송을 노출하므로 과부하를 관찰할 수 있습니다.
+
+## 내구성과 장애 모델
 
 | 이벤트 | 동작 |
 | --- | --- |
-| 연결 종료 | 만료/clean start에 따라 세션 유지 |
-| 재시작 | 세션/큐/retained 손실 |
-| 노드 장애 | suspect → dead → 제거 |
-| 네트워크 분할 | 각 측 계속 서비스, 전달 실패 |
-| 느린 소비자 | 채널 포화 시 폐기/계측 |
+| 클라이언트 연결 끊김 | 만료가 0이 아니거나 clean start가 아니면 세션 보존 |
+| 브로커 재시작 | 저장소가 켜져 있으면 retained와 영속 세션을 파일에서 복원, 아니면 유실 |
+| 클러스터 노드 장애 | suspect → dead, 타임아웃 3배 후 제거. 세션은 소유자 파일이나 최신 복제본에서 복구 |
+| 클러스터 전체 재시작 | 각 노드가 세션과 복제본 파일을 다시 읽고 `(lastSeen, nodeId)`로 최신 선택 |
+| 네트워크 분할 | 양쪽이 계속 서비스, 도달 불가 피어로의 전달은 조용히 실패 |
+| 느린 소비자 | 송신 채널이 가득 차 메시지를 버리고 계수 |
+| 프로토콜 위반 | 적절한 MQTT 5 이유 코드로 연결 종료 |
 
-## 비목표
+내구성은 데이터 집합별로 켭니다: `Storage:Retained:Mode=File`은 retained를 저널링하고,
+`Storage:Session:Mode=File`은 영속 세션을 스냅숏하며, `Storage:Replicas:Mode=File`은
+세션 복제본을 영속화합니다. inflight QoS 핸드셰이크는 저장하지 않고 큐에서 재생해
+클라이언트가 재시도합니다. retained는 마지막 값 저장소이지 영속 메시지 로그가
+아닙니다.
 
-- 타사 Broker 런타임/플러그인 호환
-- 내장 규칙 엔진/브리지
-- 타사 제품 인증이나 보증 주장
+## 확장
+
+- 수직 확장이 가장 단순합니다. 핫 패스는 할당을 의식하고 잠금 단위는 세션과 색인
+  단위입니다.
+- 노드는 세션을 소유하지만 클라이언트는 어느 노드로든 재연결할 수 있습니다. 세션은
+  소유자에게서 인계하거나 복제본에서 복구합니다.
+- 클러스터 라우팅 비용은 광고 필터 수와 노드 수에 비례합니다. 기본 상한은 heartbeat당
+  10,000 필터입니다.
+- 공유 구독 그룹은 노드 간에 조정되므로 메시지는 노드마다가 아니라 그룹마다 한 번
+  전달됩니다.
+
+## NextMQTT가 의도적으로 하지 않는 것
+
+- 다른 브로커의 런타임 호환 계층이나 사설 플러그인 API.
+- 외부 데이터베이스 필수화. 내구성은 노드별 파일 기반입니다.
+- 다른 브로커와의 호환성 인증 주장.
+
+이런 기능은 나중에 독립 모듈로 추가될 수 있습니다.
+[로드맵](/ko/roadmap)을 참고하십시오.

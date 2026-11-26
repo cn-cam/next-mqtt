@@ -92,6 +92,9 @@ and the trade-offs.
 5. `MqttBroker.AttachSessionAsync` serialises session attachment for the node:
    - clean start or a protocol change discards the old session;
    - otherwise the existing session is resumed (`session present = 1`);
+   - when the session is owned by another node, the broker claims it from that
+     node, or falls back to the newest replica if the owner is gone or no longer
+     holds it;
    - a live previous connection receives DISCONNECT `0x8E` (session taken over).
 6. CONNACK is written directly, then the outbound writer starts and inflight
    messages plus the offline queue are flushed.
@@ -185,10 +188,14 @@ Nodes form a mesh over signed HTTP:
 - A publish is forwarded only to live nodes with a matching advertised filter.
   Retained publishes are replicated to every live node so retained state
   converges.
+- Session snapshots are pushed to peers every `SessionReplicaSeconds`; a new
+  node claims a session from its owner, and uses the newest replica only when
+  the owner is not alive or reports that it does not hold the session.
 - Message ids provide deduplication; remote publishes are never re-forwarded,
   which prevents routing loops.
-- Shared subscriptions are evaluated per node, not globally. This keeps the
-  transport stateless; see [Clustering](/clustering#delivery-semantics).
+- Shared subscriptions are coordinated across the cluster: for each message one
+  node in the shared group is selected, so a message is not delivered once per
+  node. See [Clustering](/clustering#delivery-semantics).
 
 The internal API is protected with HMAC-SHA256 over a timestamp and the raw
 body, with a five-minute clock-skew window. The shared secret is required when
@@ -210,31 +217,34 @@ clustering is enabled.
 | Event | Behaviour |
 | --- | --- |
 | Client disconnects | Session preserved if it has a non-zero expiry / clean start is false |
-| Broker restarts | Sessions, queued messages and retained state are lost (in-memory store) |
-| Node crashes in a cluster | Peers mark it suspect, then dead, and remove it after 3× the node timeout |
+| Broker restarts | Retained messages and persistent sessions come back from their file stores when enabled; without them they are lost |
+| Node crashes in a cluster | Peers mark it suspect, then dead, and remove it after 3× the node timeout; its sessions are recovered from the owner's file or the newest replica |
+| Whole cluster restarts | Each node reloads its session and replica files; the newest copy wins by `(lastSeen, nodeId)` |
 | Network partition | Each side keeps serving; routing to unreachable peers fails silently |
 | Slow consumer | Outbound channel fills, messages are dropped and counted |
 | Protocol violation | Connection closed with the appropriate MQTT 5 reason code |
 
-Persistence backends are on the [roadmap](/roadmap). Until then, treat the
-broker as a stateful service and use retained messages for recoverable
-last-known values rather than as a durable message log.
+Durability is opt-in per data set: `Storage:Retained:Mode=File` journals retained
+messages, `Storage:Session:Mode=File` snapshots persistent sessions, and
+`Storage:Replicas:Mode=File` persists session replicas. Inflight QoS handshakes
+are never persisted; they are replayed from the queue and retried by the client.
+Retained messages are a last-known-value store, not a durable message log.
 
 ## Scaling
 
 - Vertical scaling is the simplest path; the hot path is allocation-conscious
   and lock granularity is per session and per index.
-- A node owns its sessions. Clients can reconnect to any node; a session is
-  resumed only on the node that owns it.
+- A node owns its sessions, but clients can reconnect to any node: the session
+  is claimed from its owner or recovered from a replica.
 - Cluster routing cost grows with the number of advertised filters and nodes.
   The default cap is 10,000 filters per heartbeat.
-- Shared subscription groups do not coordinate across nodes; use them for
-  per-node worker pools unless global semantics are required.
+- Shared subscription groups are coordinated across nodes, so a message is
+  delivered once per group rather than once per node.
 
 ## What NextMQTT deliberately does not do
 
 - No third-party broker runtime compatibility layer or private plugin API.
-- No embedded rule engine, bridge or external database requirement.
+- No external database requirement; durability is file-based per node.
 - No claim of compatibility certification with any other broker.
 
 Those capabilities may arrive later as independent modules; see the
