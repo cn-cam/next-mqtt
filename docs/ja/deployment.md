@@ -79,6 +79,19 @@ docker compose -f deploy/compose/docker-compose.cluster.yml up -d
 `https://<証明書の名前>:8086/` で開きます。8084 はコンテナネットワーク内でのみ
 到達できます。ホストポートの一覧は `deploy/compose/README.md` を参照してください。
 
+ダッシュボードと REST API は**ノードローカル**です。各ノードは自分のセッションだけを
+表示し、`NEXTMQTT_ADMIN_TOKEN_SECRET` が全ノードで同じ場合にだけトークンがクラスタ
+全体で受け付けられます。単一の公開入口が必要な場合は dashboard override を追加します：
+
+```bash
+docker compose -f deploy/compose/docker-compose.cluster.yml \
+               -f deploy/compose/docker-compose.dashboard.yml up -d
+```
+
+**8443** で TLS を終端し、`ip_hash` で node-a/b/c に転送するため、ブラウザーは 1 つの
+ノードに固定されます。本番ではスティッキーセッション付きの ingress かロードバランサーを
+使い、8086–8088 は非公開にしてください。
+
 メンバーシップを確認します：
 
 ```bash

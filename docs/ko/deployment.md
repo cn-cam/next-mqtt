@@ -78,6 +78,19 @@ docker compose -f deploy/compose/docker-compose.cluster.yml up -d
 여십시오. 8084는 컨테이너 네트워크 안에서만 접근할 수 있습니다. 전체 호스트 포트
 표는 `deploy/compose/README.md`를 참고하십시오.
 
+대시보드와 REST API는 **노드 로컬**입니다. 각 노드는 자신이 보유한 세션만 보여 주며,
+`NEXTMQTT_ADMIN_TOKEN_SECRET`이 모든 노드에서 같을 때만 토큰이 클러스터 전체에서
+허용됩니다. 단일 공개 진입점이 필요하면 dashboard override를 추가합니다:
+
+```bash
+docker compose -f deploy/compose/docker-compose.cluster.yml \
+               -f deploy/compose/docker-compose.dashboard.yml up -d
+```
+
+**8443**에서 TLS를 한 번 종단하고 `ip_hash`로 node-a/b/c에 전달하므로 브라우저가 한
+노드에 고정됩니다. 운영에서는 스티키 세션이 있는 ingress나 로드 밸런서를 사용하고
+8086–8088은 비공개로 두십시오.
+
 멤버십을 확인합니다:
 
 ```bash

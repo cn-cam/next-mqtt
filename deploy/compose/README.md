@@ -34,6 +34,21 @@ through the certificate name and the **host** port, for example
 `https://next-mqtt.deploy-ssl.co:8086/`. Port 8084 is only valid inside the
 container network.
 
+These per-node ports are useful for debugging a specific node. For a single
+public dashboard entry point, add the dashboard override:
+
+```bash
+docker compose -f docker-compose.cluster.yml \
+               -f docker-compose.dashboard.yml up -d
+```
+
+It starts an nginx service that terminates TLS once and forwards to node-a/b/c
+on `https://<certificate-name>:8443/`. `ip_hash` keeps a browser on one node so
+its token and WebSocket stay valid. Set the same
+`NEXTMQTT_ADMIN_TOKEN_SECRET` on every node; otherwise a login only works on the
+node that issued the token. In production, replace this local proxy with your
+ingress or load balancer and keep the three HTTP ports private.
+
 TLS and HTTPS are enabled from `.env`:
 
 ```bash

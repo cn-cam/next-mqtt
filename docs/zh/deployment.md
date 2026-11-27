@@ -74,6 +74,18 @@ docker compose -f deploy/compose/docker-compose.cluster.yml up -d
 8084）。node-a 使用 `https://<证书域名>:8086/`；8084 只在容器网络内可达。完整宿主
 机端口表见 `deploy/compose/README.md`。
 
+控制台与其 REST API 是**节点本地**的：每个节点只显示自己持有的会话，只有所有节点
+使用相同的 `NEXTMQTT_ADMIN_TOKEN_SECRET` 时令牌才会被全集群接受。需要单一公网入口时，
+叠加 dashboard override：
+
+```bash
+docker compose -f deploy/compose/docker-compose.cluster.yml \
+               -f deploy/compose/docker-compose.dashboard.yml up -d
+```
+
+它在 **8443** 上统一终止 TLS，并用 `ip_hash` 转发到 node-a/b/c，使浏览器固定在一个
+节点。生产环境应使用带粘性会话的 ingress 或负载均衡，并保持 8086–8088 私有。
+
 验证成员：
 
 ```bash

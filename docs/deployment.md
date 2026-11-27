@@ -80,6 +80,20 @@ The cluster compose file publishes the dashboards on **8080–8082** and HTTPS o
 the container network. See [`deploy/compose/README.md`](https://github.com/cn-cam/next-mqtt/blob/main/deploy/compose/README.md)
 for the full host-port table.
 
+A dashboard and its REST API are **node-local**: each node shows the sessions it
+owns, and a token is only accepted cluster-wide when
+`NEXTMQTT_ADMIN_TOKEN_SECRET` is the same on every node. For a single public
+entry point, add the dashboard override:
+
+```bash
+docker compose -f deploy/compose/docker-compose.cluster.yml \
+               -f deploy/compose/docker-compose.dashboard.yml up -d
+```
+
+It terminates TLS once on port **8443** and forwards to node-a/b/c with
+`ip_hash`, so a browser stays on one node. Use an ingress or load balancer with
+sticky sessions for production and keep 8086–8088 private.
+
 Check membership:
 
 ```bash
