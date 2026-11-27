@@ -5,6 +5,16 @@ All notable changes to NextMQTT are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.23.1] - 2026-11-27
+
+### Fixed
+
+- The MQTT debugger keeps its connection, subscriptions, counters and log in a
+  Pinia store instead of the view. Navigating to another dashboard page and back
+  no longer disconnects the client or clears the trace. A full browser reload
+  still starts a new connection because the socket cannot survive a document
+  reload.
+
 ## [0.23.0] - 2026-11-26
 
 ### Added
@@ -625,7 +635,8 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 - GitHub Actions for CI, CodeQL, releases and GitHub Pages.
 - Mechanical brand/trademark compliance scanner and repository policy.
 
-[Unreleased]: https://github.com/cn-cam/next-mqtt/compare/v0.23.0...HEAD
+[Unreleased]: https://github.com/cn-cam/next-mqtt/compare/v0.23.1...HEAD
+[0.23.1]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.23.1
 [0.23.0]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.23.0
 [0.22.0]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.22.0
 [0.21.0]: https://github.com/cn-cam/next-mqtt/releases/tag/v0.21.0

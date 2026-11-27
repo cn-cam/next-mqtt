@@ -20,7 +20,7 @@ docker pull ghcr.io/cn-cam/next-mqtt:latest
 利用できるタグ：
 
 - `latest` — `main` の最新安定ビルド
-- `0.23.0`、`0.23` — リリースタグ
+- `0.23.1`、`0.23` — リリースタグ
 - `sha-<commit>` — 不変のコミットビルド
 
 プラットフォーム：`linux/amd64`、`linux/arm64`。
@@ -194,7 +194,7 @@ helm install nextmqtt deploy/helm/next-mqtt \
 
 ```bash
 helm upgrade nextmqtt deploy/helm/next-mqtt -n nextmqtt --reuse-values \
-  --set image.tag=0.23.0
+  --set image.tag=0.23.1
 ```
 
 ファイルストアをマウントしレプリカが新しい状態であれば、ローリング再起動でも永続

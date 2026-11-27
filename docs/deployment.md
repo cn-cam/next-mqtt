@@ -20,7 +20,7 @@ docker pull ghcr.io/cn-cam/next-mqtt:latest
 Available tags:
 
 - `latest` — newest stable build from `main`
-- `0.23.0`, `0.23` — release tags
+- `0.23.1`, `0.23` — release tags
 - `sha-<commit>` — immutable commit builds
 
 Platforms: `linux/amd64`, `linux/arm64`.
@@ -196,7 +196,7 @@ Helm creates a secret with keys `admin-password`, `token-secret` and
 
 ```bash
 helm upgrade nextmqtt deploy/helm/next-mqtt -n nextmqtt --reuse-values \
-  --set image.tag=0.23.0
+  --set image.tag=0.23.1
 ```
 
 Rolling restarts keep persistent sessions when the file stores are mounted and
